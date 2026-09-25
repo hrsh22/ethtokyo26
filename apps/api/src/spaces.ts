@@ -1,6 +1,6 @@
 import { AccordApi } from "@accord/api-contract";
 import { HttpApiBuilder, HttpApiError } from "@effect/platform";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { Effect } from "effect";
 import { randomUUID } from "node:crypto";
 import { type Hex } from "viem";
@@ -92,6 +92,7 @@ export const SpacesLive = HttpApiBuilder.group(AccordApi, "spaces", (handlers) =
         spaceAddress: deployment.space,
         tokenAddress: deployment.token,
         deploymentTx,
+        deploymentBlock: deployment.blockNumber.toString(),
         activatedAt,
       }).where(and(eq(spaceDrafts.id, draft.id), eq(spaceDrafts.owner, session.address),
         isNull(spaceDrafts.spaceAddress))).returning());
@@ -105,6 +106,14 @@ export const SpacesLive = HttpApiBuilder.group(AccordApi, "spaces", (handlers) =
         return yield* Effect.fail(new HttpApiError.Forbidden());
       }
       return draftResponse(completed[0]);
+    }))
+    .handle("profile", ({ payload }) => Effect.gen(function* () {
+      const db = yield* Database;
+      const rows = yield* databaseOperation(() => db.client.select({ name: spaceDrafts.name, spaceAddress: spaceDrafts.spaceAddress })
+        .from(spaceDrafts).where(and(eq(spaceDrafts.spaceAddress, getAddress(payload.spaceAddress)), isNotNull(spaceDrafts.activatedAt))).limit(1));
+      const row = rows[0];
+      if (!row?.spaceAddress) return yield* Effect.fail(new HttpApiError.NotFound());
+      return { name: row.name, spaceAddress: getAddress(row.spaceAddress) };
     }))
     .handle("lookup", ({ payload }) => Effect.gen(function* () {
       yield* currentSession();

@@ -32,4 +32,10 @@ describe("human ENS beneficiaries", () => {
       vi.spyOn(publicClient, "readContract").mockImplementation(async (args) => args.functionName === "consumedRequests" ? consumed : [beneficiary]);
       await expect(confirmedRecipientLabel({ spaceAddress: recipient, beneficiary: recipient, allocationId: "1", requestId: `0x${"a".repeat(64)}` as Hex }, 100n)).resolves.toBe(expected);
     });
+  it.each([[recipient, true], [`0x${"2".repeat(40)}` as Address, false]] as const)(
+    "labels an agent budget only while its mandate names that agent (%s)", async (agent, expected) => {
+      vi.spyOn(publicClient, "readContract").mockImplementation(async (args) =>
+        args.functionName === "consumedRequests" ? true : args.functionName === "mandates" ? [agent] : [zeroAddress]);
+      await expect(confirmedRecipientLabel({ spaceAddress: recipient, beneficiary: recipient, allocationId: "2", requestId: `0x${"b".repeat(64)}` as Hex }, 100n)).resolves.toBe(expected);
+    });
 });

@@ -1,0 +1,1 @@
+ALTER TABLE `space_drafts` ADD `deployment_block` text;

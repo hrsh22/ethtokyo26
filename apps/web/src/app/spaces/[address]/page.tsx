@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import { getAddress, isAddress } from "viem";
-import Home from "../../home";
-export default async function SharedSpacePage({ params }: { params: Promise<{ address: string }> }) {
+import { SpaceScreen } from "@/components/space/space-screen";
+
+export default async function SpacePage({ params }: { params: Promise<{ address: string }> }) {
   const { address } = await params;
   if (!isAddress(address)) notFound();
-  return <Home sharedAddress={getAddress(address)} />;
+  return <SpaceScreen address={getAddress(address)} />;
 }

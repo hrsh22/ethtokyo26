@@ -4,12 +4,12 @@ import { HttpApiBuilder, HttpApiError } from "@effect/platform";
 import { eq } from "drizzle-orm";
 import { Effect } from "effect";
 import { decodeEventLog, getAddress, type Hex } from "viem";
-import { publicClient } from "./chain";
+import { historyClient } from "./chain";
 import { Database } from "./db";
 import { databaseOperation } from "./db/run";
 import { spaceDrafts } from "./db/schema";
 
-// Only public contract events are exposed; draft titles, World sessions and risk requests stay private.
+// Only public contract events are exposed; drafts, World sessions and risk requests stay private.
 export const ActivityLive = HttpApiBuilder.group(AccordApi, "activity", (handlers) => handlers
   .handle("list", ({ payload }) => Effect.gen(function* () {
     const db = yield* Database;
@@ -17,14 +17,22 @@ export const ActivityLive = HttpApiBuilder.group(AccordApi, "activity", (handler
     const [draft] = yield* databaseOperation(() => db.client.select().from(spaceDrafts)
       .where(eq(spaceDrafts.spaceAddress, address)).limit(1));
     if (!draft?.deploymentTx || !draft.activatedAt) return yield* Effect.fail(new HttpApiError.NotFound());
+    const head = yield* Effect.tryPromise({ try: () => historyClient.getBlockNumber({ cacheTime: 0 }), catch: () => new HttpApiError.ServiceUnavailable() });
+    // Older rows predate the saved block. Look it up once, then keep it: public
+    // RPCs may stop serving receipts for older transactions.
+    const deployedAt = draft.deploymentBlock ? BigInt(draft.deploymentBlock) : yield* Effect.tryPromise({
+      try: () => historyClient.getTransactionReceipt({ hash: draft.deploymentTx as Hex }).then((receipt) => receipt.blockNumber),
+      catch: () => new HttpApiError.ServiceUnavailable(),
+    });
+    if (!draft.deploymentBlock) yield* databaseOperation(() => db.client.update(spaceDrafts)
+      .set({ deploymentBlock: deployedAt.toString() }).where(eq(spaceDrafts.id, draft.id)));
+    const deployed = { blockNumber: deployedAt };
     return yield* Effect.tryPromise({ try: async () => {
-      const [head, deployed] = await Promise.all([publicClient.getBlockNumber({ cacheTime: 0 }),
-        publicClient.getTransactionReceipt({ hash: draft.deploymentTx as Hex })]);
       const requested = payload.beforeBlock === undefined ? head : BigInt(payload.beforeBlock);
       const toBlock = requested < head ? requested : head;
       if (toBlock < deployed.blockNumber) return { fromBlock: toBlock.toString(), toBlock: toBlock.toString(), deploymentTx: draft.deploymentTx!, events: [] };
       const fromBlock = toBlock - deployed.blockNumber >= 4999n ? toBlock - 4999n : deployed.blockNumber;
-      const logs = await publicClient.getLogs({ address, fromBlock, toBlock });
+      const logs = await historyClient.getLogs({ address, fromBlock, toBlock });
       const events = logs.flatMap((log) => {
         try {
           const event = decodeEventLog({ abi: spaceAccountAbi, data: log.data, topics: log.topics });

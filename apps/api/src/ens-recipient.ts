@@ -29,9 +29,12 @@ export async function confirmedRecipientLabel(row: {
   spaceAddress: string; allocationId: string; requestId: string; beneficiary: string;
 }, blockNumber: bigint) {
   const address = getAddress(row.spaceAddress);
-  const [consumed, allocation] = await Promise.all([
+  const [consumed, allocation, mandate] = await Promise.all([
     publicClient.readContract({ address, abi: spaceAccountAbi, functionName: "consumedRequests", args: [row.requestId as Hex], blockNumber }),
     publicClient.readContract({ address, abi: spaceAccountAbi, functionName: "allocations", args: [BigInt(row.allocationId)], blockNumber }),
+    publicClient.readContract({ address, abi: spaceAccountAbi, functionName: "mandates", args: [BigInt(row.allocationId)], blockNumber }),
   ]);
-  return consumed && allocation[0].toLowerCase() === row.beneficiary.toLowerCase();
+  // Agent budgets have no beneficiary; their label belongs to the mandate's agent.
+  const holder = allocation[0] === zeroAddress ? mandate[0] : allocation[0];
+  return consumed && holder.toLowerCase() === row.beneficiary.toLowerCase();
 }

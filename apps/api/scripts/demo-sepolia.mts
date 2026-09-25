@@ -237,7 +237,7 @@ async function main() {
       draftId: state.draftId, requestKey: randomUUID(), allocationId: state.agentAllocationId,
       agent: agent.address, registry, nameId: String(ens.body.nameId),
       expectedResource: nameState.resource.toString(), dailyCap: parseEther("20").toString(),
-      maxPerPayment: parseEther("5").toString(), expiry: String(expiry),
+      maxPerPayment: parseEther("5").toString(), expiry: String(expiry), agentEnsName: name,
     }, ownerBearer);
     expectStatus(permit, 200, "Owner ENSv2 mandate permit");
     const tx = await wallet.sendTransaction({ to: space, data: String(permit.body!.calldata) as Hex });

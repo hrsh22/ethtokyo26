@@ -28,6 +28,8 @@ export const spaceDrafts = sqliteTable("space_drafts", {
   spaceAddress: text("space_address").unique(),
   tokenAddress: text("token_address"),
   deploymentTx: text("deployment_tx").unique(),
+  // Saved at activation: some RPCs stop serving receipts for older transactions.
+  deploymentBlock: text("deployment_block"),
   activatedAt: timestamp("activated_at"),
   createdAt: createdAt(),
 });

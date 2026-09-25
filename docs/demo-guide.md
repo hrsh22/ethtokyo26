@@ -22,17 +22,17 @@ For rehearsal, use [the isolated browser harness](browser-e2e.md). Its World, EN
 | Person | Resolve a Sepolia `.eth` payment address; the owner confirms the full wallet before funding. The saved name is a setup snapshot. | Enroll the beneficiary wallet, then require session continuity and a fresh Selfie Check bound to each claim. |
 | Agent | Bind the mandate to the name’s current registration owner and resource. Transfer, expiry, or revocation removes authority. | No human verification is claimed for an agent. |
 
-For a person, open **Allocate**, enter a name, choose **Resolve name**, and confirm the displayed wallet. ENS is checked again when preparing the creation permit. A subsequent name transfer or address-record change never redirects an existing allocation; the beneficiary wallet is fixed. A name without an Ethereum payment-address record cannot be used, even if it has an owner. Raw wallet addresses remain supported.
+For a person, choose **Give someone a budget → A person**, enter a name, choose **Look up**, and confirm the displayed wallet. ENS is checked again when preparing the creation permit. A subsequent name transfer or address-record change never redirects an existing allocation; the beneficiary wallet is fixed. A name without an Ethereum payment-address record cannot be used, even if it has an owner. Raw wallet addresses remain supported.
 
 Use the Sepolia ENSv2 records, not mainnet records. The default Universal Resolver follows the [official Sepolia deployment](https://docs.ens.domains/learn/deployments/). The agent demo name needs a separate address record before it can also be used as a human payment name.
 
 ## Five-minute claiming demo
 
-1. Restart the running `pnpm dev` after pulling the factory configuration change. Create and activate a **new Space**; older Spaces keep their immutable daily/monthly contracts.
-2. In **Claim**, link the beneficiary’s World ID before funding. Each subsequent claim still needs a fresh check.
-3. In **Allocate**, confirm the beneficiary and choose **Every minute · 5-minute demo**. Use **50 ACD total** and **10 ACD period cap**.
-4. Once funding confirms, claim 10 ACD immediately. The available amount becomes zero and the button disables. The countdown shows the next reset; allowance refreshes after a block enters the next 60-second window.
-5. Claim again after reset. At five minutes, the allocation expires. **Settings → Recover & close** returns any remainder to the owner.
+1. Restart the running `pnpm dev` after pulling the factory configuration change. Create a **new Space**; older Spaces keep their immutable daily/monthly contracts.
+2. Signed in as the beneficiary, choose **Link World ID** on **Your Spaces** before funding. Each subsequent claim still needs a fresh check.
+3. As the owner, choose **Give someone a budget → A person**, confirm the beneficiary and choose **Every minute** (the 5-minute demo). Use **50 ACD total**, up to **10 ACD** each minute, and send the beneficiary the allowance link.
+4. Once funding confirms, the beneficiary opens the link and claims 10 ACD immediately. The ring empties and the button disables. The countdown shows the next refill; allowance refreshes after a block enters the next 60-second window.
+5. Claim again after the refill. At five minutes, the allocation ends. On the allowance page, **Manage → Close** returns any remainder to the owner.
 
 There are exactly five windows measured from the funding block, including the immediately available first window. Unused allowance does not accumulate. These are contract rules, not a browser-only timer or a World ID bypass. The general timed-allocation API accepts intervals from 60 seconds to one day and durations up to 365 days, in whole intervals; the UI offers the focused five-minute preset.
 

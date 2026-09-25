@@ -53,6 +53,7 @@ export type SetMandateRequest = {
   dailyCap: string;
   maxPerPayment: string;
   expiry: string;
+  agentEnsName?: string;
 };
 
 export type RevokeMandateRequest = {
@@ -101,6 +102,7 @@ export async function createAccordClient(baseUrl: string, options?: { bearerToke
     }) => run(client.spaces.createDraft({ payload })),
     activateSpace: (payload: ActivateSpaceRequest) =>
       run(client.spaces.activate({ payload })),
+    spaceProfile: (spaceAddress: `0x${string}`) => run(client.spaces.profile({ payload: { spaceAddress } })),
     lookupSpace: (spaceAddress: `0x${string}`) =>
       Effect.runPromise(client.spaces.lookup({ payload: { spaceAddress } })),
     spaceActivity: (payload: { spaceAddress: string; beforeBlock?: string }) => run(client.activity.list({ payload })),
