@@ -1,55 +1,24 @@
 "use client";
 
-import { ensPermissionAdapterAbi, spaceAccountAbi } from "@accord/chain";
+import { ArrowRight, Bot, Inbox, Plus, UserRound } from "lucide-react";
 import type { AccordClient } from "@accord/sdk";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { formatUnits, getAddress, zeroAddress, type Address } from "viem";
-import { sepolia } from "viem/chains";
-import { usePublicClient } from "wagmi";
+import { useQuery } from "@tanstack/react-query";
+import { formatUnits, zeroAddress } from "viem";
+import { useSpaceTerms } from "@/lib/use-space-terms";
+import { allocationAccess } from "@/lib/allocation-access";
 import { AllocationTiming } from "./allocation-timing";
+import { Button } from "./ui/button";
 
 const periodLabels = ["No reset", "Daily", "Monthly", "Per window"] as const;
 const shortAddress = (value: string) => `${value.slice(0, 6)}…${value.slice(-4)}`;
+export type AllocationAction = "allocate" | "mandate" | "settings" | "claim" | "payments";
 
-export function SpaceTerms({ spaceAddress, decimals, account, client, symbol = "tokens" }: {
-  spaceAddress: string; decimals?: number; account: string; symbol?: string; client?: AccordClient;
+export function SpaceTerms({ spaceAddress, decimals, account, client, symbol = "tokens", audience = "public", disabled = false, onAction }: {
+  spaceAddress: string; decimals?: number; account: string; client?: AccordClient; symbol?: string;
+  audience?: "owner" | "recipient" | "public"; disabled?: boolean;
+  onAction?: (action: AllocationAction, id?: string) => void;
 }) {
-  const publicClient = usePublicClient({ chainId: sepolia.id });
-  const cache = useQueryClient();
-  const terms = useQuery({
-    queryKey: ["space-terms", spaceAddress],
-    enabled: !!publicClient,
-    refetchInterval: (query) => query.state.data?.allocations.some(({ allocation, schedule }) =>
-      allocation[5] === 3 && !allocation[6] && schedule && schedule[1] > query.state.data!.blockTimestamp) ? 8_000 : false,
-    queryFn: async () => {
-      const address = getAddress(spaceAddress);
-      const block = await publicClient!.getBlock();
-      const [nextId, adapter] = await Promise.all([
-        publicClient!.readContract({ address, abi: spaceAccountAbi, functionName: "nextAllocationId", blockNumber: block.number }),
-        publicClient!.readContract({ address, abi: spaceAccountAbi, functionName: "ensAdapter", blockNumber: block.number }),
-      ]);
-      const lastId = nextId - BigInt(1);
-      const firstId = lastId > BigInt(20) ? lastId - BigInt(19) : BigInt(1);
-      const ids = lastId === BigInt(0) ? [] : Array.from({ length: Number(lastId - firstId + BigInt(1)) },
-        (_, index) => firstId + BigInt(index));
-      const allocations = await Promise.all(ids.map(async (id) => {
-        const [allocation, mandate] = await Promise.all([
-          publicClient!.readContract({ address, abi: spaceAccountAbi, functionName: "allocations", args: [id], blockNumber: block.number }),
-          publicClient!.readContract({ address, abi: spaceAccountAbi, functionName: "mandates", args: [id], blockNumber: block.number }),
-        ]);
-        const ensAuthorized = mandate[9] && mandate[8] > block.timestamp
-          ? await publicClient!.readContract({ address: adapter, abi: ensPermissionAdapterAbi,
-            functionName: "isAuthorized", args: [mandate[1], mandate[2], mandate[3], mandate[0]], blockNumber: block.number })
-          : false;
-        const schedule = allocation[5] === 3 ? await publicClient!.readContract({ address, abi: spaceAccountAbi,
-          functionName: "allocationSchedules", args: [id], blockNumber: block.number }) : undefined;
-        return { id, allocation, mandate, ensAuthorized, schedule };
-      }));
-      const previous = cache.getQueryData<{ blockTimestamp: bigint; observedAt: number }>(["space-terms", spaceAddress]);
-      const observedAt = previous?.blockTimestamp === block.timestamp ? previous.observedAt : Date.now();
-      return { count: lastId, allocations, blockTimestamp: block.timestamp, observedAt };
-    },
-  });
+  const terms = useSpaceTerms(spaceAddress);
   const allocationIds = terms.data?.allocations.map(({ id }) => id.toString()) ?? [];
   const names = useQuery({
     queryKey: ["allocation-names", spaceAddress, allocationIds],
@@ -58,32 +27,33 @@ export function SpaceTerms({ spaceAddress, decimals, account, client, symbol = "
     staleTime: 60_000, retry: false,
   });
   const units = (value: bigint) => decimals === undefined
-    ? `${value.toString()} base units`
-    : `${formatUnits(value, decimals)} ${symbol}`;
+    ? `${value.toString()} base units` : `${formatUnits(value, decimals)} ${symbol}`;
+  const allocations = terms.data?.allocations.filter((entry) => audience !== "recipient" ||
+    allocationAccess(entry, account, terms.data!.blockTimestamp).yours) ?? [];
+  const heading = audience === "owner" ? "Allocations you manage" : audience === "recipient" ? "Assigned to your wallet" : "Current allocations";
 
-  return <section className="space-console__terms" aria-label="Current onchain allocations">
-    <div className="space-console__terms-heading"><div><strong>Current allocations</strong><span>Read directly from this Space on Sepolia</span></div><div className="space-console__terms-actions">{terms.data && <small>{terms.data.count.toString()} total</small>}<button type="button" onClick={() => { void terms.refetch(); if (client && allocationIds.length) void names.refetch(); }} disabled={terms.isFetching}>Refresh</button></div></div>
-    {terms.isPending ? <p className="space-console__terms-status">Reading onchain terms…</p>
-      : terms.isError ? <p className="space-console__terms-status">Could not read this Space. Check the Sepolia RPC and try again.</p>
-      : terms.data.allocations.length === 0 ? <p className="space-console__terms-status">No allocations have been added yet.</p>
-      : <div className="space-console__terms-list">{terms.data.allocations.map(({ id, allocation, mandate, ensAuthorized, schedule }) => {
-        const beneficiary = allocation[0] as Address;
-        const agent = mandate[0] as Address;
-        const isAgentBudget = beneficiary === zeroAddress;
-        const name = names.data?.names.find((entry) => entry.allocationId === id.toString() && entry.address.toLowerCase() === beneficiary.toLowerCase());
-        const yours = account !== zeroAddress && (isAgentBudget ? agent : beneficiary).toLowerCase() === account.toLowerCase();
-        const mandateActive = mandate[9] && mandate[8] > terms.data.blockTimestamp;
-        const agentCanPay = mandateActive && ensAuthorized;
-        return <div className={`space-console__term${yours ? " is-yours" : ""}`} key={id.toString()}>
-          <div className="space-console__term-top"><strong>Allocation {id.toString()}</strong><span>{allocation[6] ? "Closed" : schedule && schedule[1] <= terms.data.blockTimestamp ? "Expired" : isAgentBudget && agent !== zeroAddress && !agentCanPay ? "Inactive mandate" : yours ? "Your access" : isAgentBudget ? "Agent budget" : "Person"}</span></div>
-          <p>{isAgentBudget ? agent !== zeroAddress ? `Agent ${shortAddress(agent)}` : "No agent mandate" : name ? name.name : `Beneficiary ${shortAddress(beneficiary)}`}</p>
-          {!isAgentBudget && <><code className="beneficiary-address">{beneficiary}</code><small>{name ? "ENS name saved at setup · Wallet fixed · " : "Wallet fixed · "}World ID required for claims</small></>}
-          <small>Remaining {units(allocation[1])} · {periodLabels[allocation[5]] ?? "Period"} cap {units(allocation[2])}</small>
-          {schedule ? <><small>Every {schedule[2]} seconds · {Number(schedule[1] - schedule[0]) / 60} minutes from funding</small><AllocationTiming allocation={allocation} schedule={schedule} blockTimestamp={terms.data.blockTimestamp} observedAt={terms.data.observedAt} decimals={decimals} symbol={symbol} /></> : null}
-          {agent !== zeroAddress && <small>Daily cap {units(mandate[4])} · Max payment {units(mandate[5])} · Expires {new Date(Number(mandate[8]) * 1000).toLocaleDateString()} · {agentCanPay ? "ENS authority active" : !mandateActive ? "Mandate inactive or expired" : "ENS authority unavailable"}</small>}
-          <small>{allocation[6] ? "Closed; unspent funds returned to the owner." : "Owner may close this allocation and recover unspent funds."}</small>
-        </div>;
+  return <section className="space-console__terms" aria-label={heading}>
+    <div className="space-console__terms-heading"><div><h2 tabIndex={-1}>{heading}</h2><span>{audience === "owner" ? "Reserve funds for a person or give an agent permission to spend." : audience === "recipient" ? "Your access is determined by your connected wallet." : "Funds and permissions recorded on Sepolia."}</span></div><div className="space-console__terms-actions"><Button variant="ghost" size="sm" onClick={() => { void terms.refetch(); if (client && allocationIds.length) void names.refetch(); }} disabled={terms.isFetching}>{terms.isFetching ? "Refreshing…" : "Refresh"}</Button>{audience === "owner" && onAction ? <Button disabled={disabled} onClick={() => onAction("allocate")}><Plus size={16} />Create allocation</Button> : null}</div></div>
+    {terms.isPending ? <p className="space-console__terms-status" role="status">Loading allocations…</p>
+      : terms.isError ? <div className="allocation-empty" role="alert"><h3>Allocations couldn’t be loaded</h3><p>Check your connection, then refresh to try again.</p></div>
+      : allocations.length === 0 ? <div className="allocation-empty"><Inbox size={30} strokeWidth={1.4} /><h3>{audience === "owner" ? "Give these funds a purpose" : audience === "recipient" ? "No allocations found for this wallet" : "No allocations yet"}</h3><p>{audience === "owner" ? "Create an allocation to choose a recipient, reserve tokens, and set their limits." : audience === "recipient" ? "Ask the Space owner to assign funds to your wallet. If you received a link, check that you connected the intended wallet." : "The owner hasn’t added funds for a person or agent yet."}</p>{audience === "owner" && onAction ? <Button disabled={disabled} onClick={() => onAction("allocate")}><Plus size={16} />Create first allocation</Button> : null}</div>
+      : <div className="space-console__terms-list">{allocations.toReversed().map((entry) => {
+        const { id, allocation, mandate, schedule } = entry;
+        const access = allocationAccess(entry, account, terms.data!.blockTimestamp);
+        const { isAgent, recipient, yours, closed, funded, mandateActive } = access;
+        const name = names.data?.names.find((item) => item.allocationId === id.toString() && item.address.toLowerCase() === recipient.toLowerCase());
+        const expired = schedule && schedule[1] <= terms.data!.blockTimestamp;
+        const state = closed ? "Closed" : expired ? "Expired" : !funded ? "Fully used" : isAgent && !mandateActive ? "Needs mandate" : "Active";
+        return <article className={`space-console__term${yours ? " is-yours" : ""}`} key={id.toString()}>
+          <div className="allocation-identity"><span className={`allocation-icon${isAgent ? " is-agent" : ""}`}>{isAgent ? <Bot size={21} /> : <UserRound size={21} />}</span><div><h3>Allocation {id.toString()}</h3><p>{isAgent ? "Agent budget" : name?.name ?? "Personal allocation"}</p></div><span className={`allocation-status${closed || !funded || expired ? " is-muted" : ""}`}>{state}</span></div>
+          <div className="allocation-funds"><span>Remaining</span><strong>{units(allocation[1])}</strong></div>
+          <dl className="allocation-details"><div><dt>{isAgent ? "Agent" : "Recipient"}</dt><dd title={recipient}>{recipient === zeroAddress ? "Not assigned" : <>{shortAddress(recipient)}{yours ? <span className="allocation-you">You</span> : null}</>}</dd></div><div><dt>{allocation[5] === 0 ? "Spending limit" : `${periodLabels[allocation[5]]} limit`}</dt><dd>{units(allocation[2])}</dd></div>{isAgent && recipient !== zeroAddress ? <><div><dt>Daily agent limit</dt><dd>{units(mandate[4])}</dd></div><div><dt>Max per payment</dt><dd>{units(mandate[5])}</dd></div><div><dt>Mandate expires</dt><dd>{new Date(Number(mandate[8]) * 1000).toLocaleDateString()}</dd></div></> : null}</dl>
+          {!isAgent ? <p className="allocation-condition">{name ? "ENS name saved at setup · Wallet fixed · " : "Wallet fixed · "}World ID required for claims.</p> : <p className="allocation-condition">{closed ? "Unspent funds returned to the owner." : mandateActive ? "Payments follow the mandate’s daily limit and screening checks." : "The owner must set an active mandate before this agent can pay."}</p>}
+          {schedule ? <><p className="allocation-condition">Every {schedule[2]} seconds · {Number(schedule[1] - schedule[0]) / 60} minutes from funding</p><AllocationTiming allocation={allocation} schedule={schedule} blockTimestamp={terms.data!.blockTimestamp} observedAt={terms.data!.observedAt} decimals={decimals} symbol={symbol} /></> : null}
+          {onAction && !closed ? <div className="allocation-actions">{audience === "owner" ? <>{isAgent && funded ? <Button variant="outline" disabled={disabled} onClick={() => onAction("mandate", id.toString())}>{mandateActive ? "Edit mandate" : "Set mandate"}<ArrowRight size={14} /></Button> : null}<Button variant="ghost" disabled={disabled} onClick={() => onAction("settings", id.toString())}>Manage access</Button></> : access.canClaim ? <Button disabled={disabled} onClick={() => onAction("claim", id.toString())}>Claim funds<ArrowRight size={15} /></Button> : access.canPay ? <Button disabled={disabled} onClick={() => onAction("payments", id.toString())}>Make payment<ArrowRight size={15} /></Button> : null}</div> : null}
+        </article>;
       })}</div>}
-    {terms.data && terms.data.count > BigInt(20) ? <p className="space-console__terms-status">Showing the newest 20 allocations. You can still use older allocation IDs for permitted actions.</p> : null}
+    {terms.data && terms.data.count > BigInt(20) ? <p className="space-console__terms-status">Showing matches in the latest 20 allocations, out of {terms.data.count.toString()} total. Use an allocation ID below to access an older allocation.</p> : null}
+    {audience === "recipient" ? <p className="allocation-footnote">The owner can close an allocation and recover its unspent funds. A shared link does not grant access.</p> : null}
   </section>;
 }
