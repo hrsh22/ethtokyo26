@@ -119,6 +119,7 @@ export async function createAccordClient(baseUrl: string, options?: { bearerToke
     recoverAllocation: (payload: RecoverAllocationRequest) =>
       Effect.runPromise(client.admin.recoverAllocation({ payload })),
     worldStatus: () => Effect.runPromise(client.world.status()),
+    worldUnlink: () => run(client.world.unlink()),
     worldChallenge: (mode: WorldChallengeMode, intentId?: string) =>
       Effect.runPromise(client.world.challenge({
         payload: { mode, ...(intentId ? { intentId } : {}) },

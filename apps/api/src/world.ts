@@ -86,6 +86,23 @@ export const WorldLive = HttpApiBuilder.group(AccordApi, "world", (handlers) =>
       return { configured: configured(), enrolled: rows.length > 0, environment,
         ...(rows[0] ? { sessionId: rows[0].sessionId } : {}) };
     }))
+    .handle("unlink", () => Effect.gen(function* () {
+      yield* requireBrowserOrigin();
+      const session = yield* currentSession();
+      const db = yield* Database;
+      return yield* databaseOperation(() => db.client.transaction(async (tx) => {
+        const removed = await tx.delete(worldSessions)
+          .where(eq(worldSessions.address, session.address)).returning({ address: worldSessions.address });
+        // A challenge started before unlink must not complete against the old session.
+        await tx.delete(worldChallenges).where(and(eq(worldChallenges.address, session.address),
+          isNull(worldChallenges.consumedAt)));
+        // An unsigned claim cannot reuse a World check after the wallet unlinks.
+        await tx.update(permitIntents).set({ worldVerifiedAt: null })
+          .where(and(eq(permitIntents.actor, session.address), eq(permitIntents.action, "claim"),
+            isNull(permitIntents.signature)));
+        return { unlinked: removed.length > 0 };
+      }));
+    }))
     .handle("challenge", ({ payload }) => Effect.gen(function* () {
       yield* requireBrowserOrigin();
       const session = yield* currentSession();

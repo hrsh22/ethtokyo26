@@ -113,6 +113,7 @@ export const WorldStatus = Schema.Struct({
   sessionId: Schema.optional(Schema.String),
   environment: Schema.Literal("staging", "production"),
 });
+export const WorldUnlinkResult = Schema.Struct({ unlinked: Schema.Boolean });
 export const WorldChallengeRequest = Schema.Struct({
   mode: Schema.Literal("enroll", "reverify", "claim"),
   intentId: Schema.optional(Schema.UUID),
@@ -360,6 +361,7 @@ export const AccordApi = HttpApi.make("AccordApi")
   .add(
     HttpApiGroup.make("world")
       .add(HttpApiEndpoint.get("status")`/v1/world/status`.addSuccess(WorldStatus))
+      .add(HttpApiEndpoint.post("unlink")`/v1/world/unlink`.addSuccess(WorldUnlinkResult))
       .add(HttpApiEndpoint.post("challenge")`/v1/world/challenge`
         .setPayload(WorldChallengeRequest).addSuccess(WorldChallenge))
       .add(HttpApiEndpoint.post("verify")`/v1/world/verify`

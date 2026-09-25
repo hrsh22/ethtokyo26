@@ -18,16 +18,31 @@ export function WorldIdCard() {
   const status = useQuery({ queryKey: ["world-status", account], queryFn: () => client!.worldStatus(), enabled: !!client, retry: false });
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"verify" | "unlink" | null>(null);
   if (status.data && !status.data.configured) return null;
   const linked = status.data?.enrolled;
 
   async function begin() {
     if (!client || busy) return;
-    setBusy(true);
+    setBusy("verify");
     try { setChallenge(await client.worldChallenge(linked ? "reverify" : "enroll")); setOpen(true); }
     catch (cause) { checkSession(cause); toast.error("Couldn’t start a World ID check. Try again."); }
-    finally { setBusy(false); }
+    finally { setBusy(null); }
+  }
+
+  async function unlink() {
+    if (!client || busy || !linked) return;
+    setBusy("unlink");
+    try {
+      await client.worldUnlink();
+      setOpen(false);
+      setChallenge(null);
+      await cache.invalidateQueries({ queryKey: ["world-status", account] });
+      toast.success("World ID unlinked from this wallet");
+    } catch (cause) {
+      checkSession(cause);
+      toast.error("Couldn’t unlink World ID. Try again.");
+    } finally { setBusy(null); }
   }
 
   return <section className="card flex flex-wrap items-center gap-4 p-6" aria-labelledby="world-card-title">
@@ -37,7 +52,10 @@ export function WorldIdCard() {
       <span className="text-sm text-muted">{status.isPending ? "Checking your World ID status…" : linked ? "This wallet is ready to claim. Each claim still asks for a quick fresh check."
         : "Link World ID to this wallet now, so your first claim is a single check."}</span>
     </span>
-    {status.data ? <Button variant={linked ? "soft" : "primary"} loading={busy} onClick={() => void begin()}>{linked ? "Check again" : "Link World ID"}</Button> : null}
+    {status.data ? <div className="flex flex-wrap gap-2">
+      <Button variant={linked ? "soft" : "primary"} loading={busy === "verify"} disabled={!!busy} onClick={() => void begin()}>{linked ? "Check again" : "Link World ID"}</Button>
+      {linked ? <Button variant="ghost" loading={busy === "unlink"} disabled={!!busy} onClick={() => void unlink()}>Unlink World ID</Button> : null}
+    </div> : null}
     {challenge ? <WorldSession open={open} onOpenChange={setOpen}
       app_id={challenge.appId as `app_${string}`} rp_context={challenge.rpContext} environment={challenge.environment}
       existing_session_id={challenge.sessionId as `session_${string}` | undefined} require_user_presence={challenge.requireUserPresence}
