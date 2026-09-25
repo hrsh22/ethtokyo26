@@ -15,6 +15,7 @@ import { useAllocation } from "@/lib/use-allocation";
 import { useSpaceMeta } from "@/lib/use-space";
 import { useSpaceTerms } from "@/lib/use-space-terms";
 import { Avatar } from "../avatar";
+import { DemoTokenFaucet } from "../demo-token-faucet";
 import { SignInCard } from "../sign-in-card";
 import { WorldIdCard } from "../world-id-card";
 import { Button } from "../ui/button";
@@ -66,7 +67,7 @@ export function SpacesHome() {
           </Link>
         </motion.li>
       </motion.ul>
-      <div className="mt-8 max-w-3xl"><WorldIdCard /></div>
+      <div className="mt-8 grid gap-4 lg:grid-cols-2"><DemoTokenFaucet /><WorldIdCard /></div>
     </>}
     <section className="mt-12" aria-labelledby="received-title">
       <h2 id="received-title" className="font-display text-3xl font-extrabold">Shared with you</h2>
@@ -161,6 +162,6 @@ function EmptyHome() {
         <Button asChild size="lg" className="mt-6"><Link href="/spaces/new"><Plus />New Space</Link></Button>
       </div>
     </section>
-    <WorldIdCard />
+    <div className="grid content-start gap-4"><DemoTokenFaucet /><WorldIdCard /></div>
   </div>;
 }

@@ -18,6 +18,7 @@ import { shortAddress } from "@/lib/format";
 import { keyPalette } from "@/lib/palette";
 import { useChainActions } from "@/lib/use-chain-actions";
 import { SignInCard } from "../sign-in-card";
+import { DemoTokenFaucet } from "../demo-token-faucet";
 import { TxTracker, useSteps } from "../tx-tracker";
 import { Button } from "../ui/button";
 
@@ -207,6 +208,7 @@ function Wizard({ existing, deployment }: { existing?: Draft; deployment: { fact
                   aria-invalid={choice === "custom" && !!custom && !token} />
               </details>
             </fieldset>
+            {choice === "demo" && deployment.demoToken ? <div className="mt-5"><DemoTokenFaucet inline /></div> : null}
             <p role="status" className="mt-4 min-h-6 text-sm font-medium">
               {choice === "custom" && custom && !token ? <span className="text-bad">That isn’t a valid token address.</span>
                 : token && asset.isFetching ? <span className="text-muted">Checking the token on Sepolia…</span>

@@ -28,10 +28,10 @@ Use the Sepolia ENSv2 records, not mainnet records. The default Universal Resolv
 
 ## Five-minute claiming demo
 
-1. Restart the running `pnpm dev` after pulling the factory configuration change. Create a **new Space**; older Spaces keep their immutable daily/monthly contracts.
+1. Claim 1,000 ACD with **Get 1,000 ACD** on **Your Spaces** or in the **New Space** asset step. You can claim again whenever the owner needs more test tokens. Sepolia ETH is needed for transaction fees. Create a **new Space**; older Spaces keep their immutable daily/monthly contracts.
 2. Signed in as the beneficiary, choose **Link World ID** on **Your Spaces** before funding. Each subsequent claim still needs a fresh check.
-3. As the owner, choose **Give someone a budget → A person**, confirm the beneficiary and choose **Every minute**, up to **10 ACD** each minute, for **5 minutes**. Use **50 ACD total** (or **Set the total**), and send the beneficiary the allowance link.
-4. Once funding confirms, the beneficiary opens the link and claims 10 ACD immediately. The ring empties and the button disables. The countdown shows the next refill; allowance refreshes after a block enters the next 60-second window.
+3. As the owner, choose **Give someone a budget → A person**, confirm the beneficiary and choose **Every minute**, up to **10 ACD** each minute, for **5 minutes**. Use **50 ACD total** (or **Set the total**).
+4. Once funding confirms, the beneficiary finds the allowance under **Shared with you** on **Your Spaces** and claims 10 ACD immediately. The owner can still send the direct allocation link. The ring empties and the button disables. The countdown shows the next refill; allowance refreshes after a block enters the next 60-second window.
 5. Claim again after the refill. At five minutes, the allocation ends. On the allowance page, **Manage → Close** returns any remainder to the owner.
 
 There are exactly five windows measured from the funding block, including the immediately available first window. Unused allowance does not accumulate. These are contract rules, not a browser-only timer or a World ID bypass. The general timed-allocation API accepts intervals from 60 seconds to one day and durations up to 365 days, in whole intervals. The UI offers per-minute allowances for a chosen number of minutes, and daily allowances either with no end date or for a chosen number of days (for example **1 month**, which is 30 days). Monthly allowances have no end date. Timed allowances and end dates need a Space from the scheduled factory; the form says so for older Spaces.
