@@ -4,23 +4,26 @@ import { spaceAccountAbi, spaceFactoryAbi } from "@accord/chain";
 import { paymentDecision, type AccordClient, type Decision } from "@accord/sdk";
 import { WorldSession } from "@/components/world-session";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, CheckCircle2, CircleDollarSign, Fingerprint, Rocket, RotateCcw, Settings2, UserRound } from "lucide-react";
+import { Bot, CheckCircle2, CircleDollarSign, Fingerprint, Rocket, RotateCcw, UserRound } from "lucide-react";
 import { useState } from "react";
-import { Tabs } from "radix-ui";
+import { useSpaceTerms } from "@/lib/use-space-terms";
+import { SpaceWorkspace } from "./space-workspace";
+import { AllocationField } from "./allocation-field";
+import { Modal } from "./ui/modal";
 import { WorldIdentity } from "./world-identity";
 import { getAddress, isAddress, parseUnits, zeroAddress, type Address, type Hex } from "viem";
 import { useAccount, usePublicClient, useSendTransaction, useWriteContract } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { PaymentDecision } from "./payment-decision";
 import { ResearchPurchase } from "./research-purchase";
-import { SpaceActivity } from "./space-activity";
 import { SpaceActivation } from "./space-activation";
 import { ShareSpace } from "./share-space";
-import { SpaceTerms } from "@/components/space-terms";
+import type { AllocationAction } from "./space-terms";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { activationHash, activationStorageKey, readActivation, saveActivation } from "@/lib/activation-storage";
 import "./space-console.css";
+import "./space-workspace.css";
 
 type SpaceDraft = Awaited<ReturnType<AccordClient["listSpaces"]>>["spaces"][number];
 type ClaimIntent = Awaited<ReturnType<AccordClient["prepareClaim"]>>;
@@ -98,6 +101,15 @@ export function SpaceConsole({ account, draft, client, onDraftUpdated }: SpaceCo
   const { sendTransactionAsync } = useSendTransaction();
   const { writeContractAsync } = useWriteContract();
   const [currentDraft, setCurrentDraft] = useState(draft);
+  const [action, setAction] = useState<AllocationAction | null>(null);
+  const [selectedAllocation, setSelectedAllocation] = useState("");
+  const [recoverId, setRecoverId] = useState<string | null>(null);
+
+  function navigateAction(next: AllocationAction | null, id = "") {
+    setAction(next); setSelectedAllocation(id); setNotice(null);
+    setDecision(undefined); setPaymentSettled(false);
+  }
+
   const [busy, setBusy] = useState<BusyAction>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [decision, setDecision] = useState<Decision>();
@@ -119,6 +131,8 @@ export function SpaceConsole({ account, draft, client, onDraftUpdated }: SpaceCo
 
   const isOwner = currentDraft.owner.toLowerCase() === account.toLowerCase();
   const isActive = Boolean(currentDraft.spaceAddress && currentDraft.tokenAddress && currentDraft.activatedAt);
+  const terms = useSpaceTerms(isActive ? currentDraft.spaceAddress : undefined);
+  const selectedTerms = terms.data?.allocations.find(({ id }) => id.toString() === selectedAllocation);
   const activationKey = activationStorageKey(account, currentDraft.id);
   const pendingActivation = useQuery({
     queryKey: ["pending-activation", activationKey],
@@ -252,7 +266,7 @@ export function SpaceConsole({ account, draft, client, onDraftUpdated }: SpaceCo
     setCurrentDraft(activated);
     onDraftUpdated?.(activated);
     void queryClient.invalidateQueries({ queryKey: ["spaces"] });
-    setNotice("Space is active. Open Allocate to add funds and permissions.");
+    setNotice("Space is active. Create your first allocation to reserve funds for a person or agent.");
   }
 
   function activationError(error: unknown) {
@@ -329,6 +343,7 @@ export function SpaceConsole({ account, draft, client, onDraftUpdated }: SpaceCo
         periodCap,
         period,
       });
+      setNotice("Step 1 of 2: approve token access in your wallet.");
       const approvalHash = await writeContractAsync({
         address: getAddress(envelope.tokenAddress),
         abi: erc20ApproveAbi,
@@ -337,6 +352,7 @@ export function SpaceConsole({ account, draft, client, onDraftUpdated }: SpaceCo
         chainId: SEPOLIA_CHAIN_ID,
       });
       await waitForSuccess(approvalHash);
+      setNotice("Step 2 of 2: confirm funding the allocation in your wallet.");
       const hash = await sendPermitTransaction(envelope.permit.requestId as Hex, () => sendTransactionAsync({
         to: getAddress(envelope.spaceAddress),
         data: envelope.calldata as Hex,
@@ -344,6 +360,10 @@ export function SpaceConsole({ account, draft, client, onDraftUpdated }: SpaceCo
       }));
       setNotice(confirmedNotice(`Allocation ${envelope.permit.allocationId} created`, hash));
       formElement.reset();
+      if (allocationKind === "agent") {
+        setSelectedAllocation(envelope.permit.allocationId.toString());
+        setAction("mandate");
+      } else { setAction(null); }
     } catch (error) {
       reportError(error, "The allocation could not be created.");
     } finally {
@@ -415,8 +435,7 @@ export function SpaceConsole({ account, draft, client, onDraftUpdated }: SpaceCo
     finally { setBusy(null); }
   }
 
-  async function recoverAllocation(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function recoverAllocation(allocationId: string) {
     if (!isOwner || !isActive) return;
     setBusy("recover"); setNotice(null);
     try {
@@ -424,12 +443,12 @@ export function SpaceConsole({ account, draft, client, onDraftUpdated }: SpaceCo
       const envelope = await client.recoverAllocation({
         draftId: currentDraft.id,
         requestKey: crypto.randomUUID(),
-        allocationId: positiveInteger(value(new FormData(event.currentTarget), "allocationId"), "Allocation ID"),
+        allocationId: positiveInteger(allocationId, "Allocation ID"),
       });
       const hash = await sendPermitTransaction(envelope.permit.requestId as Hex, () => sendTransactionAsync({ to: getAddress(envelope.spaceAddress), data: envelope.calldata as Hex, chainId: SEPOLIA_CHAIN_ID }));
       setNotice(confirmedNotice(`Allocation ${envelope.permit.allocationId} closed and unspent tokens returned`, hash));
     } catch (error) { reportError(error, "The allocation could not be recovered."); }
-    finally { setBusy(null); }
+    finally { setBusy(null); setRecoverId(null); }
   }
 
   async function beginClaim(event: React.FormEvent<HTMLFormElement>) {
@@ -470,7 +489,7 @@ export function SpaceConsole({ account, draft, client, onDraftUpdated }: SpaceCo
         args: [BigInt(signed.permit.allocationId), BigInt(signed.permit.amount), permitFrom(signed), signed.signature as Hex],
         chainId: SEPOLIA_CHAIN_ID,
       }));
-      setClaimFlow(null);
+      setClaimFlow(null); setWorldOpen(false); setAction(null);
       setNotice(confirmedNotice("Claim confirmed", hash));
     } catch (error) {
       reportError(error, "The verified claim could not be submitted.");
@@ -524,18 +543,19 @@ export function SpaceConsole({ account, draft, client, onDraftUpdated }: SpaceCo
   return <section className="space-console" aria-labelledby={`space-${currentDraft.id}`}>
     <header className="space-console__header">
       <div>
-        <span className="space-console__kicker">{isActive ? "Active Space" : "Draft"}</span>
+        <span className="space-console__kicker">{isOwner ? "Your Space" : "Shared with you"} <span>Sepolia testnet</span></span>
         <h1 id={`space-${currentDraft.id}`}>{currentDraft.name}</h1>
-        <p>Manage the people, permissions, and funds in this Space.</p>
+        <p>{isOwner ? "A shared purpose. Clear permissions." : "See what’s assigned to you and put your allocation to use."}</p>
         {isActive && <p className="space-console__asset">Asset: {assetLabel} · <a href={`https://sepolia.etherscan.io/token/${currentDraft.tokenAddress}`} target="_blank" rel="noreferrer" title={currentDraft.tokenAddress!}>{shortAddress(currentDraft.tokenAddress!)}</a></p>}
       </div>
       <span className={`space-console__state ${isActive ? "is-active" : ""}`}>
         {isActive ? <CheckCircle2 size={15} /> : <Rocket size={15} />}
-        {isActive ? shortAddress(currentDraft.spaceAddress!) : "Draft"}
+        {isActive ? "Active" : "Draft"}
       </span>
     </header>
 
     {isActive ? <ShareSpace address={currentDraft.spaceAddress!} /> : null}
+    {notice ? <p className="space-console__notice" role="status">{notice}</p> : null}
     {isActive && tokenDecimals.isError ? <p className="space-console__notice" role="status">This token does not expose decimals. Its actions need a token with ERC-20 metadata.</p> : null}
 
     {!isActive ? <div className="space-console__activation">
@@ -566,92 +586,84 @@ export function SpaceConsole({ account, draft, client, onDraftUpdated }: SpaceCo
         </form>
       </details> : null}
       {!isOwner ? <p className="space-console__hint">Only the draft owner can activate this Space.</p> : null}
-    </div> : <Tabs.Root defaultValue="overview" className="space-tabs" onValueChange={() => {
-      setNotice(null); setDecision(undefined); setPaymentSettled(false);
-    }}>
-      <Tabs.List className="space-tabs__list" aria-label="Space actions">
-        <Tabs.Trigger disabled={busy !== null} value="overview">Overview</Tabs.Trigger>
-        {isOwner ? <Tabs.Trigger disabled={busy !== null} value="allocate">Allocate</Tabs.Trigger> : null}
-        <Tabs.Trigger disabled={busy !== null} value="claim">Claim</Tabs.Trigger>
-        <Tabs.Trigger disabled={busy !== null} value="payments">Agent payments</Tabs.Trigger>
-        {isOwner ? <Tabs.Trigger disabled={busy !== null} value="settings">Settings</Tabs.Trigger> : null}
-      </Tabs.List>
-      <Tabs.Content value="overview">
-        <SpaceTerms spaceAddress={currentDraft.spaceAddress!} decimals={tokenDecimals.data} symbol={assetLabel} account={account} />
-        <SpaceActivity client={client} spaceAddress={currentDraft.spaceAddress!} decimals={tokenDecimals.data} symbol={assetLabel} />
-      </Tabs.Content>
-      {isOwner ? <Tabs.Content value="allocate"><div className="space-console__grid">
+    </div> : <SpaceWorkspace isOwner={isOwner} account={account} spaceAddress={currentDraft.spaceAddress!}
+      client={client} decimals={tokenDecimals.data} symbol={assetLabel} busy={busy !== null || worldOpen}
+      action={action} onAction={navigateAction}>
+      {isOwner && action === "allocate" ? <div className="space-action-layout">
       {isOwner ? <article className="space-console__card">
-        <div className="space-console__card-title"><Settings2 size={18} /><div><strong>Create allocation</strong><span>Owner action · token approval required</span></div></div>
-        <form onSubmit={createAllocation} className="space-console__form">
+        <form onSubmit={createAllocation} className="space-console__form"><fieldset className="space-console__fields" disabled={busy !== null}>
           <Field label="Allocation for"><select value={allocationKind} onChange={(event) => {
             const kind = event.target.value as "person" | "agent";
             setAllocationKind(kind);
             setAllocationPeriod(kind === "agent" ? 0 : 2);
           }}><option value="person">Person · World ID claim</option><option value="agent">Agent · ENSv2 mandate</option></select></Field>
-          {allocationKind === "person" ? <Field label="Beneficiary wallet"><Input name="beneficiary" required placeholder="0x…" /></Field> : null}
-          <div className="space-console__row"><Field label={`Total · ${assetLabel}`}><Input name="amount" inputMode="decimal" required placeholder="100" /></Field>{allocationPeriod !== 0 ? <Field label={`Period cap · ${assetLabel}`}><Input name="periodCap" inputMode="decimal" required placeholder="10" /></Field> : null}</div>
-          <Field label="Period"><select value={allocationPeriod} onChange={(event) => setAllocationPeriod(Number(event.target.value) as 0 | 1 | 2)}><option value="0">No reset</option><option value="1">Daily</option><option value="2">Monthly</option></select></Field>
+          {allocationKind === "person" ? <Field label="Recipient wallet"><Input name="beneficiary" required placeholder="0x…" /></Field> : null}
+          <div className="space-console__row"><Field label={`Total to reserve · ${assetLabel}`}><Input name="amount" inputMode="decimal" required placeholder="100" /></Field>{allocationPeriod !== 0 ? <Field label={`Limit per period · ${assetLabel}`}><Input name="periodCap" inputMode="decimal" required placeholder="10" /></Field> : null}</div>
+          <Field label="Limit resets"><select value={allocationPeriod} onChange={(event) => setAllocationPeriod(Number(event.target.value) as 0 | 1 | 2)}><option value="0">No reset</option><option value="1">Daily</option><option value="2">Monthly</option></select></Field>
           {allocationPeriod === 0 ? <p className="space-console__hint">No reset lets the allocation spend up to its total. Agent mandates still apply a daily cap.</p> : null}
-          <Button type="submit" disabled={busy !== null || tokenDecimals.data === undefined}>{busy === "allocation" ? "Confirming…" : "Approve & create"}</Button>
-        </form>
+          <Button type="submit" disabled={busy !== null || tokenDecimals.data === undefined}>{busy === "allocation" ? "Confirming…" : "Approve & fund allocation"}</Button>
+        </fieldset></form>
       </article> : null}
 
-      {isOwner && allocationKind === "agent" ? <article className="space-console__card">
+      <aside className="space-action-guide"><h3>What happens next</h3><ol><li><strong>Reserve funds</strong><p>Approve token access, then confirm the allocation. Both steps happen in your wallet.</p></li><li><strong>{allocationKind === "agent" ? "Set a mandate" : "Share your Space"}</strong><p>{allocationKind === "agent" ? "Choose the agent and set its spending limits after funding." : "Send the link to your recipient. Only their assigned wallet can claim."}</p></li><li><strong>{allocationKind === "agent" ? "Let the agent act" : "The recipient claims"}</strong><p>{allocationKind === "agent" ? "Each payment checks the mandate and screens the destination." : "They verify with World ID and receive funds within your limits."}</p></li></ol></aside>
+      </div> : null}
+      {isOwner && action === "mandate" ? <article className="space-console__card">
         <div className="space-console__card-title"><Bot size={18} /><div><strong>Set agent mandate</strong><span>Bound to current ENSv2 authority</span></div></div>
-        <form onSubmit={setMandate} className="space-console__form">
-          <div className="space-console__row"><Field label="Allocation ID"><Input name="allocationId" inputMode="numeric" required /></Field><Field label="Agent wallet"><Input name="agent" required placeholder="0x…" /></Field></div>
+        <form onSubmit={setMandate} className="space-console__form"><fieldset className="space-console__fields" disabled={busy !== null}>
+          <div className="space-console__row"><AllocationField key={`mandate:${selectedAllocation}`} spaceAddress={currentDraft.spaceAddress!} account={account} purpose="mandate" selectedId={selectedAllocation} /><Field label="Agent wallet"><Input name="agent" required placeholder="0x…" /></Field></div>
           <Field label="ENSv2 .eth name"><Input name="ensName" required placeholder="research.eth" /></Field>
           <div className="space-console__row"><Field label={`Daily cap · ${assetLabel}`}><Input name="dailyCap" inputMode="decimal" required /></Field><Field label={`Max payment · ${assetLabel}`}><Input name="maxPerPayment" inputMode="decimal" required /></Field></div>
           <Field label="Mandate expiry"><Input name="expiry" type="datetime-local" required /></Field>
           <Button type="submit" disabled={busy !== null || tokenDecimals.data === undefined}>{busy === "mandate" ? "Confirming…" : "Set mandate"}</Button>
-        </form>
+        </fieldset></form>
 
       </article> : null}
 
-      </div></Tabs.Content> : null}
-      {isOwner ? <Tabs.Content value="settings"><div className="space-console__grid">
+      {isOwner && action === "settings" ? <div className="space-console__grid">
       {isOwner ? <article className="space-console__card">
         <div className="space-console__card-title"><RotateCcw size={18} /><div><strong>Recover allocation</strong><span>Owner action · closes future access</span></div></div>
         <p className="space-console__hint">Return the unspent tokens to your wallet and permanently close this allocation. Claims and agent payments from it will stop.</p>
-        <form onSubmit={recoverAllocation} className="space-console__form">
-          <Field label="Allocation ID"><Input name="allocationId" inputMode="numeric" required placeholder="1" /></Field>
+        <form onSubmit={(event) => { event.preventDefault(); setRecoverId(value(new FormData(event.currentTarget), "allocationId")); }} className="space-console__form">
+          <AllocationField key={`recover:${selectedAllocation}`} spaceAddress={currentDraft.spaceAddress!} account={account} purpose="recover" selectedId={selectedAllocation} />
           <Button type="submit" variant="outline" disabled={busy !== null}>{busy === "recover" ? "Recovering…" : "Recover & close"}</Button>
         </form>
       </article> : null}
 
-        <article className="space-console__card"><div className="space-console__card-title"><Bot size={18} /><div><strong>Revoke agent mandate</strong><span>Stop an agent’s permission to spend</span></div></div>
-        <form onSubmit={revokeMandate} className="space-console__form space-console__revoke">
-          <Field label="Revoke mandate by allocation ID"><Input name="allocationId" inputMode="numeric" required placeholder="2" /></Field>
+        {!selectedTerms || selectedTerms.allocation[0] === zeroAddress ? <article className="space-console__card"><div className="space-console__card-title"><Bot size={18} /><div><strong>Revoke agent mandate</strong><span>Stop an agent’s permission to spend</span></div></div>
+        <form onSubmit={revokeMandate} className="space-console__form space-console__revoke"><fieldset className="space-console__fields" disabled={busy !== null}>
+          <AllocationField key={`revoke:${selectedAllocation}`} spaceAddress={currentDraft.spaceAddress!} account={account} purpose="revoke" selectedId={selectedAllocation} />
           <Button type="submit" variant="outline" disabled={busy !== null}>{busy === "revoke" ? "Revoking…" : "Revoke mandate"}</Button>
-        </form>        </article>
-      </div></Tabs.Content> : null}
-      <Tabs.Content value="claim">
+        </fieldset></form>        </article> : null}
+      </div> : null}
+      {action === "claim" ? <div className="space-claim-flow">
         <WorldIdentity address={account} client={client} signedIn />
       <article className="space-console__card">
         <div className="space-console__card-title"><UserRound size={18} /><div><strong>Claim allocation</strong><span>Named beneficiary only · World ID required</span></div></div>
-        <p className="space-console__hint">{worldStatus.data?.enrolled ? "Each claim needs a fresh World ID check." : <>First <a href="#world-heading">link your World ID session</a> to this wallet, then verify each claim.</>}</p>
-        <form onSubmit={beginClaim} className="space-console__form">
-          <div className="space-console__row"><Field label="Allocation ID"><Input name="allocationId" inputMode="numeric" required /></Field><Field label={`Amount · ${assetLabel}`}><Input name="amount" inputMode="decimal" required /></Field></div>
+        <p className="space-console__hint">Funds go to your connected wallet, {shortAddress(account)}. {worldStatus.data?.enrolled ? "Each claim needs a fresh World ID check." : <>First <a href="#world-heading">link your World ID session</a> to this wallet, then verify each claim.</>}</p>
+        <form onSubmit={beginClaim} className="space-console__form"><fieldset className="space-console__fields" disabled={busy !== null}>
+          <div className="space-console__row"><AllocationField key={`claim:${selectedAllocation}`} spaceAddress={currentDraft.spaceAddress!} account={account} purpose="claim" selectedId={selectedAllocation} /><Field label={`Amount · ${assetLabel}`}><Input name="amount" inputMode="decimal" required /></Field></div>
           <Button type="submit" disabled={busy !== null || tokenDecimals.data === undefined || !worldStatus.data?.enrolled}><Fingerprint size={15} /> {busy === "claim" ? "Preparing…" : "Verify & claim"}</Button>
-        </form>
+        </fieldset></form>
       </article>
-      </Tabs.Content>
-      <Tabs.Content value="payments">
+      </div> : null}
+      {action === "payments" ? <div>
       <article className="space-console__card space-console__card--payment">
         <div className="space-console__card-title"><CircleDollarSign size={18} /><div><strong>Request payment</strong><span>Mandated agent only · live ENSv2 and risk checks</span></div></div>
-        <form onSubmit={pay} className="space-console__form">
-          <div className="space-console__row"><Field label="Allocation ID"><Input name="allocationId" inputMode="numeric" required /></Field><Field label={`Amount · ${assetLabel}`}><Input name="amount" inputMode="decimal" required /></Field></div>
+        <form onSubmit={pay} className="space-console__form"><fieldset className="space-console__fields" disabled={busy !== null}>
+          <div className="space-console__row"><AllocationField key={`payments:${selectedAllocation}`} spaceAddress={currentDraft.spaceAddress!} account={account} purpose="payments" selectedId={selectedAllocation} /><Field label={`Amount · ${assetLabel}`}><Input name="amount" inputMode="decimal" required /></Field></div>
           <Field label="Recipient"><Input name="recipient" required placeholder="0x…" /></Field>
           <Button type="submit" disabled={busy !== null || tokenDecimals.data === undefined}>{busy === "payment" ? "Authorizing…" : "Authorize & pay"}</Button>
-        </form>
+        </fieldset></form>
         {decision ? <PaymentDecision decision={decision} settled={paymentSettled} /> : null}
       </article>
         <details className="report-demo" open={reportOpen} onToggle={(event) => setReportOpen(event.currentTarget.open)}><summary>Try a paid research report <span>Example agent purchase</span></summary>{reportOpen ? <ResearchPurchase key={`${currentDraft.id}:${account}`} client={client} draftId={currentDraft.id} decimals={tokenDecimals.data} symbol={assetLabel} account={account} /> : null}</details>
-      </Tabs.Content>
-    </Tabs.Root>}
+      </div> : null}
+    </SpaceWorkspace>}
 
-    {notice ? <p className="space-console__notice" role="status">{notice}</p> : null}
+    <Modal open={recoverId !== null} onOpenChange={(open) => { if (!open) setRecoverId(null); }} busy={busy !== null}
+      title={`Close allocation ${recoverId ?? ""}?`} description="Unspent tokens will return to your wallet. This permanently stops claims and payments from this allocation.">
+      <div className="modal-actions recovery-confirm"><Button variant="outline" disabled={busy !== null} onClick={() => setRecoverId(null)}>Keep allocation</Button><Button disabled={busy !== null} onClick={() => recoverId && void recoverAllocation(recoverId)}>{busy === "recover" ? "Closing…" : "Confirm & close"}</Button></div>
+    </Modal>
     {claimFlow?.challenge.signal ? <WorldSession
       open={worldOpen}
       onOpenChange={setWorldOpen}

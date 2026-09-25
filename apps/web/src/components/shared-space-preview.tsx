@@ -1,5 +1,6 @@
 "use client";
 import "./space-console.css";
+import "./space-workspace.css";
 import type { AccordClient } from "@accord/sdk";
 import { spaceAccountAbi } from "@accord/chain";
 import { useQuery } from "@tanstack/react-query";
