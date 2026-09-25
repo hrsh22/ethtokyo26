@@ -9,13 +9,14 @@ import confetti from "canvas-confetti";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, AtSign, Ban, Bot, Check, Lock, ScanLine, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { getAddress, isAddress, zeroAddress, type Address, type Hex } from "viem";
+import { formatUnits, getAddress, isAddress, zeroAddress, type Address, type Hex } from "viem";
 import { useSendTransaction, useWriteContract } from "wagmi";
 import { SEPOLIA_CHAIN_ID, useAccord } from "@/lib/accord";
 import { parseAmount } from "@/lib/amounts";
 import { describeError, tagOf } from "@/lib/errors";
 import { amount, shortAddress, shortDate } from "@/lib/format";
 import { allocationPalette } from "@/lib/palette";
+import { allocationTerms, maxClaimable, runLabel, runPresets, type Frequency, type Terms } from "@/lib/schedule";
 import { useChainActions } from "@/lib/use-chain-actions";
 import { useSpace } from "@/lib/use-space";
 import { AmountField } from "../amount-field";
@@ -26,14 +27,14 @@ import { TxTracker, useSteps } from "../tx-tracker";
 import { Button } from "../ui/button";
 
 type Kind = "person" | "agent";
-type Period = 0 | 1 | 2 | 3;
 type EnsName = Awaited<ReturnType<AccordClient["resolveEnsName"]>>;
 type Draft = Awaited<ReturnType<AccordClient["lookupSpace"]>>;
 type Person = { address: Address; ensName?: string };
 
 const erc20ApproveAbi = [{ type: "function", name: "approve", stateMutability: "nonpayable",
   inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ name: "", type: "bool" }] }] as const;
-const periodWords: Record<Period, string> = { 0: "", 1: "day", 2: "month", 3: "minute" };
+const frequencies = [["once", "All at once"], ["day", "Every day"], ["month", "Every month"], ["minute", "Every minute"]] as const;
+const chip = (selected: boolean) => `rounded-full px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-40 ${selected ? "bg-ink text-white" : "bg-soft hover:bg-[#ebe9f3]"}`;
 const dayInput = (date: Date) => date.toISOString().slice(0, 10);
 
 export function NewAllocation({ address }: { address: string }) {
@@ -65,7 +66,9 @@ function Flow({ address, draft, initialKind, decimals, symbol, nextId }: {
   const [confirmed, setConfirmed] = useState(false);
   const [whoError, setWhoError] = useState<string | null>(null);
   const [total, setTotal] = useState("100");
-  const [period, setPeriod] = useState<Period>(initialKind === "agent" ? 0 : 1);
+  const [frequency, setFrequency] = useState<Frequency>("day");
+  // Intervals the allowance runs for; null runs until the total is used or the owner closes it.
+  const [runFor, setRunFor] = useState<number | null>(null);
   const [cap, setCap] = useState("10");
   const [daily, setDaily] = useState("20");
   const [perPayment, setPerPayment] = useState("5");
@@ -82,7 +85,11 @@ function Flow({ address, draft, initialKind, decimals, symbol, nextId }: {
   function switchKind(next: Kind) {
     if (next === kind) return;
     setKind(next); setPerson(null); setAgent(null); setConfirmed(false); setWhoError(null); setInput("");
-    setPeriod(next === "agent" ? 0 : 1);
+  }
+
+  function pickFrequency(next: Frequency) {
+    setFrequency(next);
+    setRunFor(next === "minute" ? 5 : null);
   }
 
   async function resolve() {
@@ -117,23 +124,30 @@ function Flow({ address, draft, initialKind, decimals, symbol, nextId }: {
   }
 
   const totalParsed = parseAmount(total, decimals, "Total");
-  const capParsed = period === 0 ? totalParsed : parseAmount(cap, decimals, "Limit");
+  const timed = scheduleSupport.data === BigInt(1);
+  const picked = allocationTerms(frequency, runFor);
+  const terms: Terms = "error" in picked ? { period: 1 } : picked;
+  const capParsed = frequency === "once" ? totalParsed : parseAmount(cap, decimals, "Limit");
   const dailyParsed = parseAmount(daily, decimals, "Daily cap");
   const perParsed = parseAmount(perPayment, decimals, "Per payment");
   const endsAt = Math.floor(Date.parse(`${ends}T23:59:59`) / 1000);
   const endsError = kind !== "agent" ? null : !Number.isFinite(endsAt) || endsAt * 1000 <= openedAt ? "Pick a date after today."
     : agent && endsAt >= Number(agent.expiry) ? `Must end before the ENS name expires on ${shortDate(Number(agent.expiry))}.` : null;
-  const budgetError = !totalParsed.ok ? totalParsed.error : kind === "person" ? (!capParsed.ok ? capParsed.error : null)
+  const budgetError = !totalParsed.ok ? totalParsed.error : kind === "person" ? !capParsed.ok ? capParsed.error
+      : capParsed.value > totalParsed.value ? "The limit can't be more than the total." : "error" in picked ? picked.error
+      : terms.schedule && !timed ? "This Space can't run timed allowances. Create a new Space to use them." : null
     : !dailyParsed.ok ? dailyParsed.error : !perParsed.ok ? perParsed.error
     : perParsed.value > dailyParsed.value ? "Per payment can't be more than the daily cap." : endsError;
   const units = (value: bigint) => amount(value, decimals, symbol);
   const who = kind === "person" ? person?.ensName ?? (person ? shortAddress(person.address) : "") : agent?.name ?? "";
   const sentence = !totalParsed.ok ? "" : kind === "person"
-    ? period === 0 ? `${who} can claim ${units(totalParsed.value)} whenever they like, with a World ID check each time.`
-      : capParsed.ok ? `${who} can claim up to ${units(capParsed.value)} a ${periodWords[period]} from ${units(totalParsed.value)}, with a World ID check each time.` : ""
+    ? frequency === "once" ? `${who} can claim ${units(totalParsed.value)} whenever they like, with a World ID check each time.`
+      : capParsed.ok ? `${who} can claim up to ${units(capParsed.value)} a ${frequency} from ${units(totalParsed.value)}${runLabel(frequency, runFor) ? ` for ${runLabel(frequency, runFor)}` : ""}, with a World ID check each time.` : ""
     : dailyParsed.ok && perParsed.ok ? `${who} can pay screened recipients up to ${units(perParsed.value)} at a time and ${units(dailyParsed.value)} a day, from ${units(totalParsed.value)}, until ${shortDate(endsAt)}.` : "";
-  const duration = totalParsed.ok && capParsed.ok && period !== 0 && period !== 3
-    ? Number((totalParsed.value + capParsed.value - BigInt(1)) / capParsed.value) : null;
+  const lasts = totalParsed.ok && capParsed.ok && frequency !== "once" ? Number((totalParsed.value + capParsed.value - BigInt(1)) / capParsed.value) : null;
+  const most = capParsed.ok ? maxClaimable(terms, capParsed.value) : undefined;
+  const windows = terms.schedule ? terms.schedule.durationSeconds / terms.schedule.intervalSeconds : null;
+  const plural = (count: number) => `${count} ${frequency}${count === 1 ? "" : "s"}`;
   const order = ["who", "budget", "review"] as const;
 
   return <section className="card overflow-hidden" aria-labelledby="allocate-title">
@@ -201,18 +215,36 @@ function Flow({ address, draft, initialKind, decimals, symbol, nextId }: {
               <fieldset>
                 <legend className="font-semibold">How often can they claim?</legend>
                 <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {([[0, "All at once"], [1, "Every day"], [2, "Every month"], [3, "Every minute"]] as const).map(([value, text]) => {
-                    const disabled = value === 3 && scheduleSupport.data !== BigInt(1);
-                    return <button key={value} type="button" role="radio" aria-checked={period === value} disabled={disabled} onClick={() => setPeriod(value)}
-                      className={`rounded-[1.1rem] px-3 py-3.5 text-sm font-semibold transition-shadow disabled:opacity-40 ${period === value ? "shadow-[inset_0_0_0_2px_var(--color-ink)]" : "bg-soft"}`}
-                      style={period === value ? { background: palette.soft } : undefined}>{text}{value === 3 ? <small className="block font-medium text-muted">5-minute demo</small> : null}</button>;
-                  })}
+                  {frequencies.map(([value, text]) => <button key={value} type="button" role="radio" aria-checked={frequency === value}
+                    disabled={value === "minute" && !timed} onClick={() => pickFrequency(value)}
+                    className={`rounded-[1.1rem] px-3 py-3.5 text-sm font-semibold transition-shadow disabled:opacity-40 ${frequency === value ? "shadow-[inset_0_0_0_2px_var(--color-ink)]" : "bg-soft"}`}
+                    style={frequency === value ? { background: palette.soft } : undefined}>{text}</button>)}
                 </div>
+                {scheduleSupport.isSuccess && !timed ? <p className="mt-2 text-sm text-muted">This Space was created before timed allowances, so it can’t do per-minute claims or end dates. <Link href="/spaces/new" className="font-semibold text-ink underline">Create a new Space</Link> to use them.</p> : null}
               </fieldset>
-              {period !== 0 ? <AmountField id="cap" label={`Up to, each ${periodWords[period]}`} value={cap} onChange={setCap} symbol={symbol} quick={["5", "10", "20"]} /> : null}
-              <p className="text-sm text-muted">{period === 3 ? "Five 60-second windows start when funding confirms. Unused allowance doesn't carry over. Have them link World ID from Your Spaces first, so no window is lost."
-                : period === 0 ? "They can claim everything at once, or a bit at a time."
-                : duration ? `At the full rate, this lasts ${duration} ${periodWords[period]}${duration === 1 ? "" : "s"}. Unused allowance doesn't roll over.` : null}</p>
+              {frequency !== "once" ? <AmountField id="cap" label={`Up to, each ${frequency}`} value={cap} onChange={setCap} symbol={symbol} quick={["1", "5", "10", "20"]} /> : null}
+              {frequency === "minute" || frequency === "day" ? <fieldset>
+                <legend className="font-semibold">For how long?</legend>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {frequency === "day" ? <button type="button" className={chip(runFor === null)} onClick={() => setRunFor(null)}>No end date</button> : null}
+                  {runPresets[frequency].map((preset) => <button key={preset.count} type="button" disabled={!timed} className={chip(runFor === preset.count)}
+                    onClick={() => setRunFor(preset.count)}>{preset.label}</button>)}
+                  <label className="flex items-center gap-2 text-sm font-semibold text-muted">
+                    <input type="number" min={1} step={1} inputMode="numeric" disabled={!timed} placeholder="Custom" aria-label={`Number of ${frequency}s`}
+                      value={runFor ?? ""} onChange={(event) => setRunFor(event.target.value === "" ? null : Number(event.target.value))}
+                      className="field w-28 py-2 text-base text-ink disabled:opacity-40" />{frequency}s
+                  </label>
+                </div>
+              </fieldset> : null}
+              <p className="text-sm text-muted">{frequency === "once" ? "They can claim everything at once, or a bit at a time."
+                : windows && most !== undefined && totalParsed.ok ? <>
+                  Starts when funding confirms and ends after {runLabel(frequency, runFor)}, so at most {units(most)} can be claimed.
+                  {lasts !== null && lasts < windows ? ` At the full rate, the total runs out after ${plural(lasts)}.` : ""}
+                  {totalParsed.value > most ? <> The other {units(totalParsed.value - most)} stays reserved until you close it.{decimals !== undefined
+                    ? <> <button type="button" className="font-semibold text-ink underline" onClick={() => setTotal(formatUnits(most, decimals))}>Set the total to {units(most)}</button></> : null}</> : ""}
+                  {frequency === "minute" ? " Have them link World ID first, so no minute is lost." : ""}
+                </>
+                : lasts ? `At the full rate, this lasts ${plural(lasts)}. It runs until the total is used or you close it. Unused allowance doesn't roll over.` : null}</p>
             </> : <>
               <div className="grid gap-4 sm:grid-cols-2">
                 <AmountField id="daily" label="Daily cap" value={daily} onChange={setDaily} symbol={symbol} />
@@ -229,7 +261,7 @@ function Flow({ address, draft, initialKind, decimals, symbol, nextId }: {
           </div>
 
           : step === "review" && totalParsed.ok ? <Signer address={address} draft={draft} kind={kind} person={person} agent={agent} units={units}
-            total={totalParsed.value} period={period} cap={capParsed.ok ? capParsed.value : totalParsed.value}
+            total={totalParsed.value} terms={kind === "agent" ? { period: 0 } : terms} cap={capParsed.ok ? capParsed.value : totalParsed.value}
             daily={dailyParsed.ok ? dailyParsed.value : BigInt(0)} perPayment={perParsed.ok ? perParsed.value : BigInt(0)} expiry={endsAt}
             sentence={sentence} palette={palette} onBack={() => setStep("budget")}
             onEnsChanged={() => { setStep("who"); setPerson(null); setConfirmed(false); setWhoError("The ENS name now points somewhere else. Look it up again and confirm the new wallet."); }}
@@ -244,9 +276,9 @@ function Flow({ address, draft, initialKind, decimals, symbol, nextId }: {
   </section>;
 }
 
-function Signer({ address, draft, kind, person, agent, units, total, period, cap, daily, perPayment, expiry, sentence, palette, onBack, onEnsChanged, onSession, onDone }: {
+function Signer({ address, draft, kind, person, agent, units, total, terms, cap, daily, perPayment, expiry, sentence, palette, onBack, onEnsChanged, onSession, onDone }: {
   address: string; draft: Draft; kind: Kind; person: Person | null; agent: EnsName | null; units: (value: bigint) => string;
-  total: bigint; period: Period; cap: bigint; daily: bigint; perPayment: bigint; expiry: number; sentence: string;
+  total: bigint; terms: Terms; cap: bigint; daily: bigint; perPayment: bigint; expiry: number; sentence: string;
   palette: ReturnType<typeof allocationPalette>; onBack: () => void; onEnsChanged: () => void; onSession: (error: unknown) => void;
   onDone: (result: { id: string; mandate: boolean }) => void;
 }) {
@@ -290,8 +322,8 @@ function Signer({ address, draft, kind, person, agent, units, total, period, cap
             draftId: draft.id, requestKey: crypto.randomUUID(),
             beneficiary: kind === "agent" ? zeroAddress : person!.address,
             ...(kind === "person" && person?.ensName ? { beneficiaryEnsName: person.ensName } : {}),
-            amount: total.toString(), periodCap: (period === 0 ? total : cap).toString(), period,
-            ...(period === 3 ? { schedule: { intervalSeconds: 60, durationSeconds: 300 } } : {}),
+            amount: total.toString(), periodCap: (terms.period === 0 ? total : cap).toString(), period: terms.period,
+            ...(terms.schedule ? { schedule: terms.schedule } : {}),
           });
           tracker.update("approve", { detail: "Confirm in your wallet" });
           const hash = await writeContractAsync({ address: getAddress(next.tokenAddress), abi: erc20ApproveAbi, functionName: "approve",
