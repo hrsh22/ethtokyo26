@@ -53,19 +53,26 @@ export function SpacesHome() {
         </Link> : null}
       </div>
     </div> : <>
-    {received.data?.allowances.length ? <section className="mt-8" aria-labelledby="received-title">
+    <section className="mt-8" aria-labelledby="received-title">
       <h2 id="received-title" className="font-display text-3xl font-extrabold">Shared with you</h2>
       <p className="mt-1 text-sm text-muted">Allowances assigned to your connected wallet appear here automatically.</p>
-      <ul className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {received.isPending ? <div className="card mt-4 p-6 text-muted">Checking allowances for your wallet…</div>
+      : received.isError ? <div role="alert" className="card mt-4 flex flex-wrap items-center gap-4 p-6">
+        <span className="flex-1"><b className="block font-display text-xl font-extrabold">We couldn’t load allowances shared with you</b>
+          <span className="text-sm text-muted">Check your connection and try again.</span></span>
+        <Button variant="soft" onClick={() => void received.refetch()}><RotateCw />Try again</Button>
+      </div>
+      : received.data?.allowances.length ? <ul className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {received.data.allowances.map((entry) => <li key={`${entry.spaceAddress}:${entry.allocationId}`}>
           <ReceivedCard entry={entry} account={account!} />
         </li>)}
       </ul>
-    </section> : received.isError ? <div role="alert" className="card mt-8 flex flex-wrap items-center gap-4 p-6">
-      <span className="flex-1"><b className="block font-display text-xl font-extrabold">We couldn’t load allowances shared with you</b>
-        <span className="text-sm text-muted">Check your connection and try again.</span></span>
-      <Button variant="soft" onClick={() => void received.refetch()}><RotateCw />Try again</Button>
-    </div> : null}
+      : <div className="card mt-4 p-6">
+        <h3 className="font-display text-xl font-extrabold">No allowances assigned to this wallet yet</h3>
+        <p className="mt-2 text-sm text-muted">Connected wallet: <span className="address break-all text-ink">{account}</span></p>
+        <p className="mt-2 text-sm text-muted">Ask the Space owner to create and fund an allowance for this address. If they used another wallet, switch to that wallet.</p>
+      </div>}
+    </section>
     {spaces.isPending ? <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="h-[260px] animate-pulse rounded-tile bg-white/70" />)}</div>
     : spaces.isError ? <div role="alert" className="card mt-8 flex flex-wrap items-center gap-4 p-7">
       <span className="flex-1"><b className="block font-display text-2xl font-extrabold">We couldn’t load your Spaces</b><span className="text-muted">Your Spaces are safe. Check your connection and try again.</span></span>
