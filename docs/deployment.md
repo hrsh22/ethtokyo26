@@ -35,6 +35,13 @@ before migrations or manual data changes. Keep the API at one PM2 instance.
 Set `FORWARDER_ADDRESS=0x947f24d2749f00be27062cec447457cac3c7a6e0`, `SPACE_FACTORY_ADDRESS=0x2C080f4EAEB124E07c50F6b9324fAb7894E97A63`, `DEMO_TOKEN_ADDRESS=0x06729abbe1b9683ea3d5addd151c15c93be2a0a4`, and `RESEARCH_PRICE_BASE_UNITS=1000000` in root `.env`. Put a separate funded Sepolia wallet key in `SPONSOR_PRIVATE_KEY` there only. Its address is `0xBf40A6E6C25fED59B18cDCC8C60692E68bCf0CBb`; top it up with Sepolia ETH when needed. `NEXT_PUBLIC_DEMO_SPACE_ADDRESS` now comes from API config, so set the new tUSDC demo Space in the backend `.env` only. The app accepts only the current tUSDC factory and token. Old ACD contracts remain on Sepolia but are no longer listed or actionable here.
 The existing Nginx site has a Let's Encrypt origin certificate; Cloudflare can
 use **Full (strict)** TLS for this hostname.
+
+### Sponsor balance
+
+Space creation uses Sepolia ETH from `0xBf40A6E6C25fED59B18cDCC8C60692E68bCf0CBb`. Refill this address with **Sepolia ETH**, including a buffer for repeated deployments; tUSDC cannot pay network fees. The API requires the estimated execution gas at the current maximum fee plus `SPONSOR_MIN_BALANCE_WEI` (default 0.001 ETH). It uses the same fee caps when submitting the transaction.
+
+If the reserve check fails, the API returns `SponsorUnavailable` with reason `insufficient_balance`; no transaction is submitted. PM2 logs include a `sponsor_low_balance` event with the public sponsor address, balance and required wei. A saved Space draft can be deployed again after replenishment.
+
 `pnpm dev` can reuse this API, but browser sign-in from `localhost:3000` is
 rejected while `WEB_ORIGIN` is set to the production hostname.
 

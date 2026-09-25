@@ -75,6 +75,7 @@ describe("tiles and rings", () => {
 
 describe("errors", () => {
   it("turns wallet and API failures into short next steps", () => {
+    expect(describeError({ _tag: "SponsorUnavailable", reason: "insufficient_balance", message: "The gas sponsor needs a top-up." }, "Setup didn't finish.")).toBe("The gas sponsor needs a top-up.");
     expect(describeError({ _tag: "ServiceUnavailable" }, "x")).toMatch(/nothing was submitted/);
     expect(describeError(Object.assign(new Error("boom\nRequest Arguments: 0xdead"), { shortMessage: "User rejected the request." }), "x")).toMatch(/cancelled/);
     expect(describeError(new Error(JSON.stringify({ _tag: "Forbidden" })), "Nope.")).toMatch(/^Nope\. Check/);

@@ -3,14 +3,13 @@ import { accordForwarderAbi, accordTestUSDCAbi, spaceAccountAbi, spaceFactoryAbi
 import { HttpApiBuilder, HttpApiError } from "@effect/platform";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { Effect } from "effect";
-import { createWalletClient, decodeFunctionData, getAddress, http, isAddress, type Address, type Hex } from "viem";
-import { nonceManager, privateKeyToAccount } from "viem/accounts";
-import { sepolia } from "viem/chains";
+import { decodeFunctionData, getAddress, isAddress, type Address, type Hex } from "viem";
 import { currentSession, requireBrowserOrigin } from "./auth";
 import { adapterAddress, factoryAddress, permitSigner, publicClient } from "./chain";
 import { Database } from "./db";
 import { databaseOperation } from "./db/run";
 import { spaceDrafts } from "./db/schema";
+import { fundedFees, sponsor, sponsorFailure } from "./sponsor-wallet";
 
 const allowedSpaceCalls = new Set([
   "createAllocation", "createTimedAllocation", "fundAllocation", "fundAgentAllocation", "claim", "setMandate", "pay",
@@ -19,26 +18,10 @@ const allowedSpaceCalls = new Set([
 const lastFaucet = new Map<string, number>();
 const faucetCooldownMs = 10_000;
 
-function sponsor() {
-  const key = process.env.SPONSOR_PRIVATE_KEY;
-  if (!key || !/^0x[a-fA-F0-9]{64}$/.test(key)) throw new Error("Sponsor wallet is not configured");
-  const account = privateKeyToAccount(key as Hex, { nonceManager });
-  return createWalletClient({ account, chain: sepolia,
-    transport: http(process.env.SEPOLIA_RPC_URL ?? "https://ethereum-sepolia-rpc.publicnode.com") });
-}
-
 function configuredAddress(name: string): Address {
   const value = process.env[name];
   if (!value || !isAddress(value)) throw new Error(`${name} is not configured`);
   return getAddress(value);
-}
-
-async function enoughGas(address: Address, gas: bigint) {
-  const [balance, fees] = await Promise.all([
-    publicClient.getBalance({ address }), publicClient.estimateFeesPerGas(),
-  ]);
-  const reserve = BigInt(process.env.SPONSOR_MIN_BALANCE_WEI ?? "1000000000000000");
-  if (balance < reserve + gas * fees.maxFeePerGas) throw new Error("Sponsor wallet needs Sepolia ETH");
 }
 
 export const SponsorLive = HttpApiBuilder.group(AccordApi, "sponsor", (handlers) => handlers
@@ -53,13 +36,14 @@ export const SponsorLive = HttpApiBuilder.group(AccordApi, "sponsor", (handlers)
       try: async () => {
         const wallet = sponsor();
         const token = configuredAddress("DEMO_TOKEN_ADDRESS");
-        await enoughGas(wallet.account.address, 180_000n);
-        const simulation = await publicClient.simulateContract({ address: token, abi: accordTestUSDCAbi,
-          functionName: "faucetTo", args: [account], account: wallet.account });
-        const transactionHash = await wallet.writeContract(simulation.request);
+        const fees = await fundedFees(wallet.account.address, 180_000n);
+        const call = { address: token, abi: accordTestUSDCAbi,
+          functionName: "faucetTo", args: [account], account: wallet.account } as const;
+        await publicClient.simulateContract(call);
+        const transactionHash = await wallet.writeContract({ ...call, ...fees });
         return { transactionHash };
       },
-      catch: () => new HttpApiError.ServiceUnavailable(),
+      catch: (error) => sponsorFailure(error, "faucet"),
     });
   }))
   .handle("relay", ({ payload }) => Effect.gen(function* () {
@@ -132,16 +116,16 @@ export const SponsorLive = HttpApiBuilder.group(AccordApi, "sponsor", (handlers)
     return yield* Effect.tryPromise({
       try: async () => {
         const wallet = sponsor();
-        const simulation = await publicClient.simulateContract({ address: forwarder, abi: accordForwarderAbi,
-          functionName: "execute", args: [request], account: wallet.account });
-        const estimate = await publicClient.estimateContractGas({address:forwarder,abi:accordForwarderAbi,
-          functionName:"execute",args:[request],account:wallet.account});
+        const call = { address: forwarder, abi: accordForwarderAbi,
+          functionName: "execute", args: [request], account: wallet.account } as const;
+        await publicClient.simulateContract(call);
+        const estimate = await publicClient.estimateContractGas(call);
         const gasLimit=estimate*125n/100n;
-        await enoughGas(wallet.account.address,gasLimit);
-        const transactionHash = await wallet.writeContract({...simulation.request,gas:gasLimit});
+        const fees = await fundedFees(wallet.account.address,gasLimit);
+        const transactionHash = await wallet.writeContract({...call,gas:gasLimit,...fees});
         return { transactionHash };
       },
-      catch: () => new HttpApiError.ServiceUnavailable(),
+      catch: (error) => sponsorFailure(error, "relay"),
     });
   })),
 );

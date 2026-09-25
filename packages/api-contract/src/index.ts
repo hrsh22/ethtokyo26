@@ -104,6 +104,10 @@ export const SponsoredRequest = Schema.Struct({
   signature: Schema.String.pipe(Schema.pattern(/^0x[a-fA-F0-9]{130}$/)),
 });
 export const SponsoredTransaction = Schema.Struct({ transactionHash: Schema.String.pipe(Schema.pattern(/^0x[a-fA-F0-9]{64}$/)) });
+export class SponsorUnavailable extends Schema.TaggedError<SponsorUnavailable>()("SponsorUnavailable", {
+  reason: Schema.Literal("insufficient_balance", "service_unavailable"),
+  message: Schema.String,
+}, HttpApiSchema.annotations({ status: 503 })) {}
 export const LookupSpace = Schema.Struct({ spaceAddress: WalletAddress });
 // Public: the name an owner gave an activated Space. Drafts and other metadata stay private.
 export const SpaceProfile = Schema.Struct({ id: Schema.UUID, name: Schema.String, spaceAddress: WalletAddress });
@@ -317,7 +321,7 @@ export const AccordApi = HttpApi.make("AccordApi")
     .add(HttpApiEndpoint.post("faucet")`/v1/sponsor/faucet`.addSuccess(SponsoredTransaction))
     .add(HttpApiEndpoint.post("relay")`/v1/sponsor/relay`.setPayload(SponsoredRequest).addSuccess(SponsoredTransaction))
     .addError(HttpApiError.Unauthorized).addError(HttpApiError.Forbidden)
-    .addError(HttpApiError.BadRequest).addError(HttpApiError.ServiceUnavailable))
+    .addError(HttpApiError.BadRequest).addError(HttpApiError.ServiceUnavailable).addError(SponsorUnavailable))
   .add(HttpApiGroup.make("activity")
     .add(HttpApiEndpoint.post("list")`/v1/spaces/activity`.setPayload(SpaceActivityRequest).addSuccess(SpaceActivity))
     .addError(HttpApiError.NotFound).addError(HttpApiError.BadRequest).addError(HttpApiError.ServiceUnavailable))
