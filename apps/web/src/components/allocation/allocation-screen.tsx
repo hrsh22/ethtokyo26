@@ -34,7 +34,8 @@ export function AllocationScreen({ address, id }: { address: string; id: bigint 
   if (query.isError || space.meta.isError) return <div>{back}<div role="alert" className="card p-8">
     <h1 className="font-display text-3xl font-extrabold">{unsupported ? "This allocation isn’t available in Accord" : "We couldn’t read this from Sepolia"}</h1>
     {unsupported ? <p className="mt-2 text-ink-soft">Accord now supports tUSDC Spaces only.</p> : null}
-    <Button variant="soft" className="mt-4" onClick={() => void query.refetch()}><RotateCw />Try again</Button></div></div>;
+    {unsupported ? <Button asChild variant="soft" className="mt-4"><Link href="/spaces">Your Spaces</Link></Button>
+      : <Button variant="soft" className="mt-4" onClick={() => void query.refetch()}><RotateCw />Try again</Button>}</div></div>;
   if (!data) return <div>{back}<div className="card p-8"><h1 className="font-display text-3xl font-extrabold">This allocation doesn’t exist</h1>
     <p className="mt-2 text-ink-soft">Check the link. Allocation {id.toString()} isn’t in this Space.</p></div></div>;
 
