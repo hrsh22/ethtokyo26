@@ -18,7 +18,7 @@ import { migrate } from "drizzle-orm/libsql/migrator";
 import { createPublicClient, createWalletClient, decodeEventLog, erc20Abi, hexToString, http, isAddress, isHex, parseEther, type Abi, type Hex } from "viem";
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
-import { labelhash } from "viem/ens";
+import { labelhash, namehash } from "viem/ens";
 import { parseSiweMessage } from "viem/siwe";
 import { spaceAccountAbi, spaceFactoryAbi } from "@accord/chain";
 
@@ -109,10 +109,12 @@ const token = await deploy("SpaceAccount.t.sol/DemoToken");
 const adapter = await deploy("EnsPermissionAdapter.sol/EnsPermissionAdapter");
 const factory = await deploy("SpaceFactory.sol/SpaceFactory");
 const registry = await deploy("SpaceAccount.t.sol/MockEnsV2Registry");
+const resolver = await deploy("MockRecipientResolver.sol/MockRecipientResolver");
+await publicClient.waitForTransactionReceipt({ hash: await walletClient.writeContract({ address: resolver.address, abi: resolver.abi, functionName: "setAddress", args: [namehash("family.eth"), owner.address] }) });
 await publicClient.waitForTransactionReceipt({ hash: await walletClient.writeContract({ address: token.address, abi: token.abi, functionName: "mint", args: [owner.address, parseEther("1000")] }) });
 const block = await publicClient.getBlock();
 await publicClient.waitForTransactionReceipt({ hash: await walletClient.writeContract({ address: registry.address, abi: registry.abi, functionName: "setState", args: [BigInt(labelhash("agent")), 2, owner.address, block.timestamp + 30n * 86400n, 7n] }) });
-const manifest = { web, api, control, rpc, database: dbName, owner: owner.address, recipient, blockedRecipient, unavailableRecipient, token: token.address, factory: factory.address, registry: registry.address, agentName: "agent.eth", simulatedPartners: true };
+const manifest = { web, api, control, rpc, database: dbName, owner: owner.address, recipient, blockedRecipient, unavailableRecipient, token: token.address, factory: factory.address, registry: registry.address, agentName: "agent.eth", humanName: "family.eth", resolver: resolver.address, simulatedPartners: true };
 async function save() {
   await mkdir(new URL("../../../.codex/", import.meta.url), { recursive: true });
   await writeFile(statePath, JSON.stringify({ ...manifest, space, transactions }, null, 2) + "\n", { mode: 0o600 });
@@ -121,7 +123,7 @@ await save();
 start(process.execPath, ["--import", "./scripts/mock-partners.mjs", "--import", "tsx", "src/index.ts"], new URL("../", import.meta.url), {
   ...baseEnv, RESEARCH_SELLER_ADDRESS: recipient, API_PORT: "4001", API_HOST: "127.0.0.1", WEB_ORIGIN: web, DATABASE_FILE: dbFile, SEPOLIA_RPC_URL: rpc,
   PERMIT_SIGNER_PRIVATE_KEY: signerKey, SPACE_FACTORY_ADDRESS: factory.address, ENS_ADAPTER_ADDRESS: adapter.address,
-  ENSV2_REGISTRY_ADDRESS: registry.address, DEMO_TOKEN_ADDRESS: token.address,
+  ENSV2_REGISTRY_ADDRESS: registry.address, ENSV2_UNIVERSAL_RESOLVER_ADDRESS: resolver.address, DEMO_TOKEN_ADDRESS: token.address,
   WORLD_APP_ID: "app_local_anvil", WORLD_RP_ID: "rp_local_anvil", WORLD_RP_SIGNING_KEY: generatePrivateKey(), WORLD_ENVIRONMENT: "staging",
   ACCORD_PARTNER_MOCKS: "local-only", INTERCEPTA_API_KEY: "local-test-only", ACCORD_SESSION_COOKIE_NAME: "accord_e2e_session",
   MOCK_INTERCEPTA_BLOCK_ADDRESS: blockedRecipient, MOCK_INTERCEPTA_ERROR_ADDRESS: unavailableRecipient,

@@ -41,6 +41,17 @@ describe("allocation actions by wallet role", () => {
     expect(allocationAccess(daily, agent, timestamp).canPay).toBe(false);
     expect(allocationAccess(daily, agent, timestamp + BigInt(86400)).canPay).toBe(true);
   });
+  it("only offers a five-minute claim while a window has allowance", () => {
+    const timed = { ...personal, allocation: [...personal.allocation] as [...typeof personal.allocation],
+      schedule: [timestamp, timestamp + BigInt(300), 60] as const };
+    timed.allocation[5] = 3;
+    expect(allocationAccess(timed, recipient, timestamp).canClaim).toBe(true);
+    timed.allocation[4] = BigInt(1);
+    timed.allocation[3] = timed.allocation[2];
+    expect(allocationAccess(timed, recipient, timestamp).canClaim).toBe(false);
+    expect(allocationAccess(timed, recipient, timestamp + BigInt(60)).canClaim).toBe(true);
+    expect(allocationAccess(timed, recipient, timestamp + BigInt(300)).canClaim).toBe(false);
+  });
   it("compares wallet addresses without case sensitivity", () => {
     const entry = { ...personal, allocation: [...personal.allocation] as [...typeof personal.allocation] };
     entry.allocation[0] = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd";

@@ -1,5 +1,5 @@
 import { AccordApi, DecisionRejected, ScreeningUnavailable } from "@accord/api-contract";
-import { ensPermissionAdapterAbi, hashSpacePermit, PermitAction, signSpacePermit, spaceAccountAbi, type SpacePermit } from "@accord/chain";
+import { allocationWindow, ensPermissionAdapterAbi, hashSpacePermit, PermitAction, signSpacePermit, spaceAccountAbi, type SpacePermit } from "@accord/chain";
 import { HttpApiBuilder, HttpApiError } from "@effect/platform";
 import { and, eq, gt, isNotNull, isNull } from "drizzle-orm";
 import { Effect } from "effect";
@@ -88,12 +88,16 @@ async function liveActionState(kind: Kind, space: Address, allocationId: bigint,
     publicClient.readContract({ address: space, abi: spaceAccountAbi, functionName: "policyVersion", blockNumber: block.number }),
   ]);
   if (allocationId === 0n || allocation[6]) throw denied("allocation_closed", "This allocation is closed or unavailable.");
+  const schedule = allocation[5] === 3 ? await publicClient.readContract({
+    address: space, abi: spaceAccountAbi, functionName: "allocationSchedules", args: [allocationId], blockNumber: block.number,
+  }) : undefined;
+  const window = allocationWindow(allocation, block.timestamp, schedule);
+  if (window.expired) throw denied("allocation_expired", "This allocation's claim window has ended. Its owner can recover the unclaimed funds.");
   if (amount === 0n || amount > allocation[1]) throw denied("insufficient_allocation", "The requested amount exceeds this allocation's remaining funds.");
   if (allocation[5] !== 0) {
-    const date = new Date(Number(block.timestamp) * 1000);
-    const period = allocation[5] === 1 ? block.timestamp / 86400n + 1n : BigInt(date.getUTCFullYear() * 12 + date.getUTCMonth() + 1);
-    const spent = allocation[4] === period ? allocation[3] : 0n;
-    if (spent + amount > allocation[2]) throw denied("allocation_period_cap", "This amount exceeds the allocation's remaining period allowance. Reduce the amount or wait for the next period.");
+    if (amount > window.available) throw denied("allocation_period_cap", allocation[5] === 3
+      ? "This window's allowance is used up or too small for this claim. Reduce the amount or wait for the next reset; unused allowance does not carry over."
+      : "This amount exceeds the allocation's remaining period allowance. Reduce the amount or wait for the next period.");
   }
   if (kind === "claim") {
     if (allocation[0].toLowerCase() !== actor.toLowerCase() || recipient.toLowerCase() !== actor.toLowerCase()) {

@@ -234,6 +234,86 @@ contract SpaceAccountTest {
         space.createAllocation(person, amount, periodCap, period, permit, _sign(permit));
     }
 
+    function _timedAllocation(address person) private returns (uint256 id) {
+        id = space.nextAllocationId();
+        SpaceAccount.Permit memory permit = _permit(address(this), SpaceAccount.Action.CreateAllocation,
+            id, person, 50 * UNIT, keccak256(abi.encode(10 * UNIT, SpaceAccount.Period.Interval, uint32(60), uint32(300))));
+        space.createTimedAllocation(person, 50 * UNIT, 10 * UNIT, 60, 300, permit, _sign(permit));
+    }
+
+    function testMinuteWindowsResetFromFundingWithoutCarryOver() public {
+        vm.warp(1007); // Deliberately not a clock-minute boundary.
+        uint256 id = _timedAllocation(beneficiary);
+        (uint64 start, uint64 end, uint32 interval) = space.allocationSchedules(id);
+        require(start == 1007 && end == 1307 && interval == 60, "incorrect schedule");
+        _claim(id, 4 * UNIT);
+        _claim(id, 6 * UNIT);
+        vm.warp(1066);
+        SpaceAccount.Permit memory excess = _permit(beneficiary, SpaceAccount.Action.Claim, id, beneficiary, UNIT, bytes32(0));
+        bytes memory signature = _sign(excess);
+        vm.expectRevert(SpaceAccount.PeriodLimitExceeded.selector);
+        vm.prank(beneficiary);
+        space.claim(id, UNIT, excess, signature);
+        vm.warp(1067);
+        _claim(id, 10 * UNIT);
+        vm.warp(1247); // Skipping windows cannot accumulate their caps.
+        excess = _permit(beneficiary, SpaceAccount.Action.Claim, id, beneficiary, 11 * UNIT, bytes32(0));
+        signature = _sign(excess);
+        vm.expectRevert(SpaceAccount.PeriodLimitExceeded.selector);
+        vm.prank(beneficiary);
+        space.claim(id, 11 * UNIT, excess, signature);
+        _claim(id, 10 * UNIT);
+        require(token.balanceOf(beneficiary) == 30 * UNIT, "wrong claimed amount");
+    }
+
+    function testMinuteExpiryRejectsCachedPermitAndAllowsRecovery() public {
+        vm.warp(1007);
+        uint256 id = _timedAllocation(beneficiary);
+        vm.warp(1306);
+        _claim(id, 5 * UNIT);
+        SpaceAccount.Permit memory pending = _permit(beneficiary, SpaceAccount.Action.Claim, id, beneficiary, UNIT, bytes32(0));
+        bytes memory signature = _sign(pending);
+        vm.warp(1307);
+        vm.expectRevert(SpaceAccount.AllocationExpired.selector);
+        vm.prank(beneficiary);
+        space.claim(id, UNIT, pending, signature);
+        vm.expectRevert(SpaceAccount.AllocationExpired.selector);
+        space.fundAllocation(id, UNIT);
+        SpaceAccount.Permit memory recovery = _permit(address(this), SpaceAccount.Action.RecoverAllocation,
+            id, address(this), 45 * UNIT, bytes32(0));
+        space.recoverAllocation(id, recovery, _sign(recovery));
+        require(token.balanceOf(address(space)) == 0, "unclaimed funds locked");
+    }
+
+    function testTimedScheduleIsSignedAndCannotUseLegacyEntryPoint() public {
+        SpaceAccount.Permit memory permit = _permit(address(this), SpaceAccount.Action.CreateAllocation,
+            1, beneficiary, 50 * UNIT, keccak256(abi.encode(10 * UNIT, SpaceAccount.Period.Interval, uint32(60), uint32(300))));
+        bytes memory signature = _sign(permit);
+        vm.expectRevert(SpaceAccount.InvalidPermit.selector);
+        space.createTimedAllocation(beneficiary, 50 * UNIT, 10 * UNIT, 60, 600, permit, signature);
+        vm.expectRevert(SpaceAccount.InvalidAllocation.selector);
+        space.createTimedAllocation(beneficiary, 50 * UNIT, 10 * UNIT, 0, 300, permit, signature);
+        vm.expectRevert(SpaceAccount.InvalidAllocation.selector);
+        space.createTimedAllocation(beneficiary, 50 * UNIT, 10 * UNIT, 60, 301, permit, signature);
+        vm.expectRevert(SpaceAccount.InvalidAllocation.selector);
+        space.createAllocation(beneficiary, 50 * UNIT, 10 * UNIT, SpaceAccount.Period.Interval, permit, signature);
+    }
+
+    function testTimedAgentPaymentsAlsoExpire() public {
+        vm.warp(1007);
+        uint256 id = _timedAllocation(address(0));
+        registry.setState(NAME_ID, IEnsV2Registry.Status.REGISTERED, agent, uint64(block.timestamp + 10 days), RESOURCE);
+        _setMandate(id);
+        _pay(id, 5 * UNIT, seller);
+        SpaceAccount.Permit memory pending = _permit(agent, SpaceAccount.Action.Pay, id, seller, UNIT, bytes32(0));
+        pending.expiry = 2000;
+        bytes memory signature = _sign(pending);
+        vm.warp(1307);
+        vm.expectRevert(SpaceAccount.AllocationExpired.selector);
+        vm.prank(agent);
+        space.pay(id, seller, UNIT, pending, signature);
+    }
+
     function _configuredAgentAllocation() private returns (uint256 id) {
         id = _createAllocation(address(0), 100 * UNIT, 100 * UNIT, SpaceAccount.Period.None);
         registry.setState(NAME_ID, IEnsV2Registry.Status.REGISTERED, agent,

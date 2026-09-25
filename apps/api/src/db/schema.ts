@@ -38,6 +38,18 @@ export const worldSessions = sqliteTable("world_sessions", {
   enrolledAt: timestamp("enrolled_at").default(sql`(unixepoch() * 1000)`).notNull(),
 });
 
+// A display snapshot, never a source of claim authority. Only show it once its
+// owner-signed creation permit has been consumed and the beneficiary matches.
+export const allocationNames = sqliteTable("allocation_names", {
+  requestId: text("request_id").primaryKey(),
+  spaceAddress: text("space_address").notNull(),
+  allocationId: text("allocation_id").notNull(),
+  beneficiary: text("beneficiary").notNull(),
+  name: text("name").notNull(),
+  resolvedBlock: text("resolved_block").notNull(),
+  createdAt: createdAt(),
+});
+
 export const worldChallenges = sqliteTable("world_challenges", {
   id: text("id").primaryKey(),
   address: text("address").notNull(),

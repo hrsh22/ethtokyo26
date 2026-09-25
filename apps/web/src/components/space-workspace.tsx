@@ -42,7 +42,7 @@ export function SpaceWorkspace({ isOwner, account, spaceAddress, client, decimal
         <div className="space-action-heading"><Button variant="ghost" disabled={busy} onClick={() => onAction(null)}><ArrowLeft size={15} />{actingAsOwner ? "All allocations" : "My allocations"}</Button><h2 tabIndex={-1}>{actionInfo.title}</h2><p>{actionInfo.description}</p></div>
         {children}
       </> : <>
-        <SpaceTerms spaceAddress={spaceAddress} account={account} decimals={decimals} symbol={symbol} audience={role === "manage" ? "owner" : "recipient"} disabled={busy} onAction={onAction} />
+        <SpaceTerms spaceAddress={spaceAddress} account={account} client={client} decimals={decimals} symbol={symbol} audience={role === "manage" ? "owner" : "recipient"} disabled={busy} onAction={onAction} />
         {role === "manage" ? <div className="space-owner-tools"><div><h3>Owner tools</h3><p>Permissions and recovery stay in your control.</p></div><Button variant="outline" disabled={busy} onClick={() => onAction("mandate")}><Bot size={16} />Agent mandates</Button><Button variant="ghost" disabled={busy} onClick={() => onAction("settings")}><Settings2 size={16} />Manage access</Button></div> : null}
         {role === "mine" ? <details className="space-known-allocation"><summary>Have an allocation ID?</summary><p>Use an older allocation, or retry if it hasn’t appeared yet. Your wallet must still have permission.</p><div><Button variant="outline" disabled={busy} onClick={() => onAction("claim")}>Claim by allocation ID</Button><Button variant="outline" disabled={busy} onClick={() => onAction("payments")}>Pay by allocation ID</Button></div></details> : null}
       </>}

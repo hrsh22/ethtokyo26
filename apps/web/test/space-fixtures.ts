@@ -9,7 +9,7 @@ export const token = "0x5555555555555555555555555555555555555555" as Address;
 export const timestamp = BigInt(1_800_000_000);
 export function allocation(id: number, beneficiary: Address, remaining = 1200): SpaceAllocation {
   return { id: BigInt(id), allocation: [beneficiary, BigInt(remaining * 1e6), BigInt(200e6), BigInt(0), BigInt(0), 2, false],
-    mandate: [zeroAddress, zeroAddress, BigInt(0), BigInt(0), BigInt(0), BigInt(0), BigInt(0), BigInt(0), BigInt(0), false], ensAuthorized: false };
+    mandate: [zeroAddress, zeroAddress, BigInt(0), BigInt(0), BigInt(0), BigInt(0), BigInt(0), BigInt(0), BigInt(0), false], ensAuthorized: false, schedule: undefined };
 }
 export const personal = allocation(1, recipient);
 export const agentBudget: SpaceAllocation = { ...allocation(2, zeroAddress, 500),

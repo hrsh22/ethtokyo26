@@ -38,6 +38,17 @@ export const EnsNameState = Schema.Struct({
   expiry: Schema.String,
   active: Schema.Boolean,
 });
+export const EnsRecipient = Schema.Struct({
+  name: Schema.String, address: WalletAddress, blockNumber: Schema.String,
+  chainId: Schema.Literal(11155111),
+});
+export const AllocationNameRequest = Schema.Struct({
+  spaceAddress: WalletAddress,
+  allocationIds: Schema.Array(Schema.String.pipe(Schema.pattern(/^[1-9][0-9]{0,77}$/))).pipe(Schema.maxItems(20)),
+});
+export const AllocationNameList = Schema.Struct({ names: Schema.Array(Schema.Struct({
+  allocationId: Schema.String, name: Schema.String, address: WalletAddress, resolvedBlock: Schema.String,
+})) });
 
 export const ChallengeRequest = Schema.Struct({ address: WalletAddress });
 export const ChallengeResponse = Schema.Struct({
@@ -192,7 +203,12 @@ export const SignClaimRequest = Schema.Struct({ intentId: Schema.UUID });
 
 export const AdminCreateAllocation = Schema.Struct({
   draftId: Schema.UUID, requestKey: Schema.UUID, beneficiary: WalletAddress,
-  amount: UnsignedInteger, periodCap: UnsignedInteger, period: Schema.Literal(0, 1, 2),
+  beneficiaryEnsName: Schema.optional(Schema.String.pipe(Schema.minLength(5), Schema.maxLength(255))),
+  amount: UnsignedInteger, periodCap: UnsignedInteger, period: Schema.Literal(0, 1, 2, 3),
+  schedule: Schema.optional(Schema.Struct({
+    intervalSeconds: Schema.Number.pipe(Schema.int(), Schema.between(60, 86400)),
+    durationSeconds: Schema.Number.pipe(Schema.int(), Schema.between(60, 31536000)),
+  })),
 });
 export const AdminSetMandate = Schema.Struct({
   draftId: Schema.UUID, requestKey: Schema.UUID, allocationId: UnsignedInteger,
@@ -206,7 +222,7 @@ export const AdminRevokeMandate = Schema.Struct({
 export const AdminRecoverAllocation = AdminRevokeMandate;
 export const AdminPermitResponse = Schema.Struct({
   spaceAddress: WalletAddress, tokenAddress: WalletAddress,
-  functionName: Schema.Literal("createAllocation", "setMandate", "revokeMandate", "recoverAllocation"),
+  functionName: Schema.Literal("createAllocation", "createTimedAllocation", "setMandate", "revokeMandate", "recoverAllocation"),
   calldata: Schema.String, signature: Schema.String, digest: Schema.String,
   permit: Schema.Struct({
     actor: WalletAddress, action: Schema.Literal(0, 1, 4, 5), allocationId: UnsignedInteger,
@@ -230,7 +246,12 @@ export const AccordApi = HttpApi.make("AccordApi")
   .add(HttpApiGroup.make("ens")
     .add(HttpApiEndpoint.post("resolve")`/v1/ens/resolve`
       .setPayload(ResolveEnsName).addSuccess(EnsNameState))
+    .add(HttpApiEndpoint.post("recipient")`/v1/ens/recipient`
+      .setPayload(ResolveEnsName).addSuccess(EnsRecipient))
+    .add(HttpApiEndpoint.post("allocationNames")`/v1/ens/allocations`
+      .setPayload(AllocationNameRequest).addSuccess(AllocationNameList))
     .addError(HttpApiError.BadRequest)
+    .addError(HttpApiError.NotFound)
     .addError(HttpApiError.ServiceUnavailable))
   .add(
     HttpApiGroup.make("admin")
@@ -245,6 +266,7 @@ export const AccordApi = HttpApi.make("AccordApi")
       .addError(HttpApiError.Unauthorized)
       .addError(HttpApiError.Forbidden)
       .addError(HttpApiError.BadRequest)
+      .addError(HttpApiError.Conflict)
       .addError(HttpApiError.ServiceUnavailable),
   )
   .add(

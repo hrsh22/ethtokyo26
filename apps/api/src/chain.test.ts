@@ -24,6 +24,7 @@ function receipt(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+  vi.stubEnv("SPACE_LEGACY_FACTORY_ADDRESSES", "");
   vi.stubEnv("SPACE_FACTORY_ADDRESS", factory);
   vi.stubEnv("ENS_ADAPTER_ADDRESS", adapter);
   vi.stubEnv("PERMIT_SIGNER_PRIVATE_KEY", signerKey);
@@ -37,6 +38,11 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 
 describe("Space activation receipt validation", () => {
+  it("accepts an explicitly retained factory after an upgrade", async () => {
+    vi.stubEnv("SPACE_FACTORY_ADDRESS", relay);
+    vi.stubEnv("SPACE_LEGACY_FACTORY_ADDRESSES", factory);
+    await expect(deployedSpaceFromReceipt(hash, owner)).resolves.toEqual({ space, token });
+  });
   it("accepts a direct factory call", async () => {
     await expect(deployedSpaceFromReceipt(hash, owner)).resolves.toEqual({ space, token });
   });

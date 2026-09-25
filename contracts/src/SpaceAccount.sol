@@ -26,7 +26,8 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
     enum Period {
         None,
         Daily,
-        Monthly
+        Monthly,
+        Interval
     }
 
     struct Permit {
@@ -65,6 +66,12 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
         bool active;
     }
 
+    struct AllocationSchedule {
+        uint64 startsAt;
+        uint64 endsAt;
+        uint32 intervalSeconds;
+    }
+
     struct MandateConfig {
         address agent;
         address registry;
@@ -87,6 +94,8 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
     uint256 public nextAllocationId = 1;
     uint64 public policyVersion = 1;
     mapping(uint256 => Allocation) public allocations;
+    uint256 public constant allocationScheduleVersion = 1;
+    mapping(uint256 => AllocationSchedule) public allocationSchedules;
     mapping(uint256 => Mandate) public mandates;
     mapping(bytes32 => bool) public consumedRequests;
     mapping(address => mapping(uint256 => bool)) public consumedNonces;
@@ -114,6 +123,7 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
     error InvalidEnsAuthority();
     error InsufficientAllocation();
     error PeriodLimitExceeded();
+    error AllocationExpired();
 
     constructor(address owner_, address authorizer_, IERC20 token_, IEnsPermissionAdapter ensAdapter_)
         EIP712("AccordSpace", "1")
@@ -140,6 +150,35 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
         Permit calldata permit,
         bytes calldata signature
     ) external nonReentrant returns (uint256 allocationId) {
+        if (period == Period.Interval) revert InvalidAllocation();
+        return _createAllocation(beneficiary, amount, periodCap, period,
+            keccak256(abi.encode(periodCap, period)), permit, signature);
+    }
+
+    /// @notice Fixed windows from the funding block, with no carry-over. The
+    /// first window is available immediately; the end timestamp is exclusive.
+    function createTimedAllocation(
+        address beneficiary,
+        uint256 amount,
+        uint256 periodCap,
+        uint32 intervalSeconds,
+        uint32 durationSeconds,
+        Permit calldata permit,
+        bytes calldata signature
+    ) external nonReentrant returns (uint256 allocationId) {
+        if (intervalSeconds < 60 || intervalSeconds > 1 days || durationSeconds < intervalSeconds
+            || durationSeconds > 365 days || durationSeconds % intervalSeconds != 0) revert InvalidAllocation();
+        allocationId = _createAllocation(beneficiary, amount, periodCap, Period.Interval,
+            keccak256(abi.encode(periodCap, Period.Interval, intervalSeconds, durationSeconds)), permit, signature);
+        allocationSchedules[allocationId] = AllocationSchedule(
+            uint64(block.timestamp), uint64(block.timestamp + durationSeconds), intervalSeconds
+        );
+    }
+
+    function _createAllocation(
+        address beneficiary, uint256 amount, uint256 periodCap, Period period,
+        bytes32 detailsHash, Permit calldata permit, bytes calldata signature
+    ) private returns (uint256 allocationId) {
         if (msg.sender != owner || amount == 0 || periodCap == 0 || periodCap > amount) {
             revert InvalidAllocation();
         }
@@ -152,7 +191,7 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
             allocationId,
             beneficiary,
             amount,
-            keccak256(abi.encode(periodCap, period))
+            detailsHash
         );
         allocations[allocationId] = Allocation({
             beneficiary: beneficiary,
@@ -172,6 +211,9 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
         Allocation storage allocation = allocations[allocationId];
         if (msg.sender != owner || allocationId == 0 || allocationId >= nextAllocationId
                 || allocation.cancelled || amount == 0) revert InvalidAllocation();
+        if (allocation.period == Period.Interval && block.timestamp >= allocationSchedules[allocationId].endsAt) {
+            revert AllocationExpired();
+        }
         allocation.remaining += amount;
         token.safeTransferFrom(msg.sender, address(this), amount);
         emit AllocationFunded(allocationId, amount);
@@ -186,7 +228,7 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
             revert InvalidAllocation();
         }
         _consumePermit(permit, signature, Action.Claim, allocationId, msg.sender, amount, bytes32(0));
-        _spend(allocation, amount);
+        _spend(allocationId, allocation, amount);
         emit Claimed(permit.requestId, allocationId, msg.sender, amount);
         token.safeTransfer(msg.sender, amount);
     }
@@ -262,7 +304,7 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
         }
         if (mandate.spentToday + amount > mandate.dailyCap) revert PeriodLimitExceeded();
         mandate.spentToday += amount;
-        _spend(allocation, amount);
+        _spend(allocationId, allocation, amount);
         emit PaymentMade(permit.requestId, allocationId, msg.sender, recipient, amount);
         token.safeTransfer(recipient, amount);
     }
@@ -295,13 +337,17 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
         token.safeTransfer(owner, amount);
     }
 
-    function _spend(Allocation storage allocation, uint256 amount) private {
+    function _spend(uint256 allocationId, Allocation storage allocation, uint256 amount) private {
+        AllocationSchedule memory schedule = allocationSchedules[allocationId];
+        if (allocation.period == Period.Interval && block.timestamp >= schedule.endsAt) revert AllocationExpired();
         if (amount == 0 || amount > allocation.remaining) revert InsufficientAllocation();
         if (allocation.period == Period.None) {
             allocation.remaining -= amount;
             return;
         }
-        uint256 period = _periodId(allocation.period);
+        uint256 period = allocation.period == Period.Interval
+            ? (block.timestamp - schedule.startsAt) / schedule.intervalSeconds + 1
+            : _periodId(allocation.period);
         if (allocation.lastPeriod != period) {
             allocation.lastPeriod = period;
             allocation.spentInPeriod = 0;

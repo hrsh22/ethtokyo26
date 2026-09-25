@@ -6,7 +6,7 @@
 
 | Time | Show | Explain |
 | --- | --- | --- |
-| 0:00–0:20 | Funded Space and its current terms | The owner defines the recipient, limits, expiry, and recovery rights. |
+| 0:00–0:20 | ENS-named beneficiary and the funded Space | The owner confirms the resolved wallet. That entitlement stays fixed if the name changes. |
 | 0:20–0:55 | A person completes World enrollment and a fresh claim check | The beneficiary wallet determines entitlement. Selfie Check adds enrolled-person continuity and fresh presence for this exact claim. |
 | 0:55–1:45 | Agent requests a report quote, passes screening, pays, and receives the spending report | ENSv2 authority and budgets are checked before signing and again by the contract. The service releases the report only for the exact confirmed payment. |
 | 1:45–2:20 | A known-risk recipient is blocked with a visible reason | Intercepta's result changes the decision. An unavailable provider also stops payment. |
@@ -14,6 +14,29 @@
 | 2:45–3:00 | Recover unspent funds and show the receipt | One set of financial rules covers both people and agents. |
 
 For rehearsal, use [the isolated browser harness](browser-e2e.md). Its World, ENS registry, and Intercepta responses are fixtures and are labeled as such. For the live sponsor demonstration, use a real World App participant, the deployed ENSv2 name, and live Intercepta responses. Do not present a fixture verdict as live evidence.
+
+## ENS and World ID together
+
+| Participant | ENSv2 role | World ID role |
+| --- | --- | --- |
+| Person | Resolve a Sepolia `.eth` payment address; the owner confirms the full wallet before funding. The saved name is a setup snapshot. | Enroll the beneficiary wallet, then require session continuity and a fresh Selfie Check bound to each claim. |
+| Agent | Bind the mandate to the name’s current registration owner and resource. Transfer, expiry, or revocation removes authority. | No human verification is claimed for an agent. |
+
+For a person, open **Allocate**, enter a name, choose **Resolve name**, and confirm the displayed wallet. ENS is checked again when preparing the creation permit. A subsequent name transfer or address-record change never redirects an existing allocation; the beneficiary wallet is fixed. A name without an Ethereum payment-address record cannot be used, even if it has an owner. Raw wallet addresses remain supported.
+
+Use the Sepolia ENSv2 records, not mainnet records. The default Universal Resolver follows the [official Sepolia deployment](https://docs.ens.domains/learn/deployments/). The agent demo name needs a separate address record before it can also be used as a human payment name.
+
+## Five-minute claiming demo
+
+1. Restart the running `pnpm dev` after pulling the factory configuration change. Create and activate a **new Space**; older Spaces keep their immutable daily/monthly contracts.
+2. In **Claim**, link the beneficiary’s World ID before funding. Each subsequent claim still needs a fresh check.
+3. In **Allocate**, confirm the beneficiary and choose **Every minute · 5-minute demo**. Use **50 ACD total** and **10 ACD period cap**.
+4. Once funding confirms, claim 10 ACD immediately. The available amount becomes zero and the button disables. The countdown shows the next reset; allowance refreshes after a block enters the next 60-second window.
+5. Claim again after reset. At five minutes, the allocation expires. **Settings → Recover & close** returns any remainder to the owner.
+
+There are exactly five windows measured from the funding block, including the immediately available first window. Unused allowance does not accumulate. These are contract rules, not a browser-only timer or a World ID bypass. The general timed-allocation API accepts intervals from 60 seconds to one day and durations up to 365 days, in whole intervals; the UI offers the focused five-minute preset.
+
+The scheduled factory is `0x9a34aa06d9920cbd42547f097b740c268e281d69` on Sepolia. Existing Spaces remain supported, and `SPACE_LEGACY_FACTORY_ADDRESSES` retains the old factory for activation recovery. No token or ENS adapter redeployment was needed.
 
 ## Paid report service
 
@@ -49,7 +72,7 @@ After adding `INTERCEPTA_API_KEY` locally, restart the API (Node's loaded enviro
 ## Integration pointers
 
 - World: [browser session flow](../apps/web/src/components/world-identity.tsx), [server validation](../apps/api/src/world.ts), [action-bound claims](../apps/api/src/permits.ts).
-- ENSv2: [live adapter](../contracts/src/EnsPermissionAdapter.sol), [contract payment enforcement](../contracts/src/SpaceAccount.sol), [name lookup](../apps/api/src/ens.ts).
+- ENSv2: [live adapter](../contracts/src/EnsPermissionAdapter.sol), [contract payment enforcement](../contracts/src/SpaceAccount.sol), [name lookup](../apps/api/src/ens.ts), [human payment-address resolution](../apps/api/src/ens-recipient.ts).
 - Intercepta: [Quick Scan call and policy](../apps/api/src/risk.ts), [pre-sign decision](../apps/api/src/permits.ts), [visible reasons](../apps/web/src/components/payment-decision.tsx).
 - Agent task: [Node client](../apps/agent-demo/src/index.ts), [quote and delivery API](../apps/api/src/research.ts), [receipt binding](../apps/api/src/research-receipt.ts), [browser purchase](../apps/web/src/components/research-purchase.tsx).
 

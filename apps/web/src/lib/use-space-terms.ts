@@ -1,17 +1,19 @@
 "use client";
 
 import { ensPermissionAdapterAbi, spaceAccountAbi } from "@accord/chain";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getAddress } from "viem";
 import { sepolia } from "viem/chains";
 import { usePublicClient } from "wagmi";
 
 export function useSpaceTerms(spaceAddress?: string | null) {
   const publicClient = usePublicClient({ chainId: sepolia.id });
+  const cache = useQueryClient();
   return useQuery({
     queryKey: ["space-terms", spaceAddress],
     staleTime: 15_000,
-    refetchInterval: 30_000,
+    refetchInterval: (query) => query.state.data?.allocations.some(({ allocation, schedule }) =>
+      allocation[5] === 3 && !allocation[6] && schedule && schedule[1] > query.state.data!.blockTimestamp) ? 8_000 : 30_000,
     enabled: !!publicClient && !!spaceAddress,
     queryFn: async () => {
       const address = getAddress(spaceAddress!);
@@ -33,9 +35,13 @@ export function useSpaceTerms(spaceAddress?: string | null) {
           ? await publicClient!.readContract({ address: adapter, abi: ensPermissionAdapterAbi,
             functionName: "isAuthorized", args: [mandate[1], mandate[2], mandate[3], mandate[0]], blockNumber: block.number })
           : false;
-        return { id, allocation, mandate, ensAuthorized };
+        const schedule = allocation[5] === 3 ? await publicClient!.readContract({ address, abi: spaceAccountAbi,
+          functionName: "allocationSchedules", args: [id], blockNumber: block.number }) : undefined;
+        return { id, allocation, mandate, ensAuthorized, schedule };
       }));
-      return { count: lastId, allocations, blockTimestamp: block.timestamp };
+      const previous = cache.getQueryData<{ blockTimestamp: bigint; observedAt: number }>(["space-terms", spaceAddress]);
+      const observedAt = previous?.blockTimestamp === block.timestamp ? previous.observedAt : Date.now();
+      return { count: lastId, allocations, blockTimestamp: block.timestamp, observedAt };
     },
   });
 }

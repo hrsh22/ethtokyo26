@@ -1,5 +1,5 @@
 import { AccordApi } from "@accord/api-contract";
-import { ensPermissionAdapterAbi, hashAllocationTerms, hashMandateTerms, hashSpacePermit, PermitAction, signSpacePermit, spaceAccountAbi, type SpacePermit } from "@accord/chain";
+import { ensPermissionAdapterAbi, hashAllocationTerms, hashTimedAllocationTerms, hashMandateTerms, hashSpacePermit, PermitAction, signSpacePermit, spaceAccountAbi, type SpacePermit } from "@accord/chain";
 import { HttpApiBuilder, HttpApiError } from "@effect/platform";
 import { and, eq } from "drizzle-orm";
 import { Effect } from "effect";
@@ -9,7 +9,8 @@ import { currentSession, requireBrowserOrigin } from "./auth";
 import { adapterAddress, permitSigner, publicClient } from "./chain";
 import { Database } from "./db";
 import { databaseOperation } from "./db/run";
-import { spaceDrafts } from "./db/schema";
+import { allocationNames, spaceDrafts } from "./db/schema";
+import { normalizeRecipientName, resolveRecipientName } from "./ens-recipient";
 
 function uint(value: string, bits = 256n) {
   const result = BigInt(value);
@@ -75,7 +76,7 @@ async function makePermit(context: Context, requestKey: string, action: 0 | 1 | 
 }
 
 function envelope(context: Context, permit: SpacePermit, signature: `0x${string}`,
-  functionName: "createAllocation" | "setMandate" | "revokeMandate" | "recoverAllocation", calldata: `0x${string}`, approvalAmount: bigint) {
+  functionName: "createAllocation" | "createTimedAllocation" | "setMandate" | "revokeMandate" | "recoverAllocation", calldata: `0x${string}`, approvalAmount: bigint) {
   return {
     spaceAddress: context.space, tokenAddress: context.token, functionName, calldata, signature,
     digest: hashSpacePermit(context.space, permit), approvalAmount: approvalAmount.toString(),
@@ -134,6 +135,17 @@ export const AdminLive = HttpApiBuilder.group(AccordApi, "admin", (handlers) => 
   }))
   .handle("createAllocation", ({ payload }) => Effect.gen(function* () {
     const context = yield* ownerSpace(payload.draftId);
+    const db = yield* Database;
+    let beneficiaryName: string | undefined;
+    try { beneficiaryName = payload.beneficiaryEnsName ? normalizeRecipientName(payload.beneficiaryEnsName) : undefined; }
+    catch { return yield* Effect.fail(new HttpApiError.BadRequest()); }
+    const ensRecipient = beneficiaryName ? yield* Effect.tryPromise({
+      try: () => resolveRecipientName(beneficiaryName!, context.block.number),
+      catch: () => new HttpApiError.ServiceUnavailable(),
+    }) : undefined;
+    if (payload.beneficiaryEnsName && (!ensRecipient || ensRecipient.address.toLowerCase() !== payload.beneficiary.toLowerCase())) {
+      return yield* Effect.fail(new HttpApiError.Conflict());
+    }
     return yield* Effect.tryPromise({
       try: async () => {
         const beneficiary = getAddress(payload.beneficiary);
@@ -141,15 +153,33 @@ export const AdminLive = HttpApiBuilder.group(AccordApi, "admin", (handlers) => 
         const periodCap = uint(payload.periodCap);
         if (amount === 0n || periodCap === 0n || periodCap > amount ||
           (payload.period === 0 && periodCap !== amount)) throw new Error("Invalid allocation terms");
+        const schedule = payload.schedule;
+        if ((payload.period === 3) !== !!schedule) throw new Error("Interval allocations require a schedule");
+        if (schedule) {
+          if (schedule.durationSeconds < schedule.intervalSeconds || schedule.durationSeconds % schedule.intervalSeconds !== 0) throw new Error("Invalid allocation duration");
+          const version = await publicClient.readContract({ address: context.space, abi: spaceAccountAbi,
+            functionName: "allocationScheduleVersion", blockNumber: context.block.number });
+          if (version !== 1n) throw new Error("Create a new Space to use timed allocations");
+        }
         const allocationId = await publicClient.readContract({ address: context.space, abi: spaceAccountAbi,
           functionName: "nextAllocationId", blockNumber: context.block.number });
         const permit = await makePermit(context, payload.requestKey, PermitAction.CreateAllocation,
-          allocationId, beneficiary, amount, hashAllocationTerms(periodCap, payload.period));
+          allocationId, beneficiary, amount, schedule
+            ? hashTimedAllocationTerms(periodCap, schedule.intervalSeconds, schedule.durationSeconds)
+            : hashAllocationTerms(periodCap, payload.period as 0 | 1 | 2));
         const signature = await signSpacePermit(context.signer, context.space, permit);
-        const calldata = encodeFunctionData({ abi: spaceAccountAbi, functionName: "createAllocation",
-          args: [beneficiary, amount, periodCap, payload.period, permit, signature] });
+        const calldata = schedule
+          ? encodeFunctionData({ abi: spaceAccountAbi, functionName: "createTimedAllocation",
+            args: [beneficiary, amount, periodCap, schedule.intervalSeconds, schedule.durationSeconds, permit, signature] })
+          : encodeFunctionData({ abi: spaceAccountAbi, functionName: "createAllocation",
+            args: [beneficiary, amount, periodCap, payload.period, permit, signature] });
+        if (ensRecipient) await db.client.insert(allocationNames).values({
+          requestId: permit.requestId, spaceAddress: context.space,
+          allocationId: allocationId.toString(), beneficiary, name: ensRecipient.name,
+          resolvedBlock: ensRecipient.blockNumber,
+        }).onConflictDoNothing();
         // Funding may not yet be approved. The client approves approvalAmount, then simulates this call.
-        return envelope(context, permit, signature, "createAllocation", calldata, amount);
+        return envelope(context, permit, signature, schedule ? "createTimedAllocation" : "createAllocation", calldata, amount);
       },
       catch: () => new HttpApiError.BadRequest(),
     });

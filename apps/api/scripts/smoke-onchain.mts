@@ -15,7 +15,7 @@ import { spaceAccountAbi, type SpacePermit } from "@accord/chain";
 import { createPublicClient, createWalletClient, encodeFunctionData, http, parseEther, toHex, zeroAddress, type Abi, type Address, type Hex, type LocalAccount } from "viem";
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
-import { labelhash } from "viem/ens";
+import { labelhash, namehash } from "viem/ens";
 
 const rpc = "http://127.0.0.1:8546";
 const base = "http://127.0.0.1:4001";
@@ -117,6 +117,8 @@ async function main() {
   const adapter = await deploy("../../../contracts/out/EnsPermissionAdapter.sol/EnsPermissionAdapter.json");
   const factory = await deploy("../../../contracts/out/SpaceFactory.sol/SpaceFactory.json");
   const registry = await deploy("../../../contracts/out/SpaceAccount.t.sol/MockEnsV2Registry.json");
+  const resolver = await deploy("../../../contracts/out/MockRecipientResolver.sol/MockRecipientResolver.json");
+  await send(resolver.address, encodeFunctionData({ abi: resolver.abi, functionName: "setAddress", args: [namehash("family.eth"), human.address] }));
   const authorizer = privateKeyToAccount(process.env.PERMIT_SIGNER_PRIVATE_KEY as Hex).address;
   const humanGas = await wallet.sendTransaction({ account: owner, to: human.address, value: parseEther("0.01") });
   await publicClient.waitForTransactionReceipt({ hash: humanGas });
@@ -127,7 +129,7 @@ async function main() {
 
   const env = { ...process.env, RESEARCH_SELLER_ADDRESS: seller.address, RESEARCH_PRICE_BASE_UNITS: "5", API_PORT: "4001", SEPOLIA_RPC_URL: rpc,
     SPACE_FACTORY_ADDRESS: factory.address, ENS_ADAPTER_ADDRESS: adapter.address,
-    ENSV2_REGISTRY_ADDRESS: registry.address, DEMO_TOKEN_ADDRESS: token.address,
+    ENSV2_REGISTRY_ADDRESS: registry.address, ENSV2_UNIVERSAL_RESOLVER_ADDRESS: resolver.address, DEMO_TOKEN_ADDRESS: token.address,
     WORLD_APP_ID: "app_local_anvil", WORLD_RP_ID: "rp_local_anvil",
     WORLD_RP_SIGNING_KEY: generatePrivateKey(), WORLD_ENVIRONMENT: "staging",
     INTERCEPTA_API_KEY: "local-test-only", ACCORD_PARTNER_MOCKS: "local-only",
@@ -181,10 +183,24 @@ async function main() {
     const approve = await wallet.writeContract({ account: owner, address: token.address, abi: token.abi,
       functionName: "approve", args: [space, 1000n] });
     await publicClient.waitForTransactionReceipt({ hash: approve });
+    const resolvedHuman = await request("/v1/ens/recipient", { name: " Family.ETH " });
+    assertStatus(resolvedHuman.status, 200, "Resolve human ENS payment address");
+    if (String(resolvedHuman.body?.address).toLowerCase() !== human.address.toLowerCase()) throw new Error("ENS did not resolve the payment wallet");
+    assertStatus((await request("/v1/ens/recipient", { name: "missing.eth" })).status, 404, "Reject missing ENS payment record");
+    assertStatus((await request("/v1/ens/recipient", { name: "invalid..eth" })).status, 400, "Reject invalid ENS name");
     const allocation = await request("/v1/admin/allocations", { draftId, requestKey: randomUUID(),
-      beneficiary: human.address, amount: "100", periodCap: "30", period: 1 }, ownerToken);
+      beneficiary: human.address, beneficiaryEnsName: "family.eth", amount: "100", periodCap: "30", period: 1 }, ownerToken);
     assertStatus(allocation.status, 200, "Create allocation permit");
+    const namesBefore = await request("/v1/ens/allocations", { spaceAddress: space, allocationIds: ["1"] });
+    if ((namesBefore.body?.names as unknown[]).length !== 0) throw new Error("Unexecuted allocation label was exposed");
     await send(space, String(allocation.body!.calldata) as Hex);
+    const namesAfter = await request("/v1/ens/allocations", { spaceAddress: space, allocationIds: ["1"] });
+    if ((namesAfter.body?.names as Array<{name: string}>)[0]?.name !== "family.eth") throw new Error("Confirmed ENS label was not saved");
+    await send(resolver.address, encodeFunctionData({ abi: resolver.abi, functionName: "setAddress", args: [namehash("family.eth"), agent.address] }));
+    assertStatus((await request("/v1/admin/allocations", { draftId, requestKey: randomUUID(), beneficiary: human.address,
+      beneficiaryEnsName: "family.eth", amount: "1", periodCap: "1", period: 0 }, ownerToken)).status, 409, "Reject changed ENS record before setup");
+    assertStatus((await request("/v1/permits/claims", { draftId, requestKey: randomUUID(), allocationId: "1", amount: "1" }, agentToken)).status, 403, "ENS change cannot redirect an existing allocation");
+    console.log("Human ENS: address resolution, saved labels, missing records, and name-change safety passed.");
     const unauthorized = await request("/v1/admin/allocations", { draftId, requestKey: randomUUID(),
       beneficiary: human.address, amount: "1", periodCap: "1", period: 0 }, humanToken);
     assertStatus(unauthorized.status, 403, "Reject non-owner setup");
@@ -372,6 +388,44 @@ async function main() {
     const closedClaim = await request("/v1/permits/claims", { draftId, requestKey: randomUUID(),
       allocationId: "1", amount: "1" }, humanToken);
     assertStatus(closedClaim.status, 403, "Closed allocation blocks new claim");
+    const timed = await request("/v1/admin/allocations", { draftId, requestKey: randomUUID(),
+      beneficiary: human.address, amount: "50", periodCap: "10", period: 3,
+      schedule: { intervalSeconds: 60, durationSeconds: 300 } }, ownerToken);
+    assertStatus(timed.status, 200, "Prepare five-minute allocation");
+    if (timed.body?.functionName !== "createTimedAllocation") throw new Error("Wrong scheduled entry point");
+    await send(space, String(timed.body!.calldata) as Hex);
+    const schedule = await publicClient.readContract({ address: space, abi: spaceAccountAbi,
+      functionName: "allocationSchedules", args: [3n] });
+    if (schedule[1] - schedule[0] !== 300n || schedule[2] !== 60) throw new Error("Wrong onchain schedule");
+    async function timedClaim() {
+      const intent = await request("/v1/permits/claims", { draftId, requestKey: randomUUID(), allocationId: "3", amount: "10" }, humanToken);
+      assertStatus(intent.status, 200, "Minute claim prepare");
+      assertStatus((await request("/v1/permits/claims/sign", { intentId: intent.body!.id }, humanToken)).status, 403, "Minute claims still require World proof");
+      const challenge = await request("/v1/world/challenge", { mode: "claim", intentId: intent.body!.id }, humanToken);
+      assertStatus(challenge.status, 200, "Minute claim World challenge");
+      assertStatus((await request("/v1/world/verify", { id: challenge.body!.id,
+        result: selfieResult(challenge.body!, enrolledSessionId, true) }, humanToken)).status, 200, "Fresh minute claim proof");
+      const signed = await request("/v1/permits/claims/sign", { intentId: intent.body!.id }, humanToken);
+      assertStatus(signed.status, 200, "Sign minute claim");
+      await send(space, encodeFunctionData({ abi: spaceAccountAbi, functionName: "claim",
+        args: [3n, 10n, permitFrom(signed.body!), signed.body!.signature as Hex] }), human);
+    }
+    await timedClaim();
+    const sameMinute = await request("/v1/permits/claims", { draftId, requestKey: randomUUID(), allocationId: "3", amount: "1" }, humanToken);
+    assertStatus(sameMinute.status, 403, "Block exhausted minute before World check");
+    if ((sameMinute.body?.decision as {code?: string})?.code !== "allocation_period_cap") throw new Error("Missing minute-limit reason");
+    await publicClient.request({ method: "evm_setNextBlockTimestamp", params: [Number(schedule[0]) + 60] } as never);
+    await publicClient.request({ method: "evm_mine", params: [] } as never);
+    await timedClaim();
+    await publicClient.request({ method: "evm_setNextBlockTimestamp", params: [Number(schedule[1])] } as never);
+    await publicClient.request({ method: "evm_mine", params: [] } as never);
+    const expired = await request("/v1/permits/claims", { draftId, requestKey: randomUUID(), allocationId: "3", amount: "1" }, humanToken);
+    assertStatus(expired.status, 403, "Block expired minute allocation");
+    if ((expired.body?.decision as {code?: string})?.code !== "allocation_expired") throw new Error("Missing allocation expiry reason");
+    const timedRecovery = await request("/v1/admin/allocations/recover", { draftId, requestKey: randomUUID(), allocationId: "3" }, ownerToken);
+    assertStatus(timedRecovery.status, 200, "Recover expired minute allocation");
+    await send(space, String(timedRecovery.body!.calldata) as Hex);
+    console.log("Minute demo: fresh World checks, exhausted-period rejection, reset, expiry, and recovery passed.");
     console.log("Local factory, World-gated claim, ENSv2 mandate, screened agent payment, paid report delivery, separate Node agent purchase, ENS change, replay, revocation, and owner recovery checks passed (partner responses were test fixtures).");
   } finally {
     server.kill("SIGTERM");
