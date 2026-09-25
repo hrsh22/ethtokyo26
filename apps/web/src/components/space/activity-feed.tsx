@@ -3,7 +3,7 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowUpRight, BadgeCheck, Ban, Fingerprint, PiggyBank, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowUpRight, Ban, Fingerprint, History, PiggyBank, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
 import { useAccord } from "@/lib/accord";
 import { shortAddress, timeAgo } from "@/lib/format";
 import { explorerTx } from "@/lib/use-chain-actions";
@@ -34,8 +34,9 @@ function sentence(kind: Kind, who: string, recipient?: string) {
 }
 
 /** Confirmed onchain actions, newest first. Refused requests never reach the chain, so they don't show here. */
-export function ActivityFeed({ spaceAddress, units, nameOf, allocationId, title = "Activity" }: {
+export function ActivityFeed({ spaceAddress, units, nameOf, allocationId, title = "Activity", layout = "card" }: {
   spaceAddress: string; units: (value: bigint) => string; nameOf: (allocationId: string) => string; allocationId?: string; title?: string;
+  layout?: "card" | "section";
 }) {
   const { client } = useAccord();
   const activity = useInfiniteQuery({
@@ -56,17 +57,18 @@ export function ActivityFeed({ spaceAddress, units, nameOf, allocationId, title 
     if (events.length === 0 && hasNextPage && !isFetching && pages < 8) void fetchNextPage();
   }, [events.length, hasNextPage, isFetching, pages, fetchNextPage]);
   const times = useBlockTimes(events.map((event) => event.blockNumber));
-  return <section className="card p-6" aria-labelledby={`${title}-heading`}>
-    <div className="mb-2 flex items-center justify-between">
-      <h2 id={`${title}-heading`} className="font-display text-2xl font-extrabold">{title}</h2>
+  return <section className={layout === "card" ? "card p-6" : undefined} aria-labelledby={`${title}-heading`}>
+    <div className={`flex items-center justify-between ${layout === "section" ? "mb-4" : "mb-2"}`}>
+      <h2 id={`${title}-heading`} className={`font-display font-extrabold ${layout === "section" ? "text-3xl" : "text-2xl"}`}>{title}</h2>
       {activity.isFetching && !activity.isPending ? <span className="size-2 animate-ping rounded-full bg-lilac" aria-label="Refreshing" /> : null}
     </div>
+    <div className={layout === "section" ? "card p-6" : undefined}>
     {activity.isPending || (events.length === 0 && activity.isFetchingNextPage) ? <div className="grid gap-3 pt-2">{[0, 1, 2].map((i) => <div key={i} className="h-12 animate-pulse rounded-2xl bg-soft" />)}</div>
       : activity.isError ? <p role="status" className="py-3 text-sm text-muted">Activity is unavailable right now. Funds and permissions are unchanged.
         <button className="ml-1 font-semibold text-ink underline" onClick={() => void activity.refetch()}>Retry</button></p>
-      : events.length === 0 ? <div className="py-6 text-center">
-        <span className="mx-auto mb-3 grid size-12 place-items-center rounded-2xl bg-soft text-muted"><BadgeCheck /></span>
-        <p className="font-semibold">Nothing yet</p><p className="text-sm text-muted">Claims, payments and changes will appear here once they confirm.</p>
+      : events.length === 0 ? <div className="flex items-start gap-3">
+        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-soft text-muted"><History size={20} /></span>
+        <div className="min-w-0"><p className="font-semibold">No activity yet</p><p className="mt-1 text-sm text-muted">Budget updates, claims and payments will appear here.</p></div>
       </div>
       : <ul className="grid grid-cols-1">
         <AnimatePresence initial={false}>
@@ -74,12 +76,13 @@ export function ActivityFeed({ spaceAddress, units, nameOf, allocationId, title 
             const style = look[event.kind];
             const time = times.get(event.blockNumber);
             const who = nameOf(event.allocationId);
+            const label = who.endsWith(".eth") ? who.split(".")[0] : who;
             const link = explorerTx(event.transactionHash);
             return <motion.li key={event.id} layout initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
               className="grid grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-3 border-b border-line py-3 last:border-b-0">
               <span className="grid size-[42px] place-items-center rounded-[14px]" style={{ background: style.bg, color: style.fg }}><style.icon size={18} strokeWidth={2.1} /></span>
               <span className="min-w-0">
-                <b className="line-clamp-2 block text-sm font-semibold">{sentence(event.kind, who, event.recipient)}</b>
+                <b className="block break-words text-sm font-semibold" title={sentence(event.kind, who, event.recipient)} aria-label={sentence(event.kind, who, event.recipient)}>{sentence(event.kind, label, event.recipient)}</b>
                 <small className="text-[12.5px] text-muted">{time ? timeAgo(time) : `Block ${event.blockNumber}`}{link ? <> · <a href={link} target="_blank" rel="noreferrer" className="font-medium text-[#6f4bea] hover:underline">receipt</a></> : null}</small>
               </span>
               {event.amount !== undefined ? <span className="text-right text-sm font-semibold">{style.sign === "-" ? "−" : style.sign}{units(BigInt(event.amount))}</span> : <span />}
@@ -88,5 +91,6 @@ export function ActivityFeed({ spaceAddress, units, nameOf, allocationId, title 
         </AnimatePresence>
       </ul>}
     {activity.hasNextPage ? <Button variant="soft" size="sm" className="mt-3 w-full" loading={activity.isFetchingNextPage} onClick={() => void activity.fetchNextPage()}>Load older activity</Button> : null}
+    </div>
   </section>;
 }

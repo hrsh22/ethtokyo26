@@ -13,12 +13,11 @@ export function useAgentIdentities(draftId?: string) {
 }
 export function SpaceNamespace({draftId}:{draftId?:string}) {
   const query=useAgentIdentities(draftId);
-  if(!query.data)return null;
+  if(!query.data?.registry)return null;
   return <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
     <span className="pill bg-[#eae2ff] text-[#6544ba]"><AtSign size={14}/>ENSv2</span>
     <span className="break-all font-semibold text-ink-soft">{query.data.namespace}</span>
-    {query.data.registry?<a href={`https://sepolia.etherscan.io/address/${query.data.registry}`} target="_blank" rel="noreferrer" aria-label="View ENS registry" className="text-muted hover:text-ink"><ArrowUpRight size={16}/></a>
-      :<span className="text-muted">Created with your first agent</span>}
+    <a href={`https://sepolia.etherscan.io/address/${query.data.registry}`} target="_blank" rel="noreferrer" aria-label="View ENS registry" className="text-muted hover:text-ink"><ArrowUpRight size={16}/></a>
   </div>;
 }
 export function AgentIdentityCard({draftId,allocationId}:{draftId?:string;allocationId:string}) {

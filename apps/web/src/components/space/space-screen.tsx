@@ -103,7 +103,7 @@ export function SpaceScreen({ address }: { address: string }) {
             </div>}
         </section>
       </div>
-      <aside className="lg:sticky lg:top-28"><ActivityFeed spaceAddress={address} units={space.units} nameOf={nameOf} /></aside>
+      <aside className="min-w-0 lg:sticky lg:top-28"><ActivityFeed spaceAddress={address} units={space.units} nameOf={nameOf} layout="section" /></aside>
     </div>
   </div>;
 }

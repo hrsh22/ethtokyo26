@@ -77,11 +77,16 @@ export function AgentBudget({address,draftId,allocationId,defaults}:{address:str
         <span className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 font-semibold text-white"><Bot size={16}/>An agent</span></div>:null}
       <div className="flex items-center gap-3"><span className="grid size-12 place-items-center rounded-2xl bg-white/75 text-[#6544ba]"><AtSign size={25}/></span>
         <div><span className="text-sm font-semibold text-[#6544ba]">ENSv2 agent identity</span><h1 className="font-display text-3xl font-extrabold">{allocationId?"Edit agent authority":"Give an agent a budget"}</h1></div></div>
-      <p className="mt-4 break-all font-semibold">{identities.data?`${label||"agent"}.${identities.data.namespace}`:"Loading the Space namespace…"}</p>
+      <p className="mt-3 text-ink-soft">Give your agent a name, set its limits, and choose when it needs your approval.</p>
     </div>
     <form className="grid gap-5 p-7 sm:p-9" onSubmit={event=>void submit(event)}>
       <div className="grid gap-4 sm:grid-cols-[1fr_1.5fr]"><div><label className="font-semibold" htmlFor="agent-label">Agent name</label><input id="agent-label" className="field mt-2" value={label} onChange={e=>setLabel(e.target.value.toLowerCase())} required pattern="[a-z0-9][a-z0-9-]{0,31}" disabled={busy}/></div>
         <div><label className="font-semibold" htmlFor="agent-wallet">Agent wallet</label><input id="agent-wallet" className="field mt-2" value={agent} onChange={e=>setAgent(e.target.value)} placeholder="0x…" required disabled={busy} autoComplete="off" spellCheck={false}/></div></div>
+      <div className="rounded-2xl bg-lilac-soft p-4">
+        <p className="flex items-center gap-2 text-sm font-semibold text-[#6544ba]"><AtSign size={16}/>{allocationId?"ENSv2 agent name":"ENSv2 name preview"}</p>
+        <p className="mt-2 break-all text-sm font-semibold">{identities.data?`${label||"agent"}.${identities.data.namespace}`:"Loading name preview…"}</p>
+        <p className="mt-2 text-sm text-ink-soft">{allocationId?"This name identifies your agent within this Space. Revoking it stops the agent’s payments.":"This ENS name is created when you authorize the agent. It identifies the agent within your Space; revoking it stops the agent’s payments."}</p>
+      </div>
       {!allocationId?<div>{saved.data?<p className="rounded-2xl bg-soft p-4 text-sm">A funding request is saved. Continue to finish setup, or manage the budget from its Space.</p>:<AmountField id="agent-total" label="Total budget" value={total} onChange={setTotal} symbol="tUSDC" quick={["100","250","1000"]}/>}</div>:null}
       <div className="grid gap-4 sm:grid-cols-2"><AmountField id="agent-daily" label="Daily cap" value={daily} onChange={setDaily} symbol="tUSDC"/><AmountField id="agent-per" label="Max per payment" value={per} onChange={setPer} symbol="tUSDC"/></div>
       <div><AmountField id="agent-threshold" label="Require approval above" value={threshold} onChange={setThreshold} symbol="tUSDC"/><p className="mt-2 text-sm text-muted">Set to 0 to approve every payment.</p></div>
