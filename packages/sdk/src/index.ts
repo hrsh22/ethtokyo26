@@ -35,9 +35,11 @@ export type CreateAllocationRequest = {
   draftId: string;
   requestKey: string;
   beneficiary: `0x${string}`;
+  beneficiaryEnsName?: string;
   amount: string;
   periodCap: string;
-  period: 0 | 1 | 2;
+  period: 0 | 1 | 2 | 3;
+  schedule?: { intervalSeconds: number; durationSeconds: number };
 };
 
 export type SetMandateRequest = {
@@ -80,6 +82,8 @@ export async function createAccordClient(baseUrl: string, options?: { bearerToke
     health: () => Effect.runPromise(client.status.health()),
     config: () => Effect.runPromise(client.status.config()),
     resolveEnsName: (name: string) => Effect.runPromise(client.ens.resolve({ payload: { name } })),
+    resolveEnsRecipient: (name: string) => run(client.ens.recipient({ payload: { name } })),
+    allocationNames: (spaceAddress: string, allocationIds: string[]) => run(client.ens.allocationNames({ payload: { spaceAddress, allocationIds } })),
     listTemplates: () => Effect.runPromise(client.catalog.list()),
     createChallenge: (address: `0x${string}`) =>
       Effect.runPromise(client.auth.challenge({ payload: { address } })),
@@ -101,7 +105,7 @@ export async function createAccordClient(baseUrl: string, options?: { bearerToke
       Effect.runPromise(client.spaces.lookup({ payload: { spaceAddress } })),
     spaceActivity: (payload: { spaceAddress: string; beforeBlock?: string }) => run(client.activity.list({ payload })),
     createAllocation: (payload: CreateAllocationRequest) =>
-      Effect.runPromise(client.admin.createAllocation({ payload })),
+      run(client.admin.createAllocation({ payload })),
     setMandate: (payload: SetMandateRequest) =>
       Effect.runPromise(client.admin.setMandate({ payload })),
     revokeMandate: (payload: RevokeMandateRequest) =>

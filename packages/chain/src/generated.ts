@@ -41,6 +41,48 @@ export const spaceAccountAbi = [
   },
   {
     "type": "function",
+    "name": "allocationScheduleVersion",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "allocationSchedules",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "startsAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "endsAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "intervalSeconds",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "allocations",
     "inputs": [
       {
@@ -247,6 +289,107 @@ export const spaceAccountAbi = [
         "name": "period",
         "type": "uint8",
         "internalType": "enum SpaceAccount.Period"
+      },
+      {
+        "name": "permit",
+        "type": "tuple",
+        "internalType": "struct SpaceAccount.Permit",
+        "components": [
+          {
+            "name": "actor",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "action",
+            "type": "uint8",
+            "internalType": "enum SpaceAccount.Action"
+          },
+          {
+            "name": "allocationId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "recipient",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "requestId",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "nonce",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "expiry",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "policyVersion",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "detailsHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      },
+      {
+        "name": "signature",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "allocationId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "createTimedAllocation",
+    "inputs": [
+      {
+        "name": "beneficiary",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "periodCap",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "intervalSeconds",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "durationSeconds",
+        "type": "uint32",
+        "internalType": "uint32"
       },
       {
         "name": "permit",
@@ -1107,6 +1250,11 @@ export const spaceAccountAbi = [
       }
     ],
     "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "AllocationExpired",
+    "inputs": []
   },
   {
     "type": "error",

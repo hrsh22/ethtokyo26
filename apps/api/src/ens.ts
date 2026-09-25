@@ -4,6 +4,11 @@ import { Effect } from "effect";
 import { getAddress, isAddress, zeroAddress } from "viem";
 import { labelhash, normalize } from "viem/ens";
 import { publicClient } from "./chain";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { Database } from "./db";
+import { databaseOperation } from "./db/run";
+import { allocationNames } from "./db/schema";
+import { confirmedRecipientLabel, normalizeRecipientName, resolveRecipientName } from "./ens-recipient";
 
 const registryAbi = [{
   type: "function", name: "getState", stateMutability: "view",
@@ -39,5 +44,35 @@ export const EnsLive = HttpApiBuilder.group(AccordApi, "ens", (handlers) =>
       active: state.status === 2 && state.expiry > BigInt(Math.floor(Date.now() / 1000)) &&
         state.latestOwner !== zeroAddress && state.resource > 0n,
     };
+  }))
+  .handle("recipient", ({ payload }) => Effect.gen(function* () {
+    let name: string;
+    try { name = normalizeRecipientName(payload.name); }
+    catch { return yield* Effect.fail(new HttpApiError.BadRequest()); }
+    const resolved = yield* Effect.tryPromise({
+      try: () => resolveRecipientName(name), catch: () => new HttpApiError.ServiceUnavailable(),
+    });
+    if (!resolved) return yield* Effect.fail(new HttpApiError.NotFound());
+    return resolved;
+  }))
+  .handle("allocationNames", ({ payload }) => Effect.gen(function* () {
+    if (payload.allocationIds.length === 0) return { names: [] };
+    const db = yield* Database;
+    const rows = yield* databaseOperation(() => db.client.select().from(allocationNames)
+      .where(and(eq(allocationNames.spaceAddress, getAddress(payload.spaceAddress)),
+        inArray(allocationNames.allocationId, [...payload.allocationIds])))
+      .orderBy(desc(allocationNames.createdAt)).limit(100));
+    if (rows.length === 0) return { names: [] };
+    return yield* Effect.tryPromise({ try: async () => {
+      const block = await publicClient.getBlockNumber({ cacheTime: 0 });
+      const confirmed = await Promise.all(rows.map(async (row) =>
+        await confirmedRecipientLabel(row, block) ? row : null));
+      const seen = new Set<string>();
+      return { names: confirmed.flatMap((row) => {
+        if (!row || seen.has(row.allocationId)) return [];
+        seen.add(row.allocationId);
+        return [{ allocationId: row.allocationId, name: row.name, address: row.beneficiary, resolvedBlock: row.resolvedBlock }];
+      }) };
+    }, catch: () => new HttpApiError.ServiceUnavailable() });
   })),
 );

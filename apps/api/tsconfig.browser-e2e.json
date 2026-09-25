@@ -5,6 +5,7 @@
     "scripts/live-readiness.mts",
     "scripts/migrate-db.mts",
     "scripts/import-postgres.mts",
-    "scripts/smoke-onchain.mts"
+    "scripts/smoke-onchain.mts",
+    "scripts/deploy-timed-factory.mts"
   ]
 }

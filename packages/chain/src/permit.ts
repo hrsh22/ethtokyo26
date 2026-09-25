@@ -90,6 +90,13 @@ export function hashAllocationTerms(periodCap: bigint, period: 0 | 1 | 2) {
   );
 }
 
+export function hashTimedAllocationTerms(periodCap: bigint, intervalSeconds: number, durationSeconds: number) {
+  return keccak256(encodeAbiParameters(
+    [{ type: "uint256" }, { type: "uint8" }, { type: "uint32" }, { type: "uint32" }],
+    [periodCap, 3, intervalSeconds, durationSeconds],
+  ));
+}
+
 export type MandateTerms = {
   registry: Address;
   nameId: bigint;
