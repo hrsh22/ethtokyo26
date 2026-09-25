@@ -75,7 +75,7 @@ export function AgentBudget({address,draftId,allocationId,defaults}:{address:str
       {!allocationId?<div className="mb-5 inline-flex rounded-full bg-white/50 p-1">
         <Link href={`/spaces/${address}/new?for=person`} className="flex items-center gap-2 rounded-full px-4 py-2 font-semibold"><UserRound size={16}/>A person</Link>
         <span className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 font-semibold text-white"><Bot size={16}/>An agent</span></div>:null}
-      <div className="flex items-center gap-3"><span className="grid size-12 place-items-center rounded-2xl bg-white/75 text-[#6544ba]"><AtSign size={25}/></span>
+      <div className="flex items-center gap-3"><span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/75 text-[#6544ba]"><AtSign size={25}/></span>
         <div><span className="text-sm font-semibold text-[#6544ba]">ENSv2 agent identity</span><h1 className="font-display text-3xl font-extrabold">{allocationId?"Edit agent authority":"Give an agent a budget"}</h1></div></div>
       <p className="mt-3 text-ink-soft">Give your agent a name, set its limits, and choose when it needs your approval.</p>
     </div>
@@ -91,7 +91,7 @@ export function AgentBudget({address,draftId,allocationId,defaults}:{address:str
       <div className="grid gap-4 sm:grid-cols-2"><AmountField id="agent-daily" label="Daily cap" value={daily} onChange={setDaily} symbol="tUSDC"/><AmountField id="agent-per" label="Max per payment" value={per} onChange={setPer} symbol="tUSDC"/></div>
       <div><AmountField id="agent-threshold" label="Require approval above" value={threshold} onChange={setThreshold} symbol="tUSDC"/><p className="mt-2 text-sm text-muted">Set to 0 to approve every payment.</p></div>
       <div><label className="font-semibold" htmlFor="agent-expiry">Authority ends</label><input className="field mt-2" id="agent-expiry" type="date" value={ends} onChange={e=>setEnds(e.target.value)} required disabled={busy}/></div>
-      <p className="flex items-center gap-2 text-sm text-muted"><Fingerprint size={17}/>Review these terms with World ID before authorizing the agent.</p>
+      <p className="flex items-center gap-2 text-sm text-muted"><Fingerprint size={17} className="shrink-0"/>Review these terms with World ID before authorizing the agent.</p>
       {message?<p role="status" className="rounded-2xl bg-soft p-4 text-sm">{message}</p>:null}
       <Button size="lg" type="submit" loading={busy} disabled={!identities.data || (!allocationId && saved.isPending)}>{allocationId?"Review changes":saved.data?"Continue setup":"Fund and review"}</Button>
     </form>

@@ -82,7 +82,9 @@ export function ActivityFeed({ spaceAddress, units, nameOf, allocationId, title 
               className="grid grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-3 border-b border-line py-3 last:border-b-0">
               <span className="grid size-[42px] place-items-center rounded-[14px]" style={{ background: style.bg, color: style.fg }}><style.icon size={18} strokeWidth={2.1} /></span>
               <span className="min-w-0">
-                <b className="block break-words text-sm font-semibold" title={sentence(event.kind, who, event.recipient)} aria-label={sentence(event.kind, who, event.recipient)}>{sentence(event.kind, label, event.recipient)}</b>
+                <b className="block break-words text-sm font-semibold" title={sentence(event.kind, who, event.recipient)}>{event.kind === "PaymentMade"
+                  ? <>{label} paid <span className="whitespace-nowrap">{event.recipient ? shortAddress(event.recipient) : "a recipient"}</span></>
+                  : sentence(event.kind, label, event.recipient)}</b>
                 <small className="text-[12.5px] text-muted">{time ? timeAgo(time) : `Block ${event.blockNumber}`}{link ? <> · <a href={link} target="_blank" rel="noreferrer" className="font-medium text-[#6f4bea] hover:underline">receipt</a></> : null}</small>
               </span>
               {event.amount !== undefined ? <span className="text-right text-sm font-semibold">{style.sign === "-" ? "−" : style.sign}{units(BigInt(event.amount))}</span> : <span />}
