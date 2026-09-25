@@ -674,7 +674,8 @@ export function SpaceConsole({ account, draft, client, onDraftUpdated }: SpaceCo
         <form onSubmit={beginClaim} className="space-console__form"><fieldset className="space-console__fields" disabled={busy !== null}>
           <div className="space-console__row"><AllocationField key={`claim:${selectedAllocation}`} spaceAddress={currentDraft.spaceAddress!} account={account} purpose="claim" selectedId={selectedAllocation} onChange={setClaimAllocationId} /><Field label={`Amount · ${assetLabel}`}><Input name="amount" inputMode="decimal" required /></Field></div>
           {claimAvailability.data ? <AllocationTiming {...claimAvailability.data} decimals={tokenDecimals.data} symbol={assetLabel} /> : null}
-          <Button type="submit" disabled={busy !== null || tokenDecimals.data === undefined || !worldStatus.data?.enrolled || claimAvailability.data?.window.available === BigInt(0)}><Fingerprint size={15} /> {busy === "claim" ? "Preparing…" : "Verify & claim"}</Button>
+          {claimAvailability.isError ? <p className="space-console__hint" role="status">Could not read this allocation’s current allowance. <Button type="button" variant="ghost" onClick={() => void claimAvailability.refetch()}>Retry availability</Button></p> : null}
+          <Button type="submit" disabled={busy !== null || tokenDecimals.data === undefined || !worldStatus.data?.enrolled || claimAvailability.data?.window.available === BigInt(0) || claimAvailability.isError || claimAvailability.isPending}><Fingerprint size={15} /> {busy === "claim" ? "Preparing…" : "Verify & claim"}</Button>
         </fieldset></form>
       </article>
       </div> : null}
