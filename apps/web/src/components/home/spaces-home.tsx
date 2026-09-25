@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { ArrowUpRight, Hammer, Link2, Plus, RotateCw, UserRound } from "lucide-react";
+import { ArrowUpRight, Hammer, Plus, RotateCw, UserRound } from "lucide-react";
 import { useEffect } from "react";
 import { zeroAddress } from "viem";
 import type { AccordClient } from "@accord/sdk";
@@ -15,7 +15,6 @@ import { useAllocation } from "@/lib/use-allocation";
 import { useSpaceMeta } from "@/lib/use-space";
 import { useSpaceTerms } from "@/lib/use-space-terms";
 import { Avatar } from "../avatar";
-import { OpenLinkForm } from "../open-link";
 import { SignInCard } from "../sign-in-card";
 import { WorldIdCard } from "../world-id-card";
 import { Button } from "../ui/button";
@@ -37,48 +36,25 @@ export function SpacesHome() {
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div>
         <h1 className="font-display text-5xl font-extrabold tracking-[-0.03em] sm:text-6xl">Your Spaces</h1>
-        <p className="mt-2 text-lg text-ink-soft">Spaces you own and allowances shared with your wallet.</p>
+        <p className="mt-2 text-lg text-ink-soft">Manage your Spaces and see what others have shared with you.</p>
       </div>
       {auth.signedIn ? <Button asChild size="lg"><Link href="/spaces/new"><Plus />New Space</Link></Button> : null}
     </header>
 
-    {!auth.signedIn ? <div className="mt-8 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+    {!auth.signedIn ? <div className={`mt-8 grid gap-4 ${demoAddress ? "lg:grid-cols-[1.4fr_1fr]" : ""}`}>
       <SignInCard title="Sign in to see your Spaces" body="Connect a wallet, then sign one message to see the Spaces you own and allowances shared with you. No transaction, no fee." />
-      <div className="grid gap-4">
-        <LinkCard />
-        {demoAddress ? <Link href={`/spaces/${demoAddress}`} className="card group flex items-center gap-4 p-6 transition-transform hover:-translate-y-0.5">
-          <Avatar kind="agent" palette={allocationPalette(BigInt(1), true)} size={52} />
-          <span className="flex-1"><b className="block font-display text-xl font-extrabold">Explore the live demo</b><span className="text-sm text-muted">A public Space with a person and an agent. No wallet needed.</span></span>
-          <ArrowUpRight className="text-muted transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-        </Link> : null}
-      </div>
+      {demoAddress ? <Link href={`/spaces/${demoAddress}`} className="card group flex items-center gap-4 p-6 transition-transform hover:-translate-y-0.5">
+        <Avatar kind="agent" palette={allocationPalette(BigInt(1), true)} size={52} />
+        <span className="flex-1"><b className="block font-display text-xl font-extrabold">Explore the live demo</b><span className="text-sm text-muted">A public Space with a person and an agent. No wallet needed.</span></span>
+        <ArrowUpRight className="text-muted transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+      </Link> : null}
     </div> : <>
-    <section className="mt-8" aria-labelledby="received-title">
-      <h2 id="received-title" className="font-display text-3xl font-extrabold">Shared with you</h2>
-      <p className="mt-1 text-sm text-muted">Allowances assigned to your connected wallet appear here automatically.</p>
-      {received.isPending ? <div className="card mt-4 p-6 text-muted">Checking allowances for your wallet…</div>
-      : received.isError ? <div role="alert" className="card mt-4 flex flex-wrap items-center gap-4 p-6">
-        <span className="flex-1"><b className="block font-display text-xl font-extrabold">We couldn’t load allowances shared with you</b>
-          <span className="text-sm text-muted">Check your connection and try again.</span></span>
-        <Button variant="soft" onClick={() => void received.refetch()}><RotateCw />Try again</Button>
-      </div>
-      : received.data?.allowances.length ? <ul className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {received.data.allowances.map((entry) => <li key={`${entry.spaceAddress}:${entry.allocationId}`}>
-          <ReceivedCard entry={entry} account={account!} />
-        </li>)}
-      </ul>
-      : <div className="card mt-4 p-6">
-        <h3 className="font-display text-xl font-extrabold">No allowances assigned to this wallet yet</h3>
-        <p className="mt-2 text-sm text-muted">Connected wallet: <span className="address break-all text-ink">{account}</span></p>
-        <p className="mt-2 text-sm text-muted">Ask the Space owner to create and fund an allowance for this address. If they used another wallet, switch to that wallet.</p>
-      </div>}
-    </section>
     {spaces.isPending ? <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="h-[260px] animate-pulse rounded-tile bg-white/70" />)}</div>
     : spaces.isError ? <div role="alert" className="card mt-8 flex flex-wrap items-center gap-4 p-7">
       <span className="flex-1"><b className="block font-display text-2xl font-extrabold">We couldn’t load your Spaces</b><span className="text-muted">Your Spaces are safe. Check your connection and try again.</span></span>
       <Button variant="soft" onClick={() => void spaces.refetch()}><RotateCw />Try again</Button>
     </div>
-    : list.length === 0 ? <EmptyHome hasReceived={!!received.data?.allowances.length} />
+    : list.length === 0 ? <EmptyHome />
     : <>
       <motion.ul initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.06 } } }} className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {list.map((space) => <motion.li key={space.id} variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}>
@@ -90,8 +66,30 @@ export function SpacesHome() {
           </Link>
         </motion.li>
       </motion.ul>
-      <div className="mt-10 grid gap-4 lg:grid-cols-2"><LinkCard /><WorldIdCard /></div>
+      <div className="mt-8 max-w-3xl"><WorldIdCard /></div>
     </>}
+    <section className="mt-12" aria-labelledby="received-title">
+      <h2 id="received-title" className="font-display text-3xl font-extrabold">Shared with you</h2>
+      {received.isPending ? <div className="card mt-4 p-6 text-muted">Looking for allowances…</div>
+      : received.isError ? <div role="alert" className="card mt-4 flex flex-wrap items-center gap-4 p-6">
+        <span className="flex-1"><b className="block font-display text-xl font-extrabold">We couldn’t load your allowances</b>
+          <span className="text-sm text-muted">Check your connection and try again.</span></span>
+        <Button variant="soft" onClick={() => void received.refetch()}><RotateCw />Try again</Button>
+      </div>
+      : received.data?.allowances.length ? <ul className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {received.data.allowances.map((entry) => <li key={`${entry.spaceAddress}:${entry.allocationId}`}>
+          <ReceivedCard entry={entry} account={account!} />
+        </li>)}
+      </ul>
+      : <div className="card relative mt-4 flex max-w-3xl items-center gap-5 overflow-hidden p-6 sm:p-8">
+        <div className="blob -right-12 -top-20 size-56 bg-tang/30" />
+        <div className="relative shrink-0"><Avatar kind="person" palette={allocationPalette(BigInt(1), false)} size={60} /></div>
+        <div className="relative">
+          <h3 className="font-display text-2xl font-extrabold">Nothing shared yet</h3>
+          <p className="mt-1 text-ink-soft">When someone gives you an allowance, you’ll find it here.</p>
+        </div>
+      </div>}
+    </section>
     </>}
   </div>;
 }
@@ -150,15 +148,9 @@ function DraftCard({ draft }: { draft: Draft }) {
   </Link>;
 }
 
-function EmptyHome({ hasReceived }: { hasReceived: boolean }) {
+function EmptyHome() {
   const warm = allocationPalette(BigInt(1), false);
   const cool = allocationPalette(BigInt(1), true);
-  if (hasReceived) return <div className="mt-10 grid gap-4 lg:grid-cols-2">
-    <section className="card p-6"><h2 className="font-display text-2xl font-extrabold">Create a Space of your own</h2>
-      <p className="mt-1 text-sm text-muted">You can also set up allowances and budgets for others.</p>
-      <Button asChild className="mt-4"><Link href="/spaces/new"><Plus />New Space</Link></Button></section>
-    <WorldIdCard />
-  </div>;
   return <div className="mt-8 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
     <section className="card relative overflow-hidden p-8 sm:p-10">
       <div className="blob -right-10 -top-16 size-64 bg-tang/40" />
@@ -169,15 +161,6 @@ function EmptyHome({ hasReceived }: { hasReceived: boolean }) {
         <Button asChild size="lg" className="mt-6"><Link href="/spaces/new"><Plus />New Space</Link></Button>
       </div>
     </section>
-    <div className="grid content-start gap-4"><LinkCard /><WorldIdCard /></div>
+    <WorldIdCard />
   </div>;
-}
-
-function LinkCard() {
-  return <section className="card p-6" aria-labelledby="link-card-title">
-    <span className="mb-4 grid size-11 place-items-center rounded-2xl bg-sky-soft text-[#2B7CC4]"><Link2 size={20} /></span>
-    <h2 id="link-card-title" className="font-display text-2xl font-extrabold">Got a link?</h2>
-    <p className="mb-4 mt-1 text-sm text-muted">Have a direct Space link? Open it here. Allowances assigned to your wallet appear after sign-in.</p>
-    <OpenLinkForm />
-  </section>;
 }

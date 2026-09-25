@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { zeroAddress } from "viem";
-import { agentBudget, personal, space, timestamp } from "../../test/space-fixtures";
+import { agentBudget, personal, timestamp } from "../../test/space-fixtures";
 import { parseAmount } from "./amounts";
 import { describeError } from "./errors";
 import { allocationLabel, amount, every, ruleSentence } from "./format";
-import { parseAccordLink } from "./links";
 import { allocationPalette } from "./palette";
 import { allocationStatus, ringProgress, summarize } from "./space-summary";
 
@@ -74,13 +73,7 @@ describe("tiles and rings", () => {
   });
 });
 
-describe("links and errors", () => {
-  it("opens Spaces and allocations from pasted links or bare addresses", () => {
-    expect(parseAccordLink(`https://accord.example/spaces/${space}/a/12?x=1`)).toBe(`/spaces/${space}/a/12`);
-    expect(parseAccordLink(`  ${space.toLowerCase()} `)).toBe(`/spaces/${space}`);
-    expect(parseAccordLink(zeroAddress.slice(0, 20))).toBeNull();
-    expect(parseAccordLink("kenji.eth")).toBeNull();
-  });
+describe("errors", () => {
   it("turns wallet and API failures into short next steps", () => {
     expect(describeError({ _tag: "ServiceUnavailable" }, "x")).toMatch(/nothing was submitted/);
     expect(describeError(Object.assign(new Error("boom\nRequest Arguments: 0xdead"), { shortMessage: "User rejected the request." }), "x")).toMatch(/cancelled/);
