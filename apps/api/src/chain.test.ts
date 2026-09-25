@@ -24,8 +24,8 @@ function receipt(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
-  vi.stubEnv("SPACE_LEGACY_FACTORY_ADDRESSES", "");
   vi.stubEnv("SPACE_FACTORY_ADDRESS", factory);
+  vi.stubEnv("DEMO_TOKEN_ADDRESS", token);
   vi.stubEnv("ENS_ADAPTER_ADDRESS", adapter);
   vi.stubEnv("PERMIT_SIGNER_PRIVATE_KEY", signerKey);
   vi.spyOn(publicClient, "getTransactionReceipt").mockResolvedValue(receipt());
@@ -38,10 +38,9 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 
 describe("Space activation receipt validation", () => {
-  it("accepts an explicitly retained factory after an upgrade", async () => {
+  it("rejects an old factory after an upgrade", async () => {
     vi.stubEnv("SPACE_FACTORY_ADDRESS", relay);
-    vi.stubEnv("SPACE_LEGACY_FACTORY_ADDRESSES", factory);
-    await expect(deployedSpaceFromReceipt(hash, owner)).resolves.toEqual({ space, token, blockNumber: 1234n });
+    await expect(deployedSpaceFromReceipt(hash, owner)).rejects.toThrow("Expected one trusted SpaceCreated event");
   });
   it("accepts a direct factory call", async () => {
     await expect(deployedSpaceFromReceipt(hash, owner)).resolves.toEqual({ space, token, blockNumber: 1234n });
@@ -76,6 +75,10 @@ describe("Space activation receipt validation", () => {
       const values: Record<string, Address> = { owner, authorizer, token, ensAdapter: adapter };
       return args.functionName === field ? relay : values[args.functionName];
     });
+    await expect(deployedSpaceFromReceipt(hash, owner)).rejects.toThrow("Deployed Space configuration mismatch");
+  });
+  it("rejects a Space using the previous token", async () => {
+    vi.stubEnv("DEMO_TOKEN_ADDRESS", relay);
     await expect(deployedSpaceFromReceipt(hash, owner)).rejects.toThrow("Deployed Space configuration mismatch");
   });
 });

@@ -31,10 +31,11 @@ export function SpaceScreen({ address }: { address: string }) {
     return entry ? space.label(entry) : `Allocation ${id}`;
   };
   const role = space.isOwner ? "owner" : mine.length ? "recipient" : auth.signedIn ? "visitor" : "guest";
+  const unsupported = space.meta.error instanceof Error && space.meta.error.message.includes("Only tUSDC Spaces");
 
   if (space.meta.isError) return <div role="alert" className="card mx-auto mt-10 max-w-xl p-8 text-center">
-    <h1 className="font-display text-3xl font-extrabold">We couldn’t read this Space</h1>
-    <p className="mt-2 text-ink-soft">Check the link. If it’s right, Sepolia may be slow; try again in a moment.</p>
+    <h1 className="font-display text-3xl font-extrabold">{unsupported ? "This Space isn’t available in Accord" : "We couldn’t read this Space"}</h1>
+    <p className="mt-2 text-ink-soft">{unsupported ? "Accord now supports tUSDC Spaces only." : "Check the link. If it’s right, Sepolia may be slow; try again in a moment."}</p>
     <Button variant="soft" className="mt-5" onClick={() => void space.meta.refetch()}><RotateCw />Try again</Button>
   </div>;
 

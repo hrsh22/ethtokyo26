@@ -27,11 +27,13 @@ export function AllocationScreen({ address, id }: { address: string; id: bigint 
   const space = useSpace(address);
   const query = useAllocation(address, id);
   const data = query.data;
+  const unsupported = space.meta.error instanceof Error && space.meta.error.message.includes("Only tUSDC Spaces");
   const back = <Link href={`/spaces/${address}`} className="mb-5 inline-flex items-center gap-2 font-semibold text-muted hover:text-ink"><ArrowLeft size={18} />{space.title}</Link>;
 
   if (query.isPending || space.meta.isPending) return <div>{back}<div className="grid gap-6 lg:grid-cols-[1fr_1fr]"><div className="h-[520px] animate-pulse rounded-tile bg-white/70" /><div className="h-[420px] animate-pulse rounded-tile bg-white/70" /></div></div>;
   if (query.isError || space.meta.isError) return <div>{back}<div role="alert" className="card p-8">
-    <h1 className="font-display text-3xl font-extrabold">We couldn’t read this from Sepolia</h1>
+    <h1 className="font-display text-3xl font-extrabold">{unsupported ? "This allocation isn’t available in Accord" : "We couldn’t read this from Sepolia"}</h1>
+    {unsupported ? <p className="mt-2 text-ink-soft">Accord now supports tUSDC Spaces only.</p> : null}
     <Button variant="soft" className="mt-4" onClick={() => void query.refetch()}><RotateCw />Try again</Button></div></div>;
   if (!data) return <div>{back}<div className="card p-8"><h1 className="font-display text-3xl font-extrabold">This allocation doesn’t exist</h1>
     <p className="mt-2 text-ink-soft">Check the link. Allocation {id.toString()} isn’t in this Space.</p></div></div>;

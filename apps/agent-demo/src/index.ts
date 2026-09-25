@@ -2,7 +2,6 @@ import { accordChain, accordForwarderAbi, PermitAction, spaceAccountAbi, type Sp
 import { createAccordClient, paymentDecision, type PermitRequest } from "@accord/sdk";
 import {
   createPublicClient,
-  createWalletClient,
   encodeFunctionData,
   getAddress,
   http,
@@ -35,7 +34,6 @@ if (!draftId || !allocationId || (!researchTask && (!amount || !recipient || !re
 
   const account = privateKeyToAccount(privateKey);
   const publicClient = createPublicClient({ chain: accordChain, transport: http(rpcUrl) });
-  const walletClient = createWalletClient({ account, chain: accordChain, transport: http(rpcUrl) });
   const chainId = await publicClient.getChainId();
   if (chainId !== accordChain.id) {
     throw new Error(`Refusing to submit on chain ${chainId}; expected Sepolia ${accordChain.id}`);
@@ -99,34 +97,30 @@ if (!draftId || !allocationId || (!researchTask && (!amount || !recipient || !re
   const data = encodeFunctionData({ abi: spaceAccountAbi, functionName: "pay",
     args: [permit.allocationId, permit.recipient, permit.amount, permit, authorization.signature as Hex] });
   const config = await client.config();
-  const forwarder = config.forwarderAddress ? getAddress(config.forwarderAddress) : undefined;
-  const sponsored = forwarder && await publicClient.readContract({ address: space,
+  if (!config.forwarderAddress || !config.demoTokenAddress) throw new Error("The tUSDC sponsor is not configured");
+  const forwarder = getAddress(config.forwarderAddress);
+  const sponsored = await publicClient.readContract({ address: space,
     abi: parseAbi(["function isTrustedForwarder(address) view returns (bool)"]),
     functionName: "isTrustedForwarder", args: [forwarder] });
-  let transactionHash: Hex;
-  if (sponsored) {
-    const nonce = await publicClient.readContract({ address: forwarder, abi: accordForwarderAbi,
-      functionName: "nonces", args: [account.address] });
-    const gas = BigInt(1_500_000);
-    const deadline = Math.floor(Date.now() / 1000) + 300;
-    const signature = await account.signTypedData({
-      domain: { name: "AccordForwarder", version: "1", chainId: accordChain.id, verifyingContract: forwarder },
-      types: { ForwardRequest: [
-        { name: "from", type: "address" }, { name: "to", type: "address" },
-        { name: "value", type: "uint256" }, { name: "gas", type: "uint256" },
-        { name: "nonce", type: "uint256" }, { name: "deadline", type: "uint48" },
-        { name: "data", type: "bytes" },
-      ] }, primaryType: "ForwardRequest",
-      message: { from: account.address, to: space, value: BigInt(0), gas, nonce, deadline, data },
-    });
-    transactionHash = (await client.relay({ from: account.address, to: space, value: "0",
-      gas: gas.toString(), nonce: nonce.toString(), deadline: String(deadline), data, signature })).transactionHash as Hex;
-  } else {
-    const simulation = await publicClient.simulateContract({ account, address: space,
-      abi: spaceAccountAbi, functionName: "pay",
-      args: [permit.allocationId, permit.recipient, permit.amount, permit, authorization.signature as Hex] });
-    transactionHash = await walletClient.writeContract(simulation.request);
-  }
+  if (!sponsored) throw new Error("This Space does not support sponsored payments");
+  const spaceToken = await publicClient.readContract({ address: space, abi: spaceAccountAbi, functionName: "token" });
+  if (spaceToken.toLowerCase() !== config.demoTokenAddress.toLowerCase()) throw new Error("Only tUSDC Spaces are supported");
+  const nonce = await publicClient.readContract({ address: forwarder, abi: accordForwarderAbi,
+    functionName: "nonces", args: [account.address] });
+  const gas = BigInt(1_500_000);
+  const deadline = Math.floor(Date.now() / 1000) + 300;
+  const signature = await account.signTypedData({
+    domain: { name: "AccordForwarder", version: "1", chainId: accordChain.id, verifyingContract: forwarder },
+    types: { ForwardRequest: [
+      { name: "from", type: "address" }, { name: "to", type: "address" },
+      { name: "value", type: "uint256" }, { name: "gas", type: "uint256" },
+      { name: "nonce", type: "uint256" }, { name: "deadline", type: "uint48" },
+      { name: "data", type: "bytes" },
+    ] }, primaryType: "ForwardRequest",
+    message: { from: account.address, to: space, value: BigInt(0), gas, nonce, deadline, data },
+  });
+  const transactionHash = (await client.relay({ from: account.address, to: space, value: "0",
+    gas: gas.toString(), nonce: nonce.toString(), deadline: String(deadline), data, signature })).transactionHash as Hex;
   // Save these public references to resume delivery without issuing another purchase.
   console.log(JSON.stringify({ step: "submitted", quoteId: quote?.id, transactionHash }));
   const receipt = await publicClient.waitForTransactionReceipt({ hash: transactionHash });

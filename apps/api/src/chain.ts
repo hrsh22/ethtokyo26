@@ -33,8 +33,9 @@ export function adapterAddress() {
 }
 
 export async function deployedSpaceFromReceipt(txHash: Hex, expectedOwner: Address) {
-  const factories = [factoryAddress(), ...(process.env.SPACE_LEGACY_FACTORY_ADDRESSES ?? "").split(",")
-    .map((value) => value.trim()).filter(Boolean).map((value) => getAddress(value))];
+  const factory = factoryAddress();
+  const configuredToken = process.env.DEMO_TOKEN_ADDRESS;
+  if (!configuredToken || !isAddress(configuredToken)) throw new Error("tUSDC token is not configured");
   const adapter = adapterAddress();
   const signer = permitSigner();
   const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
@@ -43,7 +44,7 @@ export async function deployedSpaceFromReceipt(txHash: Hex, expectedOwner: Addre
   // canonical factory's event binds the Space to its owner; the transaction's
   // top-level from/to do not. Verify the immutable configuration below as well.
   const created = receipt.logs.flatMap((log) => {
-    if (!factories.some((factory) => log.address.toLowerCase() === factory.toLowerCase())) return [];
+    if (log.address.toLowerCase() !== factory.toLowerCase()) return [];
     try {
       const decoded = decodeEventLog({ abi: spaceFactoryAbi, eventName: "SpaceCreated", data: log.data, topics: log.topics });
       return [decoded.args];
@@ -62,6 +63,7 @@ export async function deployedSpaceFromReceipt(txHash: Hex, expectedOwner: Addre
   if (!code || owner.toLowerCase() !== expectedOwner.toLowerCase() ||
     authorizer.toLowerCase() !== signer.address.toLowerCase() ||
     token.toLowerCase() !== created[0]!.token.toLowerCase() ||
+    token.toLowerCase() !== configuredToken.toLowerCase() ||
     ensAdapter.toLowerCase() !== adapter.toLowerCase()) throw new Error("Deployed Space configuration mismatch");
   return { space, token: getAddress(token), blockNumber: receipt.blockNumber };
 }

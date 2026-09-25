@@ -10,10 +10,11 @@ import { useSpaceTerms, type SpaceAllocation } from "./use-space-terms";
 
 /** Token, owner and token metadata, read straight from the Space contract. */
 export function useSpaceMeta(address: string) {
+  const { config } = useAccord();
   const chain = usePublicClient({ chainId: SEPOLIA_CHAIN_ID });
   return useQuery({
     queryKey: ["space-meta", address],
-    enabled: !!chain,
+    enabled: !!chain && (!!config.data || config.isError),
     retry: 1,
     staleTime: Infinity,
     queryFn: async () => {
@@ -22,6 +23,9 @@ export function useSpaceMeta(address: string) {
         chain!.readContract({ address: space, abi: spaceAccountAbi, functionName: "token" }),
         chain!.readContract({ address: space, abi: spaceAccountAbi, functionName: "owner" }),
       ]);
+      if (!config.data?.demoTokenAddress || token.toLowerCase() !== config.data.demoTokenAddress.toLowerCase()) {
+        throw new Error("Only tUSDC Spaces are supported by this app.");
+      }
       const [decimals, symbol] = await Promise.all([
         chain!.readContract({ address: token, abi: erc20Abi, functionName: "decimals" }),
         chain!.readContract({ address: token, abi: erc20Abi, functionName: "symbol" }).catch(() => "tokens"),

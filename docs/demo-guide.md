@@ -28,7 +28,7 @@ Use the Sepolia ENSv2 records, not mainnet records. The default Universal Resolv
 
 ## Five-minute claiming demo
 
-1. Claim 1,000 tUSDC with **Get 1,000 tUSDC** on **Your Spaces** or during **New Space** setup. You can claim again whenever the owner needs more test tokens. Accord pays Sepolia network fees for new tUSDC Spaces. Create a **new Space**; older ACD Spaces keep their original contracts and need ETH for their direct transactions.
+1. Claim 1,000 tUSDC with **Get 1,000 tUSDC** on **Your Spaces** or during **New Space** setup. You can claim again whenever the owner needs more test tokens. Accord pays Sepolia network fees for new tUSDC Spaces. Create a **new tUSDC Space**; old ACD Space records have been removed from this app.
 2. Signed in as the beneficiary, choose **Link World ID** on **Your Spaces** before funding. Each subsequent claim still needs a fresh check.
 3. As the owner, choose **Give someone a budget → A person**, confirm the beneficiary and choose **Every minute**, up to **10 tUSDC** each minute, for **5 minutes**. Use **50 tUSDC total** (or **Set the total**).
 4. Once funding confirms, the beneficiary finds the allowance under **Shared with you** on **Your Spaces** and claims 10 tUSDC immediately. The owner can still send the direct allocation link. The ring empties and the button disables. The countdown shows the next refill; allowance refreshes after a block enters the next 60-second window.

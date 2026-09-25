@@ -2,7 +2,7 @@
 
 import { accordForwarderAbi } from "@accord/chain";
 import { getAddress, parseAbi, type Address, type Hex } from "viem";
-import { usePublicClient, useSendTransaction, useSignTypedData } from "wagmi";
+import { usePublicClient, useSignTypedData } from "wagmi";
 import { SEPOLIA_CHAIN_ID, useAccord } from "./accord";
 
 const forwarderTargetAbi = parseAbi(["function isTrustedForwarder(address) view returns (bool)"]);
@@ -20,22 +20,15 @@ export function useSponsoredTransaction() {
   const { account, auth, client, config } = useAccord();
   const chain = usePublicClient({ chainId: SEPOLIA_CHAIN_ID });
   const { signTypedDataAsync } = useSignTypedData();
-  const { sendTransactionAsync } = useSendTransaction();
 
   async function send(to: Address, data: Hex, gas = BigInt(1_500_000)): Promise<Hex> {
     if (!account || !auth.signedIn || !chain) throw new Error("Sign in with your wallet first.");
     const forwarderValue = config.data?.forwarderAddress;
     const forwarder = forwarderValue ? getAddress(forwarderValue) : undefined;
-    const requiredSponsor = [config.data?.factoryAddress, config.data?.demoTokenAddress]
-      .some((address) => address?.toLowerCase() === to.toLowerCase());
-    if (requiredSponsor && !forwarder) throw new Error("The gas sponsor is not configured.");
-    const sponsored = forwarder && await chain.readContract({ address: to, abi: forwarderTargetAbi,
-      functionName: "isTrustedForwarder", args: [forwarder] }).catch((error: unknown) => {
-      if (requiredSponsor) throw error;
-      return false;
-    });
-    if (requiredSponsor && !sponsored) throw new Error("This contract does not trust the gas sponsor.");
-    if (!sponsored) return sendTransactionAsync({ to, data, chainId: SEPOLIA_CHAIN_ID });
+    if (!forwarder) throw new Error("The gas sponsor is not configured.");
+    const sponsored = await chain.readContract({ address: to, abi: forwarderTargetAbi,
+      functionName: "isTrustedForwarder", args: [forwarder] });
+    if (!sponsored) throw new Error("This contract does not trust the gas sponsor.");
     if (!client) throw new Error("The sponsor service is unavailable.");
 
     const from = getAddress(account);
