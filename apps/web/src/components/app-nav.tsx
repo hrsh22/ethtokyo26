@@ -10,9 +10,9 @@ import { keyPalette } from "@/lib/palette";
 import { Avatar, Logo } from "./avatar";
 import { Button } from "./ui/button";
 
-const demoAddress = process.env.NEXT_PUBLIC_DEMO_SPACE_ADDRESS;
-
 export function AppNav({ landing = false }: { landing?: boolean }) {
+  const { config } = useAccord();
+  const demoAddress = config.data?.demoSpaceAddress;
   const path = usePathname();
   const links = landing
     ? [{ href: "#how", label: "How it works" }, { href: "#safety", label: "Safety" }, ...(demoAddress ? [{ href: `/spaces/${demoAddress}`, label: "Live demo" }] : [])]

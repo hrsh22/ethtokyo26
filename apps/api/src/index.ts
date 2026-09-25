@@ -12,6 +12,7 @@ import { WorldLive } from "./world";
 import { EnsLive } from "./ens";
 import { ResearchLive } from "./research";
 import { ActivityLive } from "./activity";
+import { SponsorLive } from "./sponsor";
 import { adapterAddress, factoryAddress, permitSigner } from "./chain";
 import { getAddress, isAddress } from "viem";
 
@@ -24,6 +25,8 @@ const StatusLive = HttpApiBuilder.group(AccordApi, "status", (handlers) =>
       const adapter = adapterAddress();
       const authorizer = permitSigner().address;
       const demoToken = process.env.DEMO_TOKEN_ADDRESS;
+      const forwarder = process.env.FORWARDER_ADDRESS;
+      const demoSpace = process.env.NEXT_PUBLIC_DEMO_SPACE_ADDRESS;
       const registry = process.env.ENSV2_REGISTRY_ADDRESS;
       return {
         configured: true,
@@ -31,6 +34,8 @@ const StatusLive = HttpApiBuilder.group(AccordApi, "status", (handlers) =>
         adapterAddress: adapter,
         authorizerAddress: authorizer,
         ...(demoToken && isAddress(demoToken) ? { demoTokenAddress: getAddress(demoToken) } : {}),
+        ...(forwarder && isAddress(forwarder) ? { forwarderAddress: getAddress(forwarder) } : {}),
+        ...(demoSpace && isAddress(demoSpace) ? { demoSpaceAddress: getAddress(demoSpace) } : {}),
         ...(registry && isAddress(registry) ? { ensRegistryAddress: getAddress(registry) } : {}),
       };
     } catch { return { configured: false }; }
@@ -64,6 +69,7 @@ const ApiLive = HttpApiBuilder.api(AccordApi).pipe(
   Layer.provide(EnsLive),
   Layer.provide(ResearchLive),
   Layer.provide(ActivityLive),
+  Layer.provide(SponsorLive),
   Layer.provide(AuthLive),
   Layer.provide(AdminLive),
   Layer.provide(SpacesLive),

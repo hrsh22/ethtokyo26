@@ -1,10 +1,10 @@
 /** Reproducible public Sepolia owner/ENS/World-gate demo. Partner proofs remain live-only. */
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { PermitAction, spaceAccountAbi, spaceFactoryAbi, type SpacePermit } from "@accord/chain";
+import { accordForwarderAbi, PermitAction, spaceAccountAbi, spaceFactoryAbi, type SpacePermit } from "@accord/chain";
 import {
-  createPublicClient, createWalletClient, erc20Abi, getAddress, http, keccak256, parseAbi,
-  parseEther, parseEventLogs, toBytes, zeroAddress, type Address, type Hex, type TransactionReceipt,
+  createPublicClient, createWalletClient, encodeFunctionData, erc20Abi, getAddress, http, keccak256, parseAbi,
+  parseUnits, parseEventLogs, toBytes, zeroAddress, type Address, type Hex, type TransactionReceipt,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
@@ -19,8 +19,7 @@ const adapter = process.env.ENS_ADAPTER_ADDRESS as Address | undefined;
 const token = process.env.DEMO_TOKEN_ADDRESS as Address | undefined;
 const registry = process.env.ENSV2_REGISTRY_ADDRESS as Address | undefined;
 const name = "accordtokyodemo26.eth";
-const stateUrl = new URL("../../../.codex/accord-sepolia-demo.json", import.meta.url);
-const tokenAbi = parseAbi(["function faucet()"]);
+const stateUrl = new URL("../../../.codex/accord-tusdc-demo.json", import.meta.url);
 const registryAbi = [{
   type: "function", name: "getState", stateMutability: "view",
   inputs: [{ name: "anyId", type: "uint256" }],
@@ -59,7 +58,7 @@ const human = account(humanKey, "DEMO_HUMAN_PRIVATE_KEY");
 const agent = account(agentKey, "DEMO_AGENT_PRIVATE_KEY");
 const publicClient = createPublicClient({ chain: sepolia, transport: http(rpc) });
 const wallet = createWalletClient({ account: owner, chain: sepolia, transport: http(rpc) });
-const agentWallet = createWalletClient({ account: agent, chain: sepolia, transport: http(rpc) });
+const forwarder = process.env.FORWARDER_ADDRESS as Address | undefined;
 
 async function request(path: string, payload?: unknown, bearer?: string) {
   const response = await fetch(`${api}${path}`, {
@@ -96,14 +95,35 @@ async function confirmed(hash: Hex, label: string) {
   return receipt;
 }
 
-function assertPaymentReceipt(receipt: TransactionReceipt, requestKey: string, allocationId: string) {
+async function sponsored(signer: typeof owner, bearer: string, to: Address, data: Hex, gas = BigInt(1_500_000)) {
+  if (!forwarder) throw new Error("Configure FORWARDER_ADDRESS");
+  const nonce = await publicClient.readContract({ address: forwarder, abi: accordForwarderAbi,
+    functionName: "nonces", args: [signer.address] });
+  const deadline = Math.floor(Date.now() / 1000) + 300;
+  const signature = await signer.signTypedData({
+    domain: { name: "AccordForwarder", version: "1", chainId: sepolia.id, verifyingContract: forwarder },
+    types: { ForwardRequest: [
+      { name: "from", type: "address" }, { name: "to", type: "address" },
+      { name: "value", type: "uint256" }, { name: "gas", type: "uint256" },
+      { name: "nonce", type: "uint256" }, { name: "deadline", type: "uint48" },
+      { name: "data", type: "bytes" },
+    ] }, primaryType: "ForwardRequest",
+    message: { from: signer.address, to, value: BigInt(0), gas, nonce, deadline, data },
+  });
+  const result = await request("/v1/sponsor/relay", { from: signer.address, to, value: "0",
+    gas: gas.toString(), nonce: nonce.toString(), deadline: String(deadline), data, signature }, bearer);
+  expectStatus(result, 200, "Sponsor transaction");
+  return String(result.body!.transactionHash) as Hex;
+}
+
+function assertPaymentReceipt(receipt: TransactionReceipt, space: Address, requestKey: string, allocationId: string) {
   const events = parseEventLogs({ abi: spaceAccountAbi, logs: receipt.logs, eventName: "PaymentMade" });
-  if (!events.some((event) => event.address.toLowerCase() === String(receipt.to).toLowerCase() &&
+  if (!events.some((event) => event.address.toLowerCase() === space.toLowerCase() &&
     event.args.requestId === keccak256(toBytes(requestKey)) &&
     event.args.allocationId === BigInt(allocationId) &&
     event.args.agent.toLowerCase() === agent.address.toLowerCase() &&
     event.args.recipient.toLowerCase() === human.address.toLowerCase() &&
-    event.args.amount === parseEther("1"))) {
+    event.args.amount === parseUnits("1", 6))) {
     throw new Error("Agent payment receipt lacks the expected Space event");
   }
 }
@@ -154,13 +174,6 @@ async function main() {
   if (nameState.latestOwner.toLowerCase() !== agent.address.toLowerCase() || !agentAuthorized) {
     throw new Error("ENSv2 name does not authorize the distinct demo agent");
   }
-  for (const participant of [human, agent]) {
-    if (await publicClient.getBalance({ address: participant.address }) < parseEther("0.001")) {
-      const tx = await wallet.sendTransaction({ to: participant.address, value: parseEther("0.002") });
-      await confirmed(tx, `Fund ${participant.address} with test gas`);
-    }
-  }
-
   if (!state.draftId) {
     const draft = await request("/v1/spaces/drafts", { name: "Accord Sepolia demo", templateId: "research-budget" }, ownerBearer);
     expectStatus(draft, 200, "Create demo draft");
@@ -168,8 +181,8 @@ async function main() {
     await saveState(state);
   }
   if (!state.deploymentTx) {
-    const tx = await wallet.writeContract({ address: factory!, abi: spaceFactoryAbi, functionName: "createSpace",
-      args: [getAddress(String(config.body!.authorizerAddress)), token!, adapter!] });
+    const tx = await sponsored(owner, ownerBearer, factory!, encodeFunctionData({ abi: spaceFactoryAbi,
+      functionName: "createSpace", args: [getAddress(String(config.body!.authorizerAddress)), token!, adapter!] }), BigInt(7_500_000));
     await confirmed(tx, "Create Space");
     state.deploymentTx = tx;
     await saveState(state);
@@ -185,20 +198,22 @@ async function main() {
   const opened = await request("/v1/spaces/lookup", { spaceAddress: space }, humanBearer);
   expectStatus(opened, 200, "Beneficiary opens shared Space");
 
-  const fundingNeeded = (state.humanAllocationId ? 0n : parseEther("100")) +
-    (state.agentAllocationId ? 0n : parseEther("100"));
+  const fundingNeeded = (state.humanAllocationId ? 0n : parseUnits("100", 6)) +
+    (state.agentAllocationId ? 0n : parseUnits("100", 6));
   if (fundingNeeded > 0n) {
     const balance = await publicClient.readContract({ address: token!, abi: erc20Abi,
       functionName: "balanceOf", args: [owner.address] });
     if (balance < fundingNeeded) {
-      const tx = await wallet.writeContract({ address: token!, abi: tokenAbi, functionName: "faucet" });
+      const result = await request("/v1/sponsor/faucet", {}, ownerBearer);
+      expectStatus(result, 200, "Sponsored tUSDC faucet");
+      const tx = String(result.body!.transactionHash) as Hex;
       await confirmed(tx, "Demo-token faucet");
     }
     const allowance = await publicClient.readContract({ address: token!, abi: erc20Abi,
       functionName: "allowance", args: [owner.address, space] });
     if (allowance < fundingNeeded) {
-      const tx = await wallet.writeContract({ address: token!, abi: erc20Abi,
-        functionName: "approve", args: [space, fundingNeeded] });
+      const tx = await sponsored(owner, ownerBearer, token!, encodeFunctionData({ abi: erc20Abi,
+        functionName: "approve", args: [space, fundingNeeded] }), BigInt(150_000));
       await confirmed(tx, "Approve Space funding");
     }
   }
@@ -207,16 +222,16 @@ async function main() {
     const permit = await request("/v1/admin/allocations", { draftId: state.draftId,
       requestKey: randomUUID(), beneficiary, amount: amount.toString(), periodCap: periodCap.toString(), period }, ownerBearer);
     expectStatus(permit, 200, "Owner allocation permit");
-    const tx = await wallet.sendTransaction({ to: space, data: String(permit.body!.calldata) as Hex });
+    const tx = await sponsored(owner, ownerBearer, space, String(permit.body!.calldata) as Hex);
     await confirmed(tx, "Create onchain allocation");
     return String((permit.body!.permit as Record<string, unknown>).allocationId);
   }
   if (!state.humanAllocationId) {
-    state.humanAllocationId = await createAllocation(human.address, parseEther("100"), parseEther("10"), 1);
+    state.humanAllocationId = await createAllocation(human.address, parseUnits("100", 6), parseUnits("10", 6), 1);
     await saveState(state);
   }
   if (!state.agentAllocationId) {
-    state.agentAllocationId = await createAllocation(zeroAddress, parseEther("100"), parseEther("100"), 0);
+    state.agentAllocationId = await createAllocation(zeroAddress, parseUnits("100", 6), parseUnits("100", 6), 0);
     await saveState(state);
   }
   if (state.mandateTx) await confirmed(state.mandateTx, "Existing ENSv2 mandate");
@@ -236,11 +251,11 @@ async function main() {
     const permit = await request("/v1/admin/mandates", {
       draftId: state.draftId, requestKey: randomUUID(), allocationId: state.agentAllocationId,
       agent: agent.address, registry, nameId: String(ens.body.nameId),
-      expectedResource: nameState.resource.toString(), dailyCap: parseEther("20").toString(),
-      maxPerPayment: parseEther("5").toString(), expiry: String(expiry), agentEnsName: name,
+      expectedResource: nameState.resource.toString(), dailyCap: parseUnits("20", 6).toString(),
+      maxPerPayment: parseUnits("5", 6).toString(), expiry: String(expiry), agentEnsName: name,
     }, ownerBearer);
     expectStatus(permit, 200, "Owner ENSv2 mandate permit");
-    const tx = await wallet.sendTransaction({ to: space, data: String(permit.body!.calldata) as Hex });
+    const tx = await sponsored(owner, ownerBearer, space, String(permit.body!.calldata) as Hex);
     await confirmed(tx, state.mandateTx ? "Renew onchain ENSv2 mandate" : "Set onchain ENSv2 mandate");
     state.mandateTx = tx;
     if (!state.paymentTx) state.paymentRequestKey = undefined;
@@ -248,7 +263,7 @@ async function main() {
   }
   if (state.paymentTx) {
     if (!state.paymentRequestKey) throw new Error("Payment transaction is missing its request key");
-    assertPaymentReceipt(await confirmed(state.paymentTx, "Agent payment"),
+    assertPaymentReceipt(await confirmed(state.paymentTx, "Agent payment"), space,
       state.paymentRequestKey, state.agentAllocationId!);
   }
 
@@ -270,18 +285,18 @@ async function main() {
   if (spaceOwner.toLowerCase() !== owner.address.toLowerCase() ||
     spaceToken.toLowerCase() !== token!.toLowerCase() || spaceAdapter.toLowerCase() !== adapter!.toLowerCase() ||
     humanAllocation[0].toLowerCase() !== human.address.toLowerCase() ||
-    humanAllocation[1] !== parseEther("100") || humanAllocation[2] !== parseEther("10") ||
+    humanAllocation[1] !== parseUnits("100", 6) || humanAllocation[2] !== parseUnits("10", 6) ||
     agentAllocation[0] !== zeroAddress ||
-    agentAllocation[1] !== (state.paymentTx ? parseEther("99") : parseEther("100")) ||
+    agentAllocation[1] !== (state.paymentTx ? parseUnits("99", 6) : parseUnits("100", 6)) ||
     mandate[0].toLowerCase() !== agent.address.toLowerCase() ||
     mandate[1].toLowerCase() !== registry!.toLowerCase() || mandate[3] !== nameState.resource ||
     mandate[9] !== true || !liveEnsAuthorized ||
-    spaceBalance < (state.paymentTx ? parseEther("199") : parseEther("200"))) {
+    spaceBalance < (state.paymentTx ? parseUnits("199", 6) : parseUnits("200", 6))) {
     throw new Error("Public Space state does not match the expected funded human and ENS-gated agent agreement");
   }
 
   const claim = await request("/v1/permits/claims", { draftId: state.draftId, requestKey: randomUUID(),
-    allocationId: state.humanAllocationId, amount: parseEther("1").toString() }, humanBearer);
+    allocationId: state.humanAllocationId, amount: parseUnits("1", 6).toString() }, humanBearer);
   expectStatus(claim, 200, "Prepare human claim");
   if (claim.body?.signature) throw new Error("Human claim signed before World ID verification");
   expectStatus(await request("/v1/permits/claims/sign", { intentId: claim.body!.id }, humanBearer), 403,
@@ -297,7 +312,7 @@ async function main() {
     }
     const payment = await request("/v1/permits/payments", { draftId: state.draftId,
       requestKey: state.paymentRequestKey, allocationId: state.agentAllocationId,
-      amount: parseEther("1").toString(), recipient: human.address }, agentBearer);
+      amount: parseUnits("1", 6).toString(), recipient: human.address }, agentBearer);
     paymentStatus = payment.status;
     if (payment.status !== 200) {
       // A failed screening attempt may have left an expiring intent in the API.
@@ -322,24 +337,22 @@ async function main() {
       };
       if (permit.actor !== agent.address || permit.action !== PermitAction.Pay ||
         permit.allocationId !== BigInt(state.agentAllocationId!) ||
-        permit.recipient !== human.address || permit.amount !== parseEther("1") ||
+        permit.recipient !== human.address || permit.amount !== parseUnits("1", 6) ||
         String(payment.body.spaceAddress).toLowerCase() !== space.toLowerCase()) {
         throw new Error("Signed payment permit does not match the demo mandate");
       }
-      const simulation = await publicClient.simulateContract({ account: agent, address: space,
-        abi: spaceAccountAbi, functionName: "pay",
-        args: [permit.allocationId, permit.recipient, permit.amount, permit, payment.body.signature as Hex] });
-      const tx = await agentWallet.writeContract(simulation.request);
+      const tx = await sponsored(agent, agentBearer, space, encodeFunctionData({ abi: spaceAccountAbi,
+        functionName: "pay", args: [permit.allocationId, permit.recipient, permit.amount, permit, payment.body.signature as Hex] }));
       state.paymentTx = tx;
       await saveState(state);
-      assertPaymentReceipt(await confirmed(tx, "Agent payment"),
-        state.paymentRequestKey, state.agentAllocationId!);
+      assertPaymentReceipt(await confirmed(tx, "Agent payment"), space,
+        state.paymentRequestKey!, state.agentAllocationId!);
       const [remaining, funded] = await Promise.all([
         publicClient.readContract({ address: space, abi: spaceAccountAbi, functionName: "allocations",
           args: [BigInt(state.agentAllocationId!)] }),
         publicClient.readContract({ address: token!, abi: erc20Abi, functionName: "balanceOf", args: [space] }),
       ]);
-      if (remaining[1] !== parseEther("99") || funded < parseEther("199")) {
+      if (remaining[1] !== parseUnits("99", 6) || funded < parseUnits("199", 6)) {
         throw new Error("Agent payment receipt did not match onchain allocation and Space balances");
       }
       paymentStatus = "settled";

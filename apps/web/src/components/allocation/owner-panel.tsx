@@ -5,13 +5,13 @@ import { Ban, RotateCcw, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { getAddress, zeroAddress, type Hex } from "viem";
-import { useSendTransaction } from "wagmi";
-import { SEPOLIA_CHAIN_ID, useAccord } from "@/lib/accord";
+import { useAccord } from "@/lib/accord";
 import { parseAmount } from "@/lib/amounts";
 import { describeError, tagOf } from "@/lib/errors";
 import { formatUnits } from "viem";
 import { shortDate } from "@/lib/format";
 import { useChainActions } from "@/lib/use-chain-actions";
+import { useSponsoredTransaction } from "@/lib/use-sponsored-transaction";
 import type { AllocationData } from "@/lib/use-allocation";
 import { AmountField } from "../amount-field";
 import { SharePanel } from "../share";
@@ -26,7 +26,7 @@ export function OwnerPanel({ address, draftId, data, label, decimals, symbol, un
 }) {
   const { client, checkSession } = useAccord();
   const { requireWallet, sendPermitTransaction } = useChainActions(address);
-  const { sendTransactionAsync } = useSendTransaction();
+  const sponsor = useSponsoredTransaction();
   const [confirm, setConfirm] = useState<"revoke" | "close" | null>(null);
   const [mandateOpen, setMandateOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -35,7 +35,7 @@ export function OwnerPanel({ address, draftId, data, label, decimals, symbol, un
   const mandateOn = data.mandate[9];
 
   async function submit(envelope: Envelope) {
-    return sendPermitTransaction(envelope.permit.requestId as Hex, () => sendTransactionAsync({ to: getAddress(envelope.spaceAddress), data: envelope.calldata as Hex, chainId: SEPOLIA_CHAIN_ID }));
+    return sendPermitTransaction(envelope.permit.requestId as Hex, () => sponsor.send(getAddress(envelope.spaceAddress), envelope.calldata as Hex));
   }
 
   async function act(kind: "revoke" | "close") {

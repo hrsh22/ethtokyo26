@@ -9,15 +9,15 @@ import confetti from "canvas-confetti";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, AtSign, Ban, Bot, Check, Lock, ScanLine, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { formatUnits, getAddress, isAddress, zeroAddress, type Address, type Hex } from "viem";
-import { useSendTransaction, useWriteContract } from "wagmi";
-import { SEPOLIA_CHAIN_ID, useAccord } from "@/lib/accord";
+import { encodeFunctionData, formatUnits, getAddress, isAddress, zeroAddress, type Address, type Hex } from "viem";
+import { useAccord } from "@/lib/accord";
 import { parseAmount } from "@/lib/amounts";
 import { describeError, tagOf } from "@/lib/errors";
 import { amount, shortAddress, shortDate } from "@/lib/format";
 import { allocationPalette } from "@/lib/palette";
 import { allocationTerms, maxClaimable, runLabel, runPresets, type Frequency, type Terms } from "@/lib/schedule";
 import { useChainActions } from "@/lib/use-chain-actions";
+import { useSponsoredTransaction } from "@/lib/use-sponsored-transaction";
 import { useSpace } from "@/lib/use-space";
 import { AmountField } from "../amount-field";
 import { Avatar } from "../avatar";
@@ -284,8 +284,7 @@ function Signer({ address, draft, kind, person, agent, units, total, terms, cap,
 }) {
   const { client, config } = useAccord();
   const { requireWallet, waitForSuccess, sendPermitTransaction } = useChainActions(address);
-  const { writeContractAsync } = useWriteContract();
-  const { sendTransactionAsync } = useSendTransaction();
+  const sponsor = useSponsoredTransaction();
   const initial = useMemo(() => [
     { id: "approve", label: `Let Accord move ${units(total)}` },
     { id: "fund", label: kind === "person" ? "Fund the allowance" : "Fund the budget" },
@@ -306,7 +305,7 @@ function Signer({ address, draft, kind, person, agent, units, total, terms, cap,
         nameId: agent.nameId, expectedResource: agent.resource, dailyCap: daily.toString(), maxPerPayment: perPayment.toString(), expiry: String(expiry),
         agentEnsName: agent.name,
       });
-      return sendPermitTransaction(envelope.permit.requestId as Hex, () => sendTransactionAsync({ to: getAddress(envelope.spaceAddress), data: envelope.calldata as Hex, chainId: SEPOLIA_CHAIN_ID }));
+      return sendPermitTransaction(envelope.permit.requestId as Hex, () => sponsor.send(getAddress(envelope.spaceAddress), envelope.calldata as Hex));
     });
   }
 
@@ -326,15 +325,15 @@ function Signer({ address, draft, kind, person, agent, units, total, terms, cap,
             ...(terms.schedule ? { schedule: terms.schedule } : {}),
           });
           tracker.update("approve", { detail: "Confirm in your wallet" });
-          const hash = await writeContractAsync({ address: getAddress(next.tokenAddress), abi: erc20ApproveAbi, functionName: "approve",
-            args: [getAddress(next.spaceAddress), BigInt(next.approvalAmount)], chainId: SEPOLIA_CHAIN_ID });
+          const hash = await sponsor.send(getAddress(next.tokenAddress), encodeFunctionData({ abi: erc20ApproveAbi,
+            functionName: "approve", args: [getAddress(next.spaceAddress), BigInt(next.approvalAmount)] }), BigInt(150_000));
           tracker.update("approve", { detail: "Confirming on Sepolia" });
           await waitForSuccess(hash);
           tracker.update("approve", { hash });
           return next;
         });
         await tracker.run("fund", "Confirm in your wallet", () => sendPermitTransaction(envelope.permit.requestId as Hex,
-          () => sendTransactionAsync({ to: getAddress(envelope.spaceAddress), data: envelope.calldata as Hex, chainId: SEPOLIA_CHAIN_ID })));
+          () => sponsor.send(getAddress(envelope.spaceAddress), envelope.calldata as Hex)));
         funded = envelope.permit.allocationId.toString();
         setFundedId(funded);
       }

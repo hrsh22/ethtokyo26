@@ -2,10 +2,13 @@
   "extends": "./tsconfig.json",
   "include": [
     "scripts/browser-e2e.mts",
+    "scripts/demo-beneficiary.mts",
+    "scripts/demo-sepolia.mts",
+    "scripts/deploy-gasless.mts",
     "scripts/live-readiness.mts",
     "scripts/migrate-db.mts",
     "scripts/import-postgres.mts",
     "scripts/smoke-onchain.mts",
-    "scripts/deploy-timed-factory.mts"
+    "scripts/smoke-sponsored.mts"
   ]
 }

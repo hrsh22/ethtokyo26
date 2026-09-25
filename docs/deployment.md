@@ -32,6 +32,7 @@ curl --fail https://accord-api.hrsh.dev/v1/health
 
 Run `pm2 logs accord-api` to inspect errors. Back up `.data/accord.sqlite`
 before migrations or manual data changes. Keep the API at one PM2 instance.
+Set `FORWARDER_ADDRESS=0x947f24d2749f00be27062cec447457cac3c7a6e0`, `SPACE_FACTORY_ADDRESS=0x3ccbb42840e290e38f4f10040e08140179dfa0a9`, `DEMO_TOKEN_ADDRESS=0x06729abbe1b9683ea3d5addd151c15c93be2a0a4`, `SPACE_LEGACY_FACTORY_ADDRESSES=0xb1a653a68fcd2de8a7448db391d7de68f49cef3f`, and `RESEARCH_PRICE_BASE_UNITS=1000000` in root `.env`. Put a separate funded Sepolia wallet key in `SPONSOR_PRIVATE_KEY` there only. Its address is `0xBf40A6E6C25fED59B18cDCC8C60692E68bCf0CBb`; top it up with Sepolia ETH when needed. `NEXT_PUBLIC_DEMO_SPACE_ADDRESS` now comes from API config, so set the new tUSDC demo Space in the backend `.env` only. The sponsor will not pay fees for old ACD Spaces.
 The existing Nginx site has a Let's Encrypt origin certificate; Cloudflare can
 use **Full (strict)** TLS for this hostname.
 `pnpm dev` can reuse this API, but browser sign-in from `localhost:3000` is
@@ -54,7 +55,6 @@ environment variables for Production before the first deployment:
 | `NEXT_PUBLIC_CHAIN_ID` | `11155111` |
 | `NEXT_PUBLIC_SEPOLIA_RPC_URL` | A working Sepolia HTTPS RPC, such as `https://ethereum-sepolia-rpc.publicnode.com` |
 | `NEXT_PUBLIC_REOWN_PROJECT_ID` | The Reown project ID used locally |
-| `NEXT_PUBLIC_DEMO_SPACE_ADDRESS` | `0xAf1DA3Fd9A3406A453ddb9EC00313aa6a0C69C2A` |
 
 The root `package.json` pins pnpm 11.22.0. Corepack tells Vercel to use that
 version; check the install log if Vercel falls back to an older pnpm. The chain

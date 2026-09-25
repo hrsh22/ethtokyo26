@@ -20,7 +20,7 @@ export const ResearchLive = HttpApiBuilder.group(AccordApi, "research", (handler
     const db = yield* Database;
     const seller = process.env.RESEARCH_SELLER_ADDRESS;
     const token = process.env.DEMO_TOKEN_ADDRESS;
-    const price = process.env.RESEARCH_PRICE_BASE_UNITS ?? "1000000000000000000";
+    const price = process.env.RESEARCH_PRICE_BASE_UNITS ?? "1000000";
     if (!seller || !isAddress(seller) || seller === zeroAddress || !token || !isAddress(token) ||
       !/^[1-9][0-9]*$/.test(price) || BigInt(price) >= 1n << 256n) return yield* Effect.fail(new HttpApiError.ServiceUnavailable());
     const [draft] = yield* databaseOperation(() => db.client.select().from(spaceDrafts).where(eq(spaceDrafts.id, payload.draftId)).limit(1));

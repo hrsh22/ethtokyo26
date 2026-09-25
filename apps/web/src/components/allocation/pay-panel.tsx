@@ -4,12 +4,12 @@ import { spaceAccountAbi } from "@accord/chain";
 import { paymentDecision, type Decision } from "@accord/sdk";
 import { useMemo, useState } from "react";
 import { Send } from "lucide-react";
-import { getAddress, isAddress, zeroAddress, type Address, type Hex } from "viem";
-import { useWriteContract } from "wagmi";
-import { SEPOLIA_CHAIN_ID, useAccord } from "@/lib/accord";
+import { encodeFunctionData, getAddress, isAddress, zeroAddress, type Address, type Hex } from "viem";
+import { useAccord } from "@/lib/accord";
 import { parseAmount } from "@/lib/amounts";
 import { describeError, tagOf } from "@/lib/errors";
 import { permitFrom, useChainActions } from "@/lib/use-chain-actions";
+import { useSponsoredTransaction } from "@/lib/use-sponsored-transaction";
 import type { AllocationData } from "@/lib/use-allocation";
 import { AmountField } from "../amount-field";
 import { PaymentDecision } from "../payment-decision";
@@ -22,7 +22,7 @@ export function PayPanel({ address, draftId, data, decimals, symbol, units }: {
 }) {
   const { client, checkSession } = useAccord();
   const { requireWallet, sendPermitTransaction } = useChainActions(address);
-  const { writeContractAsync } = useWriteContract();
+  const sponsor = useSponsoredTransaction();
   const [recipient, setRecipient] = useState("");
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
@@ -56,10 +56,10 @@ export function PayPanel({ address, draftId, data, decimals, symbol, units }: {
         setDecision(result.decision);
         return { result, to };
       });
-      await tracker.run("wallet", "Confirm in your wallet", () => sendPermitTransaction(authorized.result.permit.requestId as Hex, () => writeContractAsync({
-        address: getAddress(authorized.result.spaceAddress), abi: spaceAccountAbi, functionName: "pay", chainId: SEPOLIA_CHAIN_ID,
-        args: [BigInt(authorized.result.permit.allocationId), authorized.to, BigInt(authorized.result.permit.amount), permitFrom(authorized.result), authorized.result.signature as Hex],
-      })));
+      await tracker.run("wallet", "Sign the gasless payment", () => sendPermitTransaction(authorized.result.permit.requestId as Hex, () =>
+        sponsor.send(getAddress(authorized.result.spaceAddress), encodeFunctionData({ abi: spaceAccountAbi, functionName: "pay",
+          args: [BigInt(authorized.result.permit.allocationId), authorized.to, BigInt(authorized.result.permit.amount),
+            permitFrom(authorized.result), authorized.result.signature as Hex] }))));
       setSettled(true);
       setValue("");
     } catch (cause) {

@@ -7,16 +7,16 @@ import confetti from "canvas-confetti";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, Fingerprint, Globe, Link2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { formatUnits, getAddress, type Hex } from "viem";
+import { encodeFunctionData, formatUnits, getAddress, type Hex } from "viem";
 import { toast } from "sonner";
-import { useWriteContract } from "wagmi";
 import { WorldSession } from "@/components/world-session";
-import { SEPOLIA_CHAIN_ID, useAccord } from "@/lib/accord";
+import { useAccord } from "@/lib/accord";
 import { parseAmount } from "@/lib/amounts";
 import { describeError } from "@/lib/errors";
 import { shortAddress } from "@/lib/format";
 import type { Palette } from "@/lib/palette";
 import { explorerTx, permitFrom, useChainActions } from "@/lib/use-chain-actions";
+import { useSponsoredTransaction } from "@/lib/use-sponsored-transaction";
 import type { AllocationData } from "@/lib/use-allocation";
 import { AmountField } from "../amount-field";
 import { TxTracker, useSteps } from "../tx-tracker";
@@ -32,7 +32,7 @@ export function ClaimPanel({ address, draftId, data, decimals, symbol, units, pa
   const { client, account, checkSession } = useAccord();
   const cache = useQueryClient();
   const { requireWallet, sendPermitTransaction } = useChainActions(address);
-  const { writeContractAsync } = useWriteContract();
+  const sponsor = useSponsoredTransaction();
   const world = useQuery({ queryKey: ["world-status", account], queryFn: () => client!.worldStatus(), enabled: !!client, retry: false });
   const available = data.window.available;
   const [value, setValue] = useState(() => decimals === undefined ? "" : formatUnits(available, decimals));
@@ -86,10 +86,9 @@ export function ClaimPanel({ address, draftId, data, decimals, symbol, units, pa
       const hash = await tracker.run("wallet", "Confirm in your wallet", async () => {
         const signed = await client!.signClaim(intent.id);
         if (!signed.signature) throw new Error("The claim couldn't be authorized. Start a fresh claim.");
-        return sendPermitTransaction(signed.permit.requestId as Hex, () => writeContractAsync({
-          address: getAddress(signed.spaceAddress), abi: spaceAccountAbi, functionName: "claim", chainId: SEPOLIA_CHAIN_ID,
-          args: [BigInt(signed.permit.allocationId), BigInt(signed.permit.amount), permitFrom(signed), signed.signature as Hex],
-        }));
+        return sendPermitTransaction(signed.permit.requestId as Hex, () => sponsor.send(getAddress(signed.spaceAddress),
+          encodeFunctionData({ abi: spaceAccountAbi, functionName: "claim",
+            args: [BigInt(signed.permit.allocationId), BigInt(signed.permit.amount), permitFrom(signed), signed.signature as Hex] })));
       });
       setClaimed({ amount: BigInt(intent.permit.amount), hash });
       void confetti({ particleCount: 120, spread: 80, origin: { y: 0.35 }, colors: [palette.ring[0], palette.ring[1], "#C4F26A", "#A98BFF"], disableForReducedMotion: true });

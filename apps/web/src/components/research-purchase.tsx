@@ -5,10 +5,11 @@ import { paymentDecision, type AccordClient, type Decision } from "@accord/sdk";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileSearch, RotateCcw } from "lucide-react";
-import { BaseError, UserRejectedRequestError, getAddress, keccak256, toBytes, type Hex } from "viem";
-import { useAccount, usePublicClient, useWriteContract } from "wagmi";
+import { BaseError, UserRejectedRequestError, encodeFunctionData, getAddress, keccak256, toBytes, type Hex } from "viem";
+import { useAccount, usePublicClient } from "wagmi";
 import { amount as formatAmount, shortAddress } from "@/lib/format";
 import { explorerTx } from "@/lib/use-chain-actions";
+import { useSponsoredTransaction } from "@/lib/use-sponsored-transaction";
 import { purchaseStorageKey, readPurchase, savePurchase, transactionHash as validTransactionHash, type SavedPurchase } from "@/lib/purchase-storage";
 import { PaymentDecision } from "./payment-decision";
 import { Button } from "./ui/button";
@@ -22,7 +23,7 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
 }) {
   const publicClient = usePublicClient({ chainId: 11155111 });
   const connection = useAccount();
-  const { writeContractAsync } = useWriteContract();
+  const sponsor = useSponsoredTransaction();
   const queryClient = useQueryClient();
   const storageKey = purchaseStorageKey(account, draftId);
   const purchaseKey = ["report-purchase", storageKey];
@@ -49,7 +50,7 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
   async function requestQuote() {
     setBusy(true); setMessage(undefined); setDecision(undefined);
     try { remember({ version: 1, quote: await client.researchQuote({ draftId, allocationId }), submitted: false }); setReport(undefined); setReverted(false); }
-    catch { setMessage("The report service isn't available for this Space. It needs the demo token and a configured seller."); }
+    catch { setMessage("The report service isn't available for this Space. It needs tUSDC and a configured seller."); }
     finally { setBusy(false); }
   }
 
@@ -73,14 +74,13 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
           p.requestId !== keccak256(toBytes(quote.id))) throw new PurchaseMessage("The authorization doesn't match this purchase.");
         // Save before opening the wallet: an interrupted response may hide an already-sent transaction.
         remember({ version: 1, quote, submitted: true });
-        setStage("Confirm in your wallet");
-        transactionHash = await writeContractAsync({ address: getAddress(authorization.spaceAddress), abi: spaceAccountAbi,
-          functionName: "pay", chainId: 11155111,
-          args: [BigInt(p.allocationId), getAddress(p.recipient), BigInt(p.amount), {
+        setStage("Sign the gasless payment");
+        transactionHash = await sponsor.send(getAddress(authorization.spaceAddress), encodeFunctionData({ abi: spaceAccountAbi,
+          functionName: "pay", args: [BigInt(p.allocationId), getAddress(p.recipient), BigInt(p.amount), {
             actor: getAddress(p.actor), action: p.action, allocationId: BigInt(p.allocationId), recipient: getAddress(p.recipient),
             amount: BigInt(p.amount), requestId: p.requestId as Hex, nonce: BigInt(p.nonce), expiry: BigInt(p.expiry),
             policyVersion: BigInt(p.policyVersion), detailsHash: p.detailsHash as Hex,
-          }, authorization.signature as Hex] });
+          }, authorization.signature as Hex] }));
       }
       remember({ version: 1, quote, hash: transactionHash, submitted: true });
       setStage("Waiting for the payment to confirm");

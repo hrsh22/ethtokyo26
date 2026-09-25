@@ -3,11 +3,11 @@ import { AtSign, Ban, Bot, Check, Fingerprint, ScanLine, UserRound } from "lucid
 import { AppNav, Footer } from "@/components/app-nav";
 import { Avatar } from "@/components/avatar";
 import { HeroArt } from "@/components/landing/hero-art";
+import { DemoCta } from "@/components/landing/demo-cta";
 import { Ring } from "@/components/ring";
 import { Button } from "@/components/ui/button";
 import { allocationPalette } from "@/lib/palette";
 
-const demoAddress = process.env.NEXT_PUBLIC_DEMO_SPACE_ADDRESS;
 const person = allocationPalette(BigInt(1), false);
 const lime = allocationPalette(BigInt(3), false);
 const agent = allocationPalette(BigInt(1), true);
@@ -37,7 +37,7 @@ export default function Landing() {
           <p className="mt-7 max-w-[44ch] text-lg text-ink-soft">Set a budget for a person or agent, and let the rules do the rest. People find their allowances after signing in and claim with World ID. Agents spend within limits you can revoke in one tap.</p>
           <div className="mt-9 flex flex-wrap gap-3">
             <Button asChild size="lg"><Link href="/spaces/new">Start a Space</Link></Button>
-            <Button asChild size="lg" variant="light"><Link href={demoAddress ? `/spaces/${demoAddress}` : "#how"}>{demoAddress ? "Try the live demo" : "See how it works"}</Link></Button>
+            <DemoCta />
           </div>
           <p className="mt-6 flex items-center gap-2 text-sm text-muted"><span className="size-2 rounded-full bg-good" />Live on Sepolia with free test tokens</p>
         </div>
@@ -52,7 +52,7 @@ export default function Landing() {
             <h3 className="mt-2 font-display text-[26px] font-extrabold tracking-tight">{step.title}</h3>
             <p className="mt-1 text-ink-soft">{step.body}</p>
             <div className="mt-auto flex items-center gap-2.5 pt-6">
-              {index === 0 ? <><Avatar kind="person" palette={lime} size={54} /><span className="pill bg-white">200 ACD</span></> : null}
+              {index === 0 ? <><Avatar kind="person" palette={lime} size={54} /><span className="pill bg-white">200 tUSDC</span></> : null}
               {index === 1 ? <><Avatar kind="person" palette={person} size={44} /><Avatar kind="agent" palette={agent} size={44} /><span className="pill bg-white">10 a day</span></> : null}
               {index === 2 ? <><Ring value={0.7} size={70} stroke={10} colors={person.ring} track="#fff" label="Claimed"><b className="font-display text-xl font-extrabold">10</b></Ring><span className="pill bg-white"><Check size={14} strokeWidth={3} />Claimed</span></> : null}
             </div>
@@ -62,7 +62,7 @@ export default function Landing() {
 
       <section className="mx-auto grid max-w-[1240px] gap-4 px-6 pt-20 sm:px-10 md:grid-cols-2">
         {[{ palette: person, kind: "person" as const, tag: "For people", icon: UserRound, title: "Allowances that verify the human.",
-          body: "A stipend, a grant or family support. Each claim needs a fresh World ID check, so a stolen phone can't drain it.", name: "kenji.eth", sub: "10 ACD a day, 62 left" },
+          body: "A stipend, a grant or family support. Each claim needs a fresh World ID check, so a stolen phone can't drain it.", name: "kenji.eth", sub: "10 tUSDC a day, 62 left" },
         { palette: agent, kind: "agent" as const, tag: "For agents", icon: Bot, title: "Pocket money for your AI.",
           body: "Your agent pays for data and APIs from its own capped budget, tied to its ENS name. It never holds your keys.", name: "Research agent", sub: "5 a payment, 20 a day" }].map((mode) =>
           <article key={mode.tag} className="relative min-h-[330px] overflow-hidden rounded-[2.25rem] p-8 sm:p-9" style={{ background: mode.palette.tile, color: mode.palette.ink }}>
@@ -94,7 +94,7 @@ export default function Landing() {
             <p className="mt-4 text-lg text-white/70">Free on Sepolia. Bring a wallet; the demo token is ready to use.</p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg" variant="light"><Link href="/spaces/new">Start a Space</Link></Button>
-              {demoAddress ? <Button asChild size="lg" className="bg-white/10 shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.3)] hover:bg-white/15"><Link href={`/spaces/${demoAddress}`}>Try the demo</Link></Button> : null}
+              <DemoCta footer />
             </div>
           </div>
         </div>

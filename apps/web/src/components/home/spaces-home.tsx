@@ -22,10 +22,9 @@ import { Button } from "../ui/button";
 
 type Draft = Awaited<ReturnType<AccordClient["listSpaces"]>>["spaces"][number];
 type Received = Awaited<ReturnType<AccordClient["listReceivedAllowances"]>>["allowances"][number];
-const demoAddress = process.env.NEXT_PUBLIC_DEMO_SPACE_ADDRESS;
-
 export function SpacesHome() {
-  const { client, auth, account, checkSession } = useAccord();
+  const { client, config, auth, account, checkSession } = useAccord();
+  const demoAddress = config.data?.demoSpaceAddress;
   const spaces = useQuery({ queryKey: ["spaces", account?.toLowerCase()], queryFn: () => client!.listSpaces(), enabled: !!client && auth.signedIn, retry: false });
   const received = useQuery({ queryKey: ["received-allowances", account?.toLowerCase()], queryFn: () => client!.listReceivedAllowances(),
     enabled: !!client && auth.signedIn, retry: false, refetchInterval: 30_000 });

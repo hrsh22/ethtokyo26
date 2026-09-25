@@ -6,13 +6,19 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {EnsPermissionAdapter, IEnsV2Registry, IEnsPermissionAdapter} from "../src/EnsPermissionAdapter.sol";
 import {SpaceAccount} from "../src/SpaceAccount.sol";
 import {SpaceFactory} from "../src/SpaceFactory.sol";
+import {AccordForwarder} from "../src/AccordForwarder.sol";
+import {ERC2771Forwarder} from "@openzeppelin/contracts/metatx/ERC2771Forwarder.sol";
+import {AccordTestUSDC} from "../src/AccordTestUSDC.sol";
 
 interface Vm {
+    struct Log { bytes32[] topics; bytes data; address emitter; }
     function addr(uint256 privateKey) external returns (address);
     function sign(uint256 privateKey, bytes32 digest) external returns (uint8 v, bytes32 r, bytes32 s);
     function prank(address sender) external;
     function warp(uint256 timestamp) external;
     function expectRevert(bytes4 selector) external;
+    function recordLogs() external;
+    function getRecordedLogs() external returns (Log[] memory);
 }
 
 contract DemoToken is ERC20 {
@@ -45,6 +51,7 @@ contract SpaceAccountTest {
     uint256 private constant UNIT = 1e18;
 
     DemoToken private token;
+    AccordForwarder private forwarder;
     SpaceAccount private space;
     MockEnsV2Registry private registry;
     address private beneficiary;
@@ -56,8 +63,9 @@ contract SpaceAccountTest {
         token = new DemoToken();
         token.mint(address(this), 1000 * UNIT);
         registry = new MockEnsV2Registry();
+        forwarder = new AccordForwarder();
         EnsPermissionAdapter adapter = new EnsPermissionAdapter();
-        space = new SpaceAccount(address(this), vm.addr(SIGNER_KEY), IERC20(address(token)), adapter);
+        space = new SpaceAccount(address(this), vm.addr(SIGNER_KEY), IERC20(address(token)), adapter, address(forwarder));
         token.approve(address(space), type(uint256).max);
         beneficiary = vm.addr(0xA11CE);
         agent = vm.addr(0xA6E17);
@@ -65,10 +73,42 @@ contract SpaceAccountTest {
     }
 
     function testFactoryCreatesOwnerControlledSpace() public {
-        SpaceFactory factory = new SpaceFactory();
+        SpaceFactory factory = new SpaceFactory(address(forwarder));
         SpaceAccount created = factory.createSpace(vm.addr(SIGNER_KEY), IERC20(address(token)),
             IEnsPermissionAdapter(address(new EnsPermissionAdapter())));
         require(created.owner() == address(this), "wrong owner");
+    }
+
+    function testForwardedFactoryKeepsUserAsOwner() public {
+        SpaceFactory factory = new SpaceFactory(address(forwarder));
+        vm.recordLogs();
+        _relay(0xA11CE, address(factory), abi.encodeCall(SpaceFactory.createSpace,
+            (vm.addr(SIGNER_KEY), IERC20(address(token)), IEnsPermissionAdapter(address(new EnsPermissionAdapter())))),
+            7_000_000);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        address created;
+        for (uint256 i; i < logs.length; ++i) {
+            if (logs[i].emitter == address(factory) && logs[i].topics.length == 3) {
+                created = address(uint160(uint256(logs[i].topics[2])));
+            }
+        }
+        require(created != address(0), "no SpaceCreated event");
+        require(SpaceAccount(created).owner() == beneficiary, "forwarded owner mismatch");
+    }
+
+    function testForwardedTokenApprovalAndClaim() public {
+        AccordTestUSDC testToken = new AccordTestUSDC(address(forwarder));
+        testToken.faucetTo(beneficiary);
+        require(testToken.balanceOf(beneficiary) == 1_000e6, "faucet amount");
+        _relay(0xA11CE, address(testToken), abi.encodeCall(testToken.approve, (seller, 10e6)), 200_000);
+        require(testToken.allowance(beneficiary, seller) == 10e6, "forwarded approval");
+
+        uint256 id = _createAllocation(beneficiary, 100 * UNIT, 100 * UNIT, SpaceAccount.Period.None);
+        SpaceAccount.Permit memory permit = _permit(
+            beneficiary, SpaceAccount.Action.Claim, id, beneficiary, 10 * UNIT, bytes32(0));
+        _relay(0xA11CE, address(space), abi.encodeCall(SpaceAccount.claim,
+            (id, 10 * UNIT, permit, _sign(permit))), 700_000);
+        require(token.balanceOf(beneficiary) == 10 * UNIT, "forwarded claim");
     }
 
     function testClaimNeedsPersonAndSingleUsePermit() public {
@@ -384,5 +424,21 @@ contract SpaceAccountTest {
     function _sign(SpaceAccount.Permit memory permit) private returns (bytes memory) {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(SIGNER_KEY, space.hashPermit(permit));
         return abi.encodePacked(r, s, v);
+    }
+
+    function _relay(uint256 userKey, address target, bytes memory data, uint256 gasLimit) private {
+        address user = vm.addr(userKey);
+        uint48 deadline = uint48(block.timestamp + 5 minutes);
+        bytes32 domain = keccak256(abi.encode(
+            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+            keccak256(bytes("AccordForwarder")), keccak256(bytes("1")), block.chainid, address(forwarder)));
+        bytes32 requestHash = keccak256(abi.encode(
+            keccak256("ForwardRequest(address from,address to,uint256 value,uint256 gas,uint256 nonce,uint48 deadline,bytes data)"),
+            user, target, uint256(0), gasLimit, forwarder.nonces(user), deadline, keccak256(data)));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userKey, keccak256(abi.encodePacked("\x19\x01", domain, requestHash)));
+        forwarder.execute(ERC2771Forwarder.ForwardRequestData({
+            from: user, to: target, value: 0, gas: gasLimit, deadline: deadline,
+            data: data, signature: abi.encodePacked(r, s, v)
+        }));
     }
 }

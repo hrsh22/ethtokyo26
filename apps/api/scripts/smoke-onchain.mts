@@ -33,9 +33,9 @@ async function artifact(path: string) {
   return JSON.parse(await readFile(new URL(path, import.meta.url), "utf8")) as Artifact;
 }
 
-async function deploy(path: string) {
+async function deploy(path: string, args: readonly unknown[] = []) {
   const compiled = await artifact(path);
-  const hash = await wallet.deployContract({ account: owner, abi: compiled.abi, bytecode: compiled.bytecode.object });
+  const hash = await wallet.deployContract({ account: owner, abi: compiled.abi, bytecode: compiled.bytecode.object, args });
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
   if (receipt.status !== "success" || !receipt.contractAddress) throw new Error(`Deployment failed: ${path}`);
   return { address: receipt.contractAddress, abi: compiled.abi };
@@ -115,7 +115,7 @@ async function main() {
 
   const token = await deploy("../../../contracts/out/SpaceAccount.t.sol/DemoToken.json");
   const adapter = await deploy("../../../contracts/out/EnsPermissionAdapter.sol/EnsPermissionAdapter.json");
-  const factory = await deploy("../../../contracts/out/SpaceFactory.sol/SpaceFactory.json");
+  const factory = await deploy("../../../contracts/out/SpaceFactory.sol/SpaceFactory.json", [zeroAddress]);
   const registry = await deploy("../../../contracts/out/SpaceAccount.t.sol/MockEnsV2Registry.json");
   const resolver = await deploy("../../../contracts/out/MockRecipientResolver.sol/MockRecipientResolver.json");
   await send(resolver.address, encodeFunctionData({ abi: resolver.abi, functionName: "setAddress", args: [namehash("family.eth"), human.address] }));

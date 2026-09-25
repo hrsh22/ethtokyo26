@@ -15,7 +15,7 @@ import { buildApprovedNamespaces, getSdkError } from "@walletconnect/utils";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
-import { createPublicClient, createWalletClient, decodeEventLog, erc20Abi, hexToString, http, isAddress, isHex, parseEther, type Abi, type Hex } from "viem";
+import { createPublicClient, createWalletClient, decodeEventLog, erc20Abi, hexToString, http, isAddress, isHex, parseEther, zeroAddress, type Abi, type Hex } from "viem";
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
 import { labelhash, namehash } from "viem/ens";
@@ -85,9 +85,9 @@ async function ready(url: string) {
 async function artifact(name: string) {
   return JSON.parse(await readFile(new URL(`../../../contracts/out/${name}.json`, import.meta.url), "utf8")) as { abi: Abi; bytecode: { object: Hex } };
 }
-async function deploy(name: string) {
+async function deploy(name: string, args: readonly unknown[] = []) {
   const compiled = await artifact(name);
-  const hash = await walletClient.deployContract({ abi: compiled.abi, bytecode: compiled.bytecode.object });
+  const hash = await walletClient.deployContract({ abi: compiled.abi, bytecode: compiled.bytecode.object, args });
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
   if (receipt.status !== "success" || !receipt.contractAddress) throw new Error(`Local deployment failed: ${name}`);
   return { address: receipt.contractAddress, abi: compiled.abi };
@@ -107,7 +107,7 @@ await migrate(drizzle(testConnection), { migrationsFolder: fileURLToPath(new URL
 testConnection.close();
 const token = await deploy("SpaceAccount.t.sol/DemoToken");
 const adapter = await deploy("EnsPermissionAdapter.sol/EnsPermissionAdapter");
-const factory = await deploy("SpaceFactory.sol/SpaceFactory");
+const factory = await deploy("SpaceFactory.sol/SpaceFactory", [zeroAddress]);
 const registry = await deploy("SpaceAccount.t.sol/MockEnsV2Registry");
 const resolver = await deploy("MockRecipientResolver.sol/MockRecipientResolver");
 await publicClient.waitForTransactionReceipt({ hash: await walletClient.writeContract({ address: resolver.address, abi: resolver.abi, functionName: "setAddress", args: [namehash("family.eth"), owner.address] }) });

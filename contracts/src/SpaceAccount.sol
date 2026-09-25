@@ -6,12 +6,13 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ERC2771Context} from "@openzeppelin/contracts/metatx/ERC2771Context.sol";
 import {IEnsPermissionAdapter} from "./EnsPermissionAdapter.sol";
 
 /// @notice One Space with funded allocations for people and screened agent payments.
-/// The backend is a trusted permit authorizer. A participant must also submit
-/// the transaction from the wallet named by the permit.
-contract SpaceAccount is EIP712, ReentrancyGuard {
+/// The backend authorizes policy checks. A trusted forwarder can submit the
+/// participant's signed request while paying gas on their behalf.
+contract SpaceAccount is EIP712, ReentrancyGuard, ERC2771Context {
     using SafeERC20 for IERC20;
 
     enum Action {
@@ -125,8 +126,8 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
     error PeriodLimitExceeded();
     error AllocationExpired();
 
-    constructor(address owner_, address authorizer_, IERC20 token_, IEnsPermissionAdapter ensAdapter_)
-        EIP712("AccordSpace", "1")
+    constructor(address owner_, address authorizer_, IERC20 token_, IEnsPermissionAdapter ensAdapter_, address forwarder_)
+        EIP712("AccordSpace", "1") ERC2771Context(forwarder_)
     {
         if (
             owner_ == address(0) || authorizer_ == address(0) || address(token_) == address(0)
@@ -179,7 +180,7 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
         address beneficiary, uint256 amount, uint256 periodCap, Period period,
         bytes32 detailsHash, Permit calldata permit, bytes calldata signature
     ) private returns (uint256 allocationId) {
-        if (msg.sender != owner || amount == 0 || periodCap == 0 || periodCap > amount) {
+        if (_msgSender() != owner || amount == 0 || periodCap == 0 || periodCap > amount) {
             revert InvalidAllocation();
         }
         if (period == Period.None && periodCap != amount) revert InvalidAllocation();
@@ -202,20 +203,20 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
             period: period,
             cancelled: false
         });
-        token.safeTransferFrom(msg.sender, address(this), amount);
+        token.safeTransferFrom(_msgSender(), address(this), amount);
         policyVersion++;
         emit AllocationCreated(allocationId, beneficiary, amount);
     }
 
     function fundAllocation(uint256 allocationId, uint256 amount) external nonReentrant {
         Allocation storage allocation = allocations[allocationId];
-        if (msg.sender != owner || allocationId == 0 || allocationId >= nextAllocationId
+        if (_msgSender() != owner || allocationId == 0 || allocationId >= nextAllocationId
                 || allocation.cancelled || amount == 0) revert InvalidAllocation();
         if (allocation.period == Period.Interval && block.timestamp >= allocationSchedules[allocationId].endsAt) {
             revert AllocationExpired();
         }
         allocation.remaining += amount;
-        token.safeTransferFrom(msg.sender, address(this), amount);
+        token.safeTransferFrom(_msgSender(), address(this), amount);
         emit AllocationFunded(allocationId, amount);
     }
 
@@ -224,13 +225,13 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
         nonReentrant
     {
         Allocation storage allocation = allocations[allocationId];
-        if (allocation.beneficiary == address(0) || allocation.beneficiary != msg.sender || allocation.cancelled) {
+        if (allocation.beneficiary == address(0) || allocation.beneficiary != _msgSender() || allocation.cancelled) {
             revert InvalidAllocation();
         }
-        _consumePermit(permit, signature, Action.Claim, allocationId, msg.sender, amount, bytes32(0));
+        _consumePermit(permit, signature, Action.Claim, allocationId, _msgSender(), amount, bytes32(0));
         _spend(allocationId, allocation, amount);
-        emit Claimed(permit.requestId, allocationId, msg.sender, amount);
-        token.safeTransfer(msg.sender, amount);
+        emit Claimed(permit.requestId, allocationId, _msgSender(), amount);
+        token.safeTransfer(_msgSender(), amount);
     }
 
     function setMandate(
@@ -241,7 +242,7 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
     ) external nonReentrant {
         Allocation storage allocation = allocations[allocationId];
         if (
-            msg.sender != owner || allocationId == 0 || allocationId >= nextAllocationId
+            _msgSender() != owner || allocationId == 0 || allocationId >= nextAllocationId
                 || allocation.cancelled || allocation.beneficiary != address(0)
                 || config.agent == address(0) || config.dailyCap == 0 || config.maxPerPayment == 0
                 || config.maxPerPayment > config.dailyCap || config.expiry <= block.timestamp
@@ -289,11 +290,11 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
         Allocation storage allocation = allocations[allocationId];
         Mandate storage mandate = mandates[allocationId];
         if (
-            allocation.cancelled || !mandate.active || mandate.agent != msg.sender
+            allocation.cancelled || !mandate.active || mandate.agent != _msgSender()
                 || mandate.expiry <= block.timestamp || recipient == address(0)
         ) revert InvalidMandate();
         _consumePermit(permit, signature, Action.Pay, allocationId, recipient, amount, bytes32(0));
-        if (!ensAdapter.isAuthorized(mandate.registry, mandate.nameId, mandate.expectedResource, msg.sender)) {
+        if (!ensAdapter.isAuthorized(mandate.registry, mandate.nameId, mandate.expectedResource, _msgSender())) {
             revert InvalidEnsAuthority();
         }
         if (amount == 0 || amount > mandate.maxPerPayment) revert PeriodLimitExceeded();
@@ -305,7 +306,7 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
         if (mandate.spentToday + amount > mandate.dailyCap) revert PeriodLimitExceeded();
         mandate.spentToday += amount;
         _spend(allocationId, allocation, amount);
-        emit PaymentMade(permit.requestId, allocationId, msg.sender, recipient, amount);
+        emit PaymentMade(permit.requestId, allocationId, _msgSender(), recipient, amount);
         token.safeTransfer(recipient, amount);
     }
 
@@ -313,7 +314,7 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
         external
         nonReentrant
     {
-        if (msg.sender != owner || !mandates[allocationId].active) revert InvalidMandate();
+        if (_msgSender() != owner || !mandates[allocationId].active) revert InvalidMandate();
         _consumePermit(permit, signature, Action.RevokeMandate, allocationId, address(0), 0, bytes32(0));
         mandates[allocationId].active = false;
         policyVersion++;
@@ -325,7 +326,7 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
         nonReentrant
     {
         Allocation storage allocation = allocations[allocationId];
-        if (msg.sender != owner || allocationId == 0 || allocationId >= nextAllocationId
+        if (_msgSender() != owner || allocationId == 0 || allocationId >= nextAllocationId
                 || allocation.cancelled) revert InvalidAllocation();
         uint256 amount = allocation.remaining;
         _consumePermit(permit, signature, Action.RecoverAllocation, allocationId, owner, amount, bytes32(0));
@@ -386,7 +387,7 @@ contract SpaceAccount is EIP712, ReentrancyGuard {
         bytes32 detailsHash
     ) private {
         if (
-            permit.actor != msg.sender || permit.action != action || permit.allocationId != allocationId
+            permit.actor != _msgSender() || permit.action != action || permit.allocationId != allocationId
                 || permit.recipient != recipient || permit.amount != amount
                 || permit.detailsHash != detailsHash || permit.policyVersion != policyVersion
                 || permit.requestId == bytes32(0)

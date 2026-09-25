@@ -6,17 +6,18 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, Check, ChevronDown, Coins, Rocket } from "lucide-react";
+import { ArrowLeft, Check, Coins, Rocket } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { erc20Abi, getAddress, isAddress, zeroAddress, type Address, type Hex } from "viem";
-import { usePublicClient, useWriteContract } from "wagmi";
+import { encodeFunctionData, erc20Abi, getAddress, zeroAddress, type Address, type Hex } from "viem";
+import { usePublicClient } from "wagmi";
 import { SEPOLIA_CHAIN_ID, useAccord } from "@/lib/accord";
 import { activationHash, activationStorageKey, readActivation, saveActivation } from "@/lib/activation-storage";
 import { describeError, tagOf } from "@/lib/errors";
 import { shortAddress } from "@/lib/format";
 import { keyPalette } from "@/lib/palette";
 import { useChainActions } from "@/lib/use-chain-actions";
+import { useSponsoredTransaction } from "@/lib/use-sponsored-transaction";
 import { SignInCard } from "../sign-in-card";
 import { DemoTokenFaucet } from "../demo-token-faucet";
 import { TxTracker, useSteps } from "../tx-tracker";
@@ -71,13 +72,11 @@ function Wizard({ existing, deployment }: { existing?: Draft; deployment: { fact
   const router = useRouter();
   const cache = useQueryClient();
   const chain = usePublicClient({ chainId: SEPOLIA_CHAIN_ID });
-  const { writeContractAsync } = useWriteContract();
+  const sponsor = useSponsoredTransaction();
   const { requireWallet } = useChainActions();
-  const [step, setStep] = useState<"name" | "asset" | "deploy">(existing ? "deploy" : "name");
+  const [step, setStep] = useState<"name" | "deploy">(existing ? "deploy" : "name");
   const [name, setName] = useState(existing?.name ?? "");
   const [draft, setDraft] = useState<Draft | undefined>(existing);
-  const [choice, setChoice] = useState<"demo" | "custom">(deployment.demoToken ? "demo" : "custom");
-  const [custom, setCustom] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recoverOpen, setRecoverOpen] = useState(false);
@@ -87,8 +86,7 @@ function Wizard({ existing, deployment }: { existing?: Draft; deployment: { fact
   const pending = useQuery({ queryKey: ["pending-activation", storageKey], enabled: !!storageKey, staleTime: Infinity, retry: false,
     queryFn: () => { try { return readActivation(window.localStorage, storageKey!); } catch { return null; } } });
 
-  const tokenInput = (choice === "demo" ? deployment.demoToken ?? "" : custom).trim();
-  const token = isAddress(tokenInput) && tokenInput !== zeroAddress ? getAddress(tokenInput) : undefined;
+  const token = deployment.demoToken;
   const asset = useQuery({
     queryKey: ["activation-asset", token], enabled: !!token && !!chain, retry: false, staleTime: 60_000,
     queryFn: async () => {
@@ -144,10 +142,9 @@ function Wizard({ existing, deployment }: { existing?: Draft; deployment: { fact
         router.replace(`/spaces/new?draft=${current.id}`, { scroll: false });
         await cache.invalidateQueries({ queryKey: ["spaces"] });
       } else tracker.update("save", { state: "done" });
-      const hash = await tracker.run("wallet", "Confirm in your wallet", () => writeContractAsync({
-        address: deployment.factory, abi: spaceFactoryAbi, functionName: "createSpace",
-        args: [deployment.authorizer, token, deployment.adapter], chainId: SEPOLIA_CHAIN_ID,
-      }));
+      const hash = await tracker.run("wallet", "Sign the gasless deployment", () => sponsor.send(deployment.factory,
+        encodeFunctionData({ abi: spaceFactoryAbi, functionName: "createSpace",
+          args: [deployment.authorizer, token, deployment.adapter] }), BigInt(7_500_000)));
       submitted = true;
       const key = activationStorageKey(account!, current.id);
       cache.setQueryData(["pending-activation", key], hash);
@@ -170,20 +167,20 @@ function Wizard({ existing, deployment }: { existing?: Draft; deployment: { fact
 
   const palette = keyPalette(name || "space");
   const nameValid = name.trim().length >= 2 && name.trim().length <= 80;
-  const order = ["name", "asset", "deploy"] as const;
+  const order = ["name", "deploy"] as const;
 
   return <section className="card overflow-hidden" aria-labelledby="create-title">
     <div className="relative overflow-hidden px-7 pb-7 pt-8 sm:px-9" style={{ background: palette.tile, color: palette.ink }}>
       <div className="flex gap-2">{order.map((item, index) => <span key={item} className={`pill ${step === item ? "bg-ink text-white" : order.indexOf(step) > index ? "bg-white/80" : "bg-white/40"}`}>
-        {order.indexOf(step) > index ? <Check size={14} strokeWidth={3} /> : null}{["Name", "Asset", "Deploy"][index]}
+        {order.indexOf(step) > index ? <Check size={14} strokeWidth={3} /> : null}{["Name", "Deploy"][index]}
       </span>)}</div>
       <h1 id="create-title" className="mt-6 font-display text-[44px] font-extrabold leading-none tracking-[-0.03em]">{name.trim() || "New Space"}</h1>
-      <p className="mt-2 opacity-75">{step === "name" ? "What's this Space for?" : step === "asset" ? "Pick the token it will hold." : "One transaction and it's live."}</p>
+      <p className="mt-2 opacity-75">{step === "name" ? "What's this Space for?" : "Your tUSDC Space is ready to create."}</p>
     </div>
     <div className="p-7 sm:p-9">
       <AnimatePresence mode="wait" initial={false}>
         <motion.div key={step} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.2 }}>
-          {step === "name" ? <form onSubmit={(event) => { event.preventDefault(); if (nameValid) setStep("asset"); }}>
+          {step === "name" ? <form onSubmit={(event) => { event.preventDefault(); if (nameValid) setStep("deploy"); }}>
             <label htmlFor="space-name" className="font-semibold">Space name</label>
             <input id="space-name" className="field mt-2 text-lg" autoFocus maxLength={80} value={name} placeholder="e.g. Research budget"
               onChange={(event) => setName(event.target.value)} />
@@ -191,32 +188,14 @@ function Wizard({ existing, deployment }: { existing?: Draft; deployment: { fact
               className="rounded-full bg-soft px-4 py-2 text-sm font-semibold transition-colors hover:bg-[#ebe9f3]">{item}</button>)}</div>
             <p className="mt-4 text-sm text-muted">You can hold both people and agents in the same Space. Anyone with a link to it sees this name.</p>
             <div className="mt-7 flex justify-end"><Button type="submit" size="lg" disabled={!nameValid}>Continue</Button></div>
-          </form> : step === "asset" ? <div>
-            <fieldset>
-              <legend className="font-semibold">Token</legend>
-              {deployment.demoToken ? <label className={`mt-3 flex cursor-pointer items-center gap-4 rounded-3xl p-4 transition-shadow ${choice === "demo" ? "bg-lime-soft shadow-[inset_0_0_0_2px_#8bc51f]" : "bg-soft"}`}>
-                <input type="radio" name="asset" className="sr-only" checked={choice === "demo"} onChange={() => setChoice("demo")} />
-                <span className="grid size-12 place-items-center rounded-2xl bg-lime text-[#243300]"><Coins /></span>
-                <span className="flex-1"><b className="block">ACD demo token</b><span className="text-sm text-muted">Free test tokens for trying Accord. No real value.</span></span>
-                {choice === "demo" ? <Check className="text-good" /> : null}
-              </label> : null}
-              <details className="group mt-3 rounded-3xl bg-soft p-4" open={!deployment.demoToken || choice === "custom"}>
-                <summary className="flex cursor-pointer list-none items-center justify-between font-semibold">Use another ERC-20 token<ChevronDown size={18} className="transition-transform group-open:rotate-180" /></summary>
-                <label htmlFor="custom-token" className="mt-3 block text-sm text-muted">Token contract on Sepolia</label>
-                <input id="custom-token" className="field mt-1" placeholder="0x…" value={custom} autoComplete="off" spellCheck={false}
-                  onFocus={() => setChoice("custom")} onChange={(event) => { setChoice("custom"); setCustom(event.target.value); }}
-                  aria-invalid={choice === "custom" && !!custom && !token} />
-              </details>
-            </fieldset>
-            {choice === "demo" && deployment.demoToken ? <div className="mt-5"><DemoTokenFaucet inline /></div> : null}
-            <p role="status" className="mt-4 min-h-6 text-sm font-medium">
-              {choice === "custom" && custom && !token ? <span className="text-bad">That isn’t a valid token address.</span>
-                : token && asset.isFetching ? <span className="text-muted">Checking the token on Sepolia…</span>
-                : token && asset.isError ? <span className="text-bad">Couldn’t read this token on Sepolia. Check the address.</span>
-                : token && asset.data ? <span className="text-good">{asset.data.symbol} at {shortAddress(token)}. This can’t change later.</span> : null}
-            </p>
-            <div className="mt-6 flex justify-between"><Button variant="ghost" onClick={() => setStep("name")}>Back</Button><Button size="lg" disabled={!token || !asset.isSuccess} onClick={() => setStep("deploy")}>Continue</Button></div>
-          </div> : <div>
+          </form> : <div>
+            <div className="mb-5 flex items-center gap-4 rounded-3xl bg-lime-soft p-4">
+              <span className="grid size-12 place-items-center rounded-2xl bg-lime text-[#243300]"><Coins /></span>
+              <span className="flex-1"><b className="block">tUSDC test token</b><span className="text-sm text-muted">Free test tokens with no real value.</span></span>
+              {asset.isSuccess ? <Check className="text-good" /> : null}
+            </div>
+            {deployment.demoToken ? <div className="mb-5"><DemoTokenFaucet inline /></div> : null}
+            {asset.isError ? <p role="alert" className="mb-4 text-sm font-medium text-bad">Couldn’t reach tUSDC on Sepolia. Try again shortly.</p> : null}
             {pending.data && !busy ? <div className="mb-5 rounded-3xl bg-sky-soft p-5">
               <b className="block">You already sent the deployment</b>
               <p className="mt-1 text-sm text-ink-soft">Finish setup without paying again. Transaction <span className="address">{shortAddress(pending.data)}</span>.</p>
@@ -225,10 +204,10 @@ function Wizard({ existing, deployment }: { existing?: Draft; deployment: { fact
             <TxTracker steps={tracker.steps} />
             {error ? <p role="alert" className="mt-4 rounded-2xl bg-bad-soft px-4 py-3 text-sm font-medium text-bad">{error}</p> : null}
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-              <Button variant="ghost" disabled={busy} onClick={() => setStep("asset")}>Back</Button>
+              <Button variant="ghost" disabled={busy} onClick={() => setStep("name")}>Back</Button>
               {!pending.data ? <Button size="lg" onClick={() => void deploy()} loading={busy} disabled={!token || !asset.isSuccess}><Rocket />{draft ? "Deploy Space" : "Create Space"}</Button> : null}
             </div>
-            <p className="mt-4 text-sm text-muted">The network fee is paid in Sepolia ETH. The Space is owned by {account ? shortAddress(account) : "your wallet"}.</p>
+            <p className="mt-4 text-sm text-muted">Accord pays the network fee. The Space is owned by {account ? shortAddress(account) : "your wallet"}.</p>
             {draft ? <details className="mt-5 text-sm" open={recoverOpen} onToggle={(event) => setRecoverOpen(event.currentTarget.open)}>
               <summary className="cursor-pointer font-semibold text-muted">Already deployed from another tab?</summary>
               <form className="mt-3 flex gap-2" onSubmit={(event) => {

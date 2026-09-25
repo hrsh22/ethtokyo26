@@ -25,6 +25,8 @@ export const DeploymentConfig = Schema.Struct({
   adapterAddress: Schema.optional(WalletAddress),
   authorizerAddress: Schema.optional(WalletAddress),
   demoTokenAddress: Schema.optional(WalletAddress),
+  forwarderAddress: Schema.optional(WalletAddress),
+  demoSpaceAddress: Schema.optional(WalletAddress),
   ensRegistryAddress: Schema.optional(WalletAddress),
 });
 export const ResolveEnsName = Schema.Struct({
@@ -94,6 +96,13 @@ export const ActivateSpaceDraft = Schema.Struct({
   draftId: Schema.UUID,
   deploymentTx: Schema.String.pipe(Schema.pattern(/^0x[a-fA-F0-9]{64}$/)),
 });
+export const SponsoredRequest = Schema.Struct({
+  from: WalletAddress, to: WalletAddress,
+  value: UnsignedInteger, gas: UnsignedInteger, nonce: UnsignedInteger, deadline: UnsignedInteger,
+  data: Schema.String.pipe(Schema.pattern(/^0x(?:[a-fA-F0-9]{2})*$/)),
+  signature: Schema.String.pipe(Schema.pattern(/^0x[a-fA-F0-9]{130}$/)),
+});
+export const SponsoredTransaction = Schema.Struct({ transactionHash: Schema.String.pipe(Schema.pattern(/^0x[a-fA-F0-9]{64}$/)) });
 export const LookupSpace = Schema.Struct({ spaceAddress: WalletAddress });
 // Public: the name an owner gave an activated Space. Drafts and other metadata stay private.
 export const SpaceProfile = Schema.Struct({ name: Schema.String, spaceAddress: WalletAddress });
@@ -245,6 +254,11 @@ export const AdminPermitResponse = Schema.Struct({
 });
 
 export const AccordApi = HttpApi.make("AccordApi")
+  .add(HttpApiGroup.make("sponsor")
+    .add(HttpApiEndpoint.post("faucet")`/v1/sponsor/faucet`.addSuccess(SponsoredTransaction))
+    .add(HttpApiEndpoint.post("relay")`/v1/sponsor/relay`.setPayload(SponsoredRequest).addSuccess(SponsoredTransaction))
+    .addError(HttpApiError.Unauthorized).addError(HttpApiError.Forbidden)
+    .addError(HttpApiError.BadRequest).addError(HttpApiError.ServiceUnavailable))
   .add(HttpApiGroup.make("activity")
     .add(HttpApiEndpoint.post("list")`/v1/spaces/activity`.setPayload(SpaceActivityRequest).addSuccess(SpaceActivity))
     .addError(HttpApiError.NotFound).addError(HttpApiError.BadRequest).addError(HttpApiError.ServiceUnavailable))
