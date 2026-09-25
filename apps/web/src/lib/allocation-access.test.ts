@@ -27,6 +27,20 @@ describe("allocation actions by wallet role", () => {
       expect(allocationAccess(exhausted, account, timestamp)).toMatchObject({ yours: true, canClaim: false, canPay: false });
     }
   });
+  it("hides actions when the current allocation period or agent day is exhausted", () => {
+    const period = { ...personal, allocation: [...personal.allocation] as [...typeof personal.allocation] };
+    const date = new Date(Number(timestamp) * 1000);
+    period.allocation[4] = BigInt(date.getUTCFullYear() * 12 + date.getUTCMonth() + 1);
+    period.allocation[3] = period.allocation[2];
+    expect(allocationAccess(period, recipient, timestamp).canClaim).toBe(false);
+    expect(allocationAccess(period, recipient, timestamp + BigInt(32 * 86400)).canClaim).toBe(true);
+
+    const daily = { ...agentBudget, mandate: [...agentBudget.mandate] as [...typeof agentBudget.mandate] };
+    daily.mandate[7] = timestamp / BigInt(86400);
+    daily.mandate[6] = daily.mandate[4];
+    expect(allocationAccess(daily, agent, timestamp).canPay).toBe(false);
+    expect(allocationAccess(daily, agent, timestamp + BigInt(86400)).canPay).toBe(true);
+  });
   it("compares wallet addresses without case sensitivity", () => {
     const entry = { ...personal, allocation: [...personal.allocation] as [...typeof personal.allocation] };
     entry.allocation[0] = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd";
