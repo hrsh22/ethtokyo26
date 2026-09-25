@@ -1,7 +1,7 @@
 "use client";
 
 import { PermitAction, spaceAccountAbi } from "@accord/chain";
-import { paymentDecision, type AccordClient, type Decision } from "@accord/sdk";
+import { paymentDecision, paymentApprovalRequired, type AccordClient, type Decision } from "@accord/sdk";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileSearch, RotateCcw } from "lucide-react";
@@ -11,6 +11,8 @@ import { amount as formatAmount, shortAddress } from "@/lib/format";
 import { explorerTx } from "@/lib/use-chain-actions";
 import { useSponsoredTransaction } from "@/lib/use-sponsored-transaction";
 import { purchaseStorageKey, readPurchase, savePurchase, transactionHash as validTransactionHash, type SavedPurchase } from "@/lib/purchase-storage";
+import { describeError } from "@/lib/errors";
+import { PaymentReviewStatus } from "./payment-review-status";
 import { PaymentDecision } from "./payment-decision";
 import { Button } from "./ui/button";
 
@@ -32,6 +34,7 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
     staleTime: Infinity, retry: false });
   const quote = saved.data?.quote;
   const hash = saved.data?.hash;
+  const [approvalId,setApprovalId]=useState<string>();
   const [report, setReport] = useState<Report>();
   const [decision, setDecision] = useState<Decision>();
   const [busy, setBusy] = useState(false);
@@ -48,7 +51,7 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
   }
 
   async function requestQuote() {
-    setBusy(true); setMessage(undefined); setDecision(undefined);
+    setBusy(true); setMessage(undefined); setDecision(undefined); setApprovalId(undefined);
     try { remember({ version: 1, quote: await client.researchQuote({ draftId, allocationId }), submitted: false }); setReport(undefined); setReverted(false); }
     catch { setMessage("The report service isn't available for this Space. It needs tUSDC and a configured seller."); }
     finally { setBusy(false); }
@@ -62,10 +65,10 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
       let transactionHash = recoveredHash ?? hash;
       if (!transactionHash) {
         if (Date.parse(quote.expiresAt) <= Date.now()) throw new PurchaseMessage("This quote expired. Get a new one before paying. If you already paid, retrieve the report with the payment's transaction hash.");
-        setStage("Checking the mandate and screening the seller");
+        setStage("Checking ENS authority and payment approval");
         const authorization = await client.authorizePayment({ draftId, allocationId: quote.allocationId,
           requestKey: quote.id, recipient: getAddress(quote.recipient), amount: quote.amount });
-        if (!authorization.signature || authorization.riskVerdict !== "allow") throw new PurchaseMessage("Payment was not authorized.");
+        if (!authorization.signature) throw new PurchaseMessage("Payment was not authorized.");
         setDecision(authorization.decision);
         const p = authorization.permit;
         if (authorization.spaceAddress.toLowerCase() !== quote.spaceAddress.toLowerCase() ||
@@ -95,6 +98,8 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
       await Promise.all(["space-terms", "space-activity", "allocation"].map((key) => queryClient.invalidateQueries({ queryKey: [key, getAddress(quote.spaceAddress)] })));
       setReport(await client.researchRedeem({ quoteId: quote.id, transactionHash: receipt.transactionHash }));
     } catch (error) {
+      const approval=paymentApprovalRequired(error);
+      if(approval){setApprovalId(approval.id);return;}
       const nextDecision = paymentDecision(error);
       if (error instanceof BaseError && error.walk((cause) => cause instanceof UserRejectedRequestError)) {
         remember({ version: 1, quote, submitted: false });
@@ -103,7 +108,7 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
       }
       else if (nextDecision) setDecision(nextDecision);
       else if (error instanceof PurchaseMessage) setMessage(error.message);
-      else setMessage("The purchase didn't finish. If your wallet sent a payment, retrieve it with the transaction hash below. Retrieving never charges again.");
+      else setMessage(describeError(error,"The purchase did not finish. If a payment was submitted, retrieve it with its transaction hash."));
     } finally { setBusy(false); setStage(""); }
   }
 
@@ -128,6 +133,7 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
       <p className="mt-1 text-sm text-muted">Seller <span className="address">{shortAddress(quote.recipient)}</span>. Quote valid until {new Date(quote.expiresAt).toLocaleTimeString()}.</p>
       {!report && !reverted ? <Button className="mt-4" loading={busy} onClick={() => void buy()}>{busy ? stage || "Working" : hash ? "Retrieve the report" : saved.data?.submitted ? "Retry the same payment" : `Pay ${units(quote.amount)} and get the report`}</Button> : null}
     </div> : null}
+    {approvalId ? <div className="mt-4"><PaymentReviewStatus id={approvalId}/></div> : null}
     {saved.data?.submitted && !report && !reverted ? <details className="mt-4 text-sm">
       <summary className="cursor-pointer font-semibold text-muted">Paid but the report didn’t arrive?</summary>
       <p className="mt-2 text-muted">Your purchase is saved in this browser. Paste the payment’s transaction hash to fetch the report without paying again.</p>
@@ -148,6 +154,7 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
       </dl>
       <p className="mt-3 text-sm text-muted">{report.mandateActive ? "Mandate active" : "Mandate inactive"}, ends {new Date(report.mandateExpiry).toLocaleString()}. This describes the payment block; permissions may have changed since.</p>
     </section> : null}
+    {quote && !saved.data?.submitted && !report ? <Button variant="ghost" className="mt-3" disabled={busy} onClick={()=>void (async()=>{try{if(approvalId){const current=await client.approval(approvalId);if(!["denied","cancelled","expired"].includes(current.status))await client.decideApproval(approvalId,"cancel");}remember(null);setApprovalId(undefined);}catch(error){setMessage(describeError(error,"This purchase is already authorized."));}})()}>Cancel purchase</Button> : null}
     {report || reverted ? <Button variant="soft" className="mt-4" onClick={() => { remember(null); setReport(undefined); setReverted(false); setDecision(undefined); setMessage(undefined); }}><RotateCcw />Start another purchase</Button> : null}
   </section>;
 }

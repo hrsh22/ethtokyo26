@@ -24,6 +24,7 @@ export const PermitAction = {
   Pay: 3,
   RevokeMandate: 4,
   RecoverAllocation: 5,
+  FundAgentAllocation: 6,
 } as const;
 
 export type SpacePermit = {
@@ -50,7 +51,7 @@ export function spacePermitTypedData(space: Address, permit: SpacePermit, chainI
   if (!isAddress(permit.actor) || permit.actor === zeroAddress || !isAddress(permit.recipient)) {
     throw new Error("Invalid permit address");
   }
-  if (!Number.isInteger(permit.action) || permit.action < 0 || permit.action > 5) {
+  if (!Number.isInteger(permit.action) || permit.action < 0 || permit.action > 6) {
     throw new Error("Invalid permit action");
   }
   for (const key of ["requestId", "detailsHash"] as const) {

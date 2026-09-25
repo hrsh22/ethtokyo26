@@ -1,7 +1,13 @@
 import { AccordApi } from "@accord/api-contract";
 import { FetchHttpClient, HttpApiClient, HttpClient, HttpClientRequest } from "@effect/platform";
 import { Effect } from "effect";
-import type { PaymentDecision } from "@accord/api-contract";
+import type { PaymentDecision, AgentRequestView, AgentGrantRequest, AgentFundRequest } from "@accord/api-contract";
+
+export type ApprovalRequest = typeof AgentRequestView.Type;
+export function paymentApprovalRequired(error: unknown): ApprovalRequest | undefined {
+  if (error && typeof error === "object" && "_tag" in error && error._tag === "AgentApprovalRequired" && "request" in error)
+    return error.request as ApprovalRequest;
+}
 
 // Preserve typed HTTP errors instead of wrapping their useful fields in FiberFailure.
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
@@ -80,6 +86,15 @@ export async function createAccordClient(baseUrl: string, options?: { bearerToke
   );
 
   return {
+    approvals: () => run(client.approvals.list()),
+    approval: (id: string) => run(client.approvals.get({ payload: { id } })),
+    authenticateApproval: (id: string) => run(client.approvals.authenticate({ payload: { id } })),
+    decideApproval: (id: string, decision: "approve" | "deny" | "cancel") => run(client.approvals.decide({ payload: { id, decision } })),
+    prepareAgent: (payload: typeof AgentGrantRequest.Type) => run(client.agents.prepare({ payload })),
+    fundAgent: (payload: typeof AgentFundRequest.Type) => run(client.agents.fund({ payload })),
+    issueAgentRequest: (id: string) => run(client.agents.issue({ payload: { id } })),
+    agentIdentities: (draftId: string) => run(client.agents.identities({ payload: { draftId } })),
+    revokeAgentIdentity: (draftId: string, allocationId: string) => run(client.agents.revoke({ payload: { draftId, allocationId } })),
     health: () => Effect.runPromise(client.status.health()),
     config: () => Effect.runPromise(client.status.config()),
     resolveEnsName: (name: string) => Effect.runPromise(client.ens.resolve({ payload: { name } })),

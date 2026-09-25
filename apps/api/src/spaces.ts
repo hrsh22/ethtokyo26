@@ -119,11 +119,11 @@ export const SpacesLive = HttpApiBuilder.group(AccordApi, "spaces", (handlers) =
     }))
     .handle("profile", ({ payload }) => Effect.gen(function* () {
       const db = yield* Database;
-      const rows = yield* databaseOperation(() => db.client.select({ name: spaceDrafts.name, spaceAddress: spaceDrafts.spaceAddress })
+      const rows = yield* databaseOperation(() => db.client.select({ id: spaceDrafts.id, name: spaceDrafts.name, spaceAddress: spaceDrafts.spaceAddress })
         .from(spaceDrafts).where(and(eq(spaceDrafts.spaceAddress, getAddress(payload.spaceAddress)), isNotNull(spaceDrafts.activatedAt))).limit(1));
       const row = rows[0];
       if (!row?.spaceAddress) return yield* Effect.fail(new HttpApiError.NotFound());
-      return { name: row.name, spaceAddress: getAddress(row.spaceAddress) };
+      return { id: row.id, name: row.name, spaceAddress: getAddress(row.spaceAddress) };
     }))
     .handle("lookup", ({ payload }) => Effect.gen(function* () {
       yield* currentSession();

@@ -11,6 +11,7 @@ import { allocationPalette } from "@/lib/palette";
 import { summarize } from "@/lib/space-summary";
 import { explorerAddress } from "@/lib/use-chain-actions";
 import { useSpace } from "@/lib/use-space";
+import { SpaceNamespace } from "../agent-identity";
 import { Avatar } from "../avatar";
 import { ShareButton } from "../share";
 import { Button } from "../ui/button";
@@ -50,6 +51,7 @@ export function SpaceScreen({ address }: { address: string }) {
         <h1 className="mt-3 font-display text-[44px] font-extrabold leading-none tracking-[-0.03em] sm:text-[56px]">
           {space.titleKnown || space.meta.isError ? space.title : <span className="inline-block h-12 w-72 animate-pulse rounded-2xl bg-white/70" />}
         </h1>
+        <SpaceNamespace draftId={space.draft.data?.id ?? space.profile.data?.id} />
         <p className="mt-3 text-lg text-ink-soft">
           <b className="font-display text-2xl font-extrabold text-ink">{summary ? space.units(summary.reserved) : "…"}</b> reserved
           {summary ? <> for {summary.people} {summary.people === 1 ? "person" : "people"} and {summary.agents} {summary.agents === 1 ? "agent" : "agents"}</> : null}
@@ -109,7 +111,7 @@ export function SpaceScreen({ address }: { address: string }) {
 function OwnerEmpty({ address }: { address: string }) {
   const options = [
     { kind: "person" as const, href: `/spaces/${address}/new?for=person`, icon: UserRound, title: "A person", body: "An allowance they claim with World ID, daily, monthly or all at once." },
-    { kind: "agent" as const, href: `/spaces/${address}/new?for=agent`, icon: Bot, title: "An agent", body: "A capped budget bound to its ENS name. Every payment is screened." },
+    { kind: "agent" as const, href: `/spaces/${address}/new?for=agent`, icon: Bot, title: "An agent", body: "A named agent with a revocable budget and owner approval for larger payments." },
   ];
   return <div className="grid gap-4 sm:grid-cols-2">
     {options.map((option) => {

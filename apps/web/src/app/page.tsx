@@ -15,12 +15,12 @@ const agent = allocationPalette(BigInt(1), true);
 const steps = [
   { title: "Fill a Space", body: "Deploy it from your wallet and add tokens. Only you can change the rules.", bg: "#FFE7D8" },
   { title: "Pick who and how much", body: "A person with a daily allowance, or an agent with a card-style cap.", bg: "#ECE5FF" },
-  { title: "They tap to claim", body: "People verify with World ID. Agents get screened. Everything leaves a receipt.", bg: "#EEFBD6" },
+  { title: "They tap to claim", body: "People claim with World ID. Named agents spend within their approved limits.", bg: "#EEFBD6" },
 ];
 const safety = [
-  { icon: Fingerprint, title: "World ID", body: "A real, unique human behind every claim, checked fresh each time.", bg: "#FFEBDD", fg: "#E2561C" },
-  { icon: AtSign, title: "ENS names", body: "Agents act under a name. If it changes hands, their mandate stops.", bg: "#EEE8FF", fg: "#6F4BEA" },
-  { icon: ScanLine, title: "Screening", body: "Intercepta checks each recipient before a payment is signed.", bg: "#E2F4FF", fg: "#2B7CC4" },
+  { icon: Fingerprint, title: "World ID", body: "Fresh verification for claims, agent authority, and sensitive payments.", bg: "#FFEBDD", fg: "#E2561C" },
+  { icon: AtSign, title: "ENSv2 identities", body: "Each Space issues agent subnames. Revoke a name to stop its spending.", bg: "#EEE8FF", fg: "#6F4BEA" },
+  { icon: ScanLine, title: "Your approval", body: "Review the exact amount and recipient before sensitive agent payments.", bg: "#E2F4FF", fg: "#2B7CC4" },
   { icon: Ban, title: "Revoke any time", body: "Close an allocation and take back whatever hasn't been spent.", bg: "#FFE3F1", fg: "#D93680" },
 ];
 

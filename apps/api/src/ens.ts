@@ -2,6 +2,7 @@ import { AccordApi } from "@accord/api-contract";
 import { HttpApiBuilder, HttpApiError } from "@effect/platform";
 import { Effect } from "effect";
 import { getAddress, isAddress, zeroAddress } from "viem";
+import { ensRegistryAbi } from "./ens-v2";
 import { labelhash, normalize } from "viem/ens";
 import { publicClient } from "./chain";
 import { and, desc, eq, inArray } from "drizzle-orm";
@@ -26,12 +27,24 @@ export const EnsLive = HttpApiBuilder.group(AccordApi, "ens", (handlers) =>
     try { name = normalize(payload.name.trim()); }
     catch { return yield* Effect.fail(new HttpApiError.BadRequest()); }
     const labels = name.split(".");
-    if (labels.length !== 2 || labels[1] !== "eth" || !labels[0]) {
+    if (labels.length < 2 || labels.length > 8 || labels.at(-1) !== "eth" || !labels[0]) {
       return yield* Effect.fail(new HttpApiError.BadRequest());
     }
     const configured = process.env.ENSV2_REGISTRY_ADDRESS;
     if (!configured || !isAddress(configured)) return yield* Effect.fail(new HttpApiError.ServiceUnavailable());
-    const registry = getAddress(configured);
+    let registry = getAddress(configured);
+    for (const label of labels.slice(1, -1).reverse()) {
+      const parent = yield* Effect.tryPromise({
+        try: () => publicClient.readContract({ address: registry, abi: ensRegistryAbi, functionName: "getState", args: [BigInt(labelhash(label))] }),
+        catch: () => new HttpApiError.ServiceUnavailable(),
+      });
+      if (parent.status !== 2 || parent.expiry <= BigInt(Math.floor(Date.now()/1000))) return yield* Effect.fail(new HttpApiError.NotFound());
+      registry = yield* Effect.tryPromise({
+        try: () => publicClient.readContract({ address: registry, abi: ensRegistryAbi, functionName: "getSubregistry", args: [label] }),
+        catch: () => new HttpApiError.ServiceUnavailable(),
+      });
+      if (registry === zeroAddress) return yield* Effect.fail(new HttpApiError.NotFound());
+    }
     const nameId = BigInt(labelhash(labels[0]!));
     const state = yield* Effect.tryPromise({
       try: () => publicClient.readContract({ address: registry, abi: registryAbi, functionName: "getState", args: [nameId] }),

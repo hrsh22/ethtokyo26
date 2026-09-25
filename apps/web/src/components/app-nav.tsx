@@ -72,6 +72,6 @@ export function Footer() {
     <Logo className="text-lg text-ink" />
     <span>Built at ETHGlobal Tokyo 2026</span>
     <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-good" />Sepolia testnet</span>
-    <span className="sm:ml-auto">People verify with World ID. Agents act under ENS. Payments are screened by Intercepta.</span>
+    <span className="sm:ml-auto">Named with ENS. Authorized by people.</span>
   </footer>;
 }

@@ -9,7 +9,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {ERC2771Context} from "@openzeppelin/contracts/metatx/ERC2771Context.sol";
 import {IEnsPermissionAdapter} from "./EnsPermissionAdapter.sol";
 
-/// @notice One Space with funded allocations for people and screened agent payments.
+/// @notice One Space with funded allocations for people and authorized agent payments.
 /// The backend authorizes policy checks. A trusted forwarder can submit the
 /// participant's signed request while paying gas on their behalf.
 contract SpaceAccount is EIP712, ReentrancyGuard, ERC2771Context {
@@ -21,7 +21,8 @@ contract SpaceAccount is EIP712, ReentrancyGuard, ERC2771Context {
         Claim,
         Pay,
         RevokeMandate,
-        RecoverAllocation
+        RecoverAllocation,
+        FundAgentAllocation
     }
 
     enum Period {
@@ -211,7 +212,7 @@ contract SpaceAccount is EIP712, ReentrancyGuard, ERC2771Context {
     function fundAllocation(uint256 allocationId, uint256 amount) external nonReentrant {
         Allocation storage allocation = allocations[allocationId];
         if (_msgSender() != owner || allocationId == 0 || allocationId >= nextAllocationId
-                || allocation.cancelled || amount == 0) revert InvalidAllocation();
+                || allocation.cancelled || allocation.beneficiary == address(0) || amount == 0) revert InvalidAllocation();
         if (allocation.period == Period.Interval && block.timestamp >= allocationSchedules[allocationId].endsAt) {
             revert AllocationExpired();
         }
@@ -219,6 +220,25 @@ contract SpaceAccount is EIP712, ReentrancyGuard, ERC2771Context {
         token.safeTransferFrom(_msgSender(), address(this), amount);
         emit AllocationFunded(allocationId, amount);
     }
+
+    /// @notice Increasing an agent's spendable budget requires the owner's approved permit.
+    function fundAgentAllocation(uint256 allocationId, uint256 amount, Permit calldata permit, bytes calldata signature)
+        external nonReentrant
+    {
+        Allocation storage allocation = allocations[allocationId];
+        if (_msgSender() != owner || allocationId == 0 || allocationId >= nextAllocationId
+            || allocation.cancelled || allocation.beneficiary != address(0) || amount == 0) revert InvalidAllocation();
+        if (allocation.period == Period.Interval && block.timestamp >= allocationSchedules[allocationId].endsAt) {
+            revert AllocationExpired();
+        }
+        _consumePermit(permit, signature, Action.FundAgentAllocation, allocationId, owner, amount, bytes32(0));
+        allocation.remaining += amount;
+        policyVersion++;
+        token.safeTransferFrom(_msgSender(), address(this), amount);
+        emit AllocationFunded(allocationId, amount);
+    }
+
+    uint256 public constant agentApprovalVersion = 1;
 
     function claim(uint256 allocationId, uint256 amount, Permit calldata permit, bytes calldata signature)
         external

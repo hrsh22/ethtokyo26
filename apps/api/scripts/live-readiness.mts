@@ -5,7 +5,7 @@ import { createPublicClient, erc20Abi, formatEther, getAddress, http, isAddress,
 import { privateKeyToAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
 import { ensPermissionAdapterAbi, spaceAccountAbi } from "@accord/chain";
-import { screenRecipient } from "../src/risk";
+import { worldAgentsConfigured } from "../src/world-agents";
 import { databaseUrl } from "../src/db/file";
 
 type Check = { name: string; status: "pass" | "waiting" | "fail"; detail: string };
@@ -111,17 +111,12 @@ checks.push({ name: "World configuration", status: /^app_[0-9a-f]+$/i.test(proce
   /^rp_[0-9a-f]+$/i.test(process.env.WORLD_RP_ID ?? "") && /^0x[0-9a-f]{64}$/i.test(process.env.WORLD_RP_SIGNING_KEY ?? "") &&
   ["staging", "production"].includes(process.env.WORLD_ENVIRONMENT ?? "") ? "pass" : "fail",
   detail: "Configuration format only. Run smoke:world-request to check request creation; an actual person must complete the proof." });
-if (!process.env.INTERCEPTA_API_KEY?.trim()) checks.push({ name: "Intercepta", status: "waiting", detail: "API key is still pending. Payments remain blocked until screening succeeds." });
-else await check("Intercepta", async () => {
-  const result = await screenRecipient(configuredAddress("RESEARCH_SELLER_ADDRESS"));
-  if (result.verdict !== "allow") throw Error();
-  return "Live seller scan passed: zero toxic score and no reported risk traits. No payment was submitted.";
-}, "Seller screening did not allow payment. Check key access, provider availability, or recipient risk; no funds moved.");
+checks.push({name:"World ID for Agents",status:worldAgentsConfigured()?"pass":"fail",detail:"OIDC configuration check. Fresh owner authentication and explicit payment consent require live evidence."});
 if (process.env.ACCORD_PARTNER_MOCKS || process.env.ACCORD_LOCAL_E2E === "1" || process.env.NEXT_PUBLIC_ACCORD_LOCAL_E2E === "1") {
   checks.push({ name: "Live mode", status: "fail", detail: "Remove local fixture settings before live testing." });
 }
 const report = { checkedAt: new Date().toISOString(), checks: checks.sort((a, b) => a.name.localeCompare(b.name)),
-  manualEvidenceStillRequired: ["Real World App enrollment and fresh claim verification", "Live Intercepta allow/block demonstration", "Confirmed Sepolia report purchase"],
+  manualEvidenceStillRequired: ["Real World App enrollment and fresh claim verification", "World Agents approval, denial, and ENS revocation after approval", "Confirmed Sepolia report purchase"],
   transactionsSubmitted: 0 };
 await mkdir(new URL("../../../.codex/", import.meta.url), { recursive: true });
 await writeFile(new URL("../../../.codex/live-readiness.json", import.meta.url), JSON.stringify(report, null, 2) + "\n", { mode: 0o600 });

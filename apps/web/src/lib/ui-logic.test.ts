@@ -28,7 +28,7 @@ describe("amounts people type and read", () => {
 describe("rules in plain words", () => {
   it("describes person and agent allocations from their onchain terms", () => {
     expect(ruleSentence(personal, 6, "USDC")).toBe("Can claim up to 200 USDC a month, with a fresh World ID check each time.");
-    expect(ruleSentence(agentBudget, 6, "USDC")).toMatch(/^Pays screened recipients up to 10 USDC at a time and 50 USDC a day, until /);
+    expect(ruleSentence(agentBudget, 6, "USDC")).toMatch(/^Pays up to 10 USDC at a time and 50 USDC a day, until /);
     const inactive = { ...agentBudget, mandate: [...agentBudget.mandate] as [...typeof agentBudget.mandate] };
     inactive.mandate[9] = false;
     expect(ruleSentence(inactive, 6, "USDC")).toMatch(/can't pay anyone until you grant a mandate/);

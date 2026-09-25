@@ -13,7 +13,7 @@ import { databaseOperation } from "./db/run";
 import { spaceDrafts } from "./db/schema";
 
 const allowedSpaceCalls = new Set([
-  "createAllocation", "createTimedAllocation", "fundAllocation", "claim", "setMandate", "pay",
+  "createAllocation", "createTimedAllocation", "fundAllocation", "fundAgentAllocation", "claim", "setMandate", "pay",
   "revokeMandate", "recoverAllocation",
 ]);
 const lastFaucet = new Map<string, number>();
@@ -132,10 +132,13 @@ export const SponsorLive = HttpApiBuilder.group(AccordApi, "sponsor", (handlers)
     return yield* Effect.tryPromise({
       try: async () => {
         const wallet = sponsor();
-        await enoughGas(wallet.account.address, gas + 120_000n);
         const simulation = await publicClient.simulateContract({ address: forwarder, abi: accordForwarderAbi,
           functionName: "execute", args: [request], account: wallet.account });
-        const transactionHash = await wallet.writeContract(simulation.request);
+        const estimate = await publicClient.estimateContractGas({address:forwarder,abi:accordForwarderAbi,
+          functionName:"execute",args:[request],account:wallet.account});
+        const gasLimit=estimate*125n/100n;
+        await enoughGas(wallet.account.address,gasLimit);
+        const transactionHash = await wallet.writeContract({...simulation.request,gas:gasLimit});
         return { transactionHash };
       },
       catch: () => new HttpApiError.ServiceUnavailable(),

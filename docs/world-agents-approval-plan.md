@@ -1,5 +1,7 @@
 # Owner approval for agent payments
 
+> **Superseded:** use the [verified-person → named-agent delegation plan](ens-world-integration-plan.md), which follows the agreed journey and maps it to the ENSv2 and World ID for Agents prizes. World Agents registration is now complete with server-held signing-key authentication; Intercepta is outside the current plan. The proposal below is retained as historical context.
+
 **Product decision:** Add **Require owner approval** when an owner creates an agent mandate. Use it for sensitive mandates, such as the report-purchasing agent; other mandates remain autonomous. An agent can propose a payment, but Accord will not issue the contract's payment permit until the current Space owner completes a fresh World ID for Agents authentication and explicitly approves that exact request in Accord.
 
 This targets the open [Best Use of World ID for Agents](https://ethglobal.com/events/tokyo2026/prizes#world) track. It is a proposed feature, **not implemented yet**. The existing beneficiary Selfie Check uses IDKit and remains a separate flow.

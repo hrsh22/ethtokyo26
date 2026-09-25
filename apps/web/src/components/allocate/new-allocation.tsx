@@ -3,7 +3,7 @@
 import { spaceAccountAbi } from "@accord/chain";
 import type { AccordClient } from "@accord/sdk";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import confetti from "canvas-confetti";
 import { AnimatePresence, motion } from "motion/react";
@@ -25,6 +25,8 @@ import { SharePanel } from "../share";
 import { SignInCard } from "../sign-in-card";
 import { TxTracker, useSteps } from "../tx-tracker";
 import { Button } from "../ui/button";
+
+import { AgentBudget } from "./agent-budget";
 
 type Kind = "person" | "agent";
 type EnsName = Awaited<ReturnType<AccordClient["resolveEnsName"]>>;
@@ -48,6 +50,7 @@ export function NewAllocation({ address }: { address: string }) {
   if (!space.isOwner) return frame(<div className="card p-8"><h1 className="font-display text-3xl font-extrabold">Only the owner can do this</h1><p className="mt-2 text-ink-soft">This Space belongs to {space.meta.data ? shortAddress(space.meta.data.owner) : "another wallet"}. Switch to that wallet to add a budget.</p></div>);
   if (!space.draft.data) return frame(<div className="card p-8"><h1 className="font-display text-3xl font-extrabold">This Space isn’t linked to Accord here</h1><p className="mt-2 text-ink-soft">It exists onchain, but this Accord deployment has no record of it, so it can’t sign new budgets.</p></div>);
   const initial: Kind = params.get("for") === "agent" ? "agent" : "person";
+  if (initial === "agent") return frame(<AgentBudget address={address} draftId={space.draft.data.id} />);
   return frame(<Flow address={address} draft={space.draft.data} initialKind={initial} decimals={space.decimals} symbol={space.symbol}
     nextId={(space.terms.data?.count ?? BigInt(0)) + BigInt(1)} />);
 }
@@ -56,6 +59,7 @@ function Flow({ address, draft, initialKind, decimals, symbol, nextId }: {
   address: string; draft: Draft; initialKind: Kind; decimals?: number; symbol: string; nextId: bigint;
 }) {
   const { client, config, checkSession } = useAccord();
+  const router = useRouter();
   const { chain } = useChainActions(address);
   const [kind, setKind] = useState<Kind>(initialKind);
   const [step, setStep] = useState<"who" | "budget" | "review" | "done">("who");
@@ -83,6 +87,7 @@ function Flow({ address, draft, initialKind, decimals, symbol, nextId }: {
   });
 
   function switchKind(next: Kind) {
+    if (next === "agent") { router.push(`/spaces/${address}/new?for=agent`); return; }
     if (next === kind) return;
     setKind(next); setPerson(null); setAgent(null); setConfirmed(false); setWhoError(null); setInput("");
   }
@@ -143,7 +148,7 @@ function Flow({ address, draft, initialKind, decimals, symbol, nextId }: {
   const sentence = !totalParsed.ok ? "" : kind === "person"
     ? frequency === "once" ? `${who} can claim ${units(totalParsed.value)} whenever they like, with a World ID check each time.`
       : capParsed.ok ? `${who} can claim up to ${units(capParsed.value)} a ${frequency} from ${units(totalParsed.value)}${runLabel(frequency, runFor) ? ` for ${runLabel(frequency, runFor)}` : ""}, with a World ID check each time.` : ""
-    : dailyParsed.ok && perParsed.ok ? `${who} can pay screened recipients up to ${units(perParsed.value)} at a time and ${units(dailyParsed.value)} a day, from ${units(totalParsed.value)}, until ${shortDate(endsAt)}.` : "";
+    : dailyParsed.ok && perParsed.ok ? `${who} can pay recipients up to ${units(perParsed.value)} at a time and ${units(dailyParsed.value)} a day, from ${units(totalParsed.value)}, until ${shortDate(endsAt)}.` : "";
   const lasts = totalParsed.ok && capParsed.ok && frequency !== "once" ? Number((totalParsed.value + capParsed.value - BigInt(1)) / capParsed.value) : null;
   const most = capParsed.ok ? maxClaimable(terms, capParsed.value) : undefined;
   const windows = terms.schedule ? terms.schedule.durationSeconds / terms.schedule.intervalSeconds : null;
@@ -205,7 +210,7 @@ function Flow({ address, draft, initialKind, decimals, symbol, nextId }: {
                 </label>
               </motion.div> : null}
             </AnimatePresence>
-            <p className="mt-4 text-sm text-muted">{kind === "person" ? "They'll verify with World ID on every claim. An ENS name alone doesn't prove a human." : "Every payment is also screened by Intercepta before it's signed."}</p>
+            <p className="mt-4 text-sm text-muted">{kind === "person" ? "They'll verify with World ID on every claim. An ENS name alone doesn't prove a human." : "Sensitive payments need the owner's approval."}</p>
             <div className="mt-7 flex justify-end"><Button size="lg" disabled={!confirmed || !(person || agent)} onClick={() => setStep("budget")}>Continue</Button></div>
           </div>
 
@@ -352,7 +357,7 @@ function Signer({ address, draft, kind, person, agent, units, total, terms, cap,
       <p className="font-display text-2xl font-extrabold leading-snug">{sentence}</p>
       <ul className="mt-4 grid gap-2 text-sm text-ink-soft">
         {kind === "agent" ? <>
-          <li className="flex items-center gap-2"><ScanLine size={16} />Every recipient is screened by Intercepta first</li>
+          <li className="flex items-center gap-2"><ScanLine size={16} />ENS authority and spending limits apply to every payment</li>
           <li className="flex items-center gap-2"><AtSign size={16} />Stops if {agent?.name} changes owner</li>
           <li className="flex items-center gap-2"><Lock size={16} />The agent can’t raise its own limits</li>
         </> : <li className="flex items-center gap-2"><Lock size={16} />Only {person ? shortAddress(person.address) : "their wallet"} can claim</li>}

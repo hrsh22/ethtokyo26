@@ -37,6 +37,7 @@
     "@worldcoin/idkit-core": "4.3.0",
     "drizzle-orm": "0.45.3",
     "effect": "3.22.2",
+    "jose": "^6.2.12",
     "viem": "2.56.8"
   },
   "devDependencies": {

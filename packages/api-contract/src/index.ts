@@ -28,6 +28,7 @@ export const DeploymentConfig = Schema.Struct({
   forwarderAddress: Schema.optional(WalletAddress),
   demoSpaceAddress: Schema.optional(WalletAddress),
   ensRegistryAddress: Schema.optional(WalletAddress),
+  agentNamespace: Schema.optional(Schema.String),
 });
 export const ResolveEnsName = Schema.Struct({
   name: Schema.String.pipe(Schema.minLength(5), Schema.maxLength(255)),
@@ -105,7 +106,7 @@ export const SponsoredRequest = Schema.Struct({
 export const SponsoredTransaction = Schema.Struct({ transactionHash: Schema.String.pipe(Schema.pattern(/^0x[a-fA-F0-9]{64}$/)) });
 export const LookupSpace = Schema.Struct({ spaceAddress: WalletAddress });
 // Public: the name an owner gave an activated Space. Drafts and other metadata stay private.
-export const SpaceProfile = Schema.Struct({ name: Schema.String, spaceAddress: WalletAddress });
+export const SpaceProfile = Schema.Struct({ id: Schema.UUID, name: Schema.String, spaceAddress: WalletAddress });
 
 export const WorldStatus = Schema.Struct({
   configured: Schema.Boolean,
@@ -242,10 +243,10 @@ export const AdminRevokeMandate = Schema.Struct({
 export const AdminRecoverAllocation = AdminRevokeMandate;
 export const AdminPermitResponse = Schema.Struct({
   spaceAddress: WalletAddress, tokenAddress: WalletAddress,
-  functionName: Schema.Literal("createAllocation", "createTimedAllocation", "setMandate", "revokeMandate", "recoverAllocation"),
+  functionName: Schema.Literal("createAllocation", "createTimedAllocation", "setMandate", "revokeMandate", "recoverAllocation", "fundAgentAllocation"),
   calldata: Schema.String, signature: Schema.String, digest: Schema.String,
   permit: Schema.Struct({
-    actor: WalletAddress, action: Schema.Literal(0, 1, 4, 5), allocationId: UnsignedInteger,
+    actor: WalletAddress, action: Schema.Literal(0, 1, 4, 5, 6), allocationId: UnsignedInteger,
     recipient: WalletAddress, amount: UnsignedInteger, requestId: Schema.String,
     nonce: UnsignedInteger, expiry: UnsignedInteger, policyVersion: UnsignedInteger,
     detailsHash: Schema.String,
@@ -254,7 +255,64 @@ export const AdminPermitResponse = Schema.Struct({
   approvalAmount: UnsignedInteger,
 });
 
+export const AgentGrantRequest = Schema.Struct({
+  draftId: Schema.UUID, requestKey: Schema.UUID, allocationId: UnsignedInteger,
+  label: Schema.String.pipe(Schema.pattern(/^[a-z0-9][a-z0-9-]{0,31}$/)), agent: WalletAddress,
+  dailyCap: UnsignedInteger, maxPerPayment: UnsignedInteger,
+  expiry: UnsignedInteger, approvalThreshold: UnsignedInteger,
+});
+export const AgentFundRequest = Schema.Struct({
+  draftId: Schema.UUID, requestKey: Schema.UUID, allocationId: UnsignedInteger, amount: UnsignedInteger,
+});
+export const ApprovalId = Schema.Struct({ id: Schema.UUID });
+export const AgentRequestView = Schema.Struct({
+  id: Schema.UUID, kind: Schema.String, status: Schema.String,
+  draftId: Schema.UUID, spaceAddress: WalletAddress, spaceName: Schema.String,
+  allocationId: UnsignedInteger, owner: WalletAddress, agent: WalletAddress,
+  agentName: Schema.String, amount: UnsignedInteger,
+  recipient: Schema.optional(WalletAddress), dailyCap: Schema.optional(UnsignedInteger),
+  maxPerPayment: Schema.optional(UnsignedInteger), approvalThreshold: Schema.optional(UnsignedInteger),
+  expiry: Schema.optional(UnsignedInteger), expiresAt: Schema.String,
+  createdAt: Schema.String, verified: Schema.Boolean,
+});
+export class AgentApprovalRequired extends Schema.TaggedError<AgentApprovalRequired>()("AgentApprovalRequired", {
+  request: AgentRequestView,
+}, HttpApiSchema.annotations({ status: 409 })) {}
+export class AgentActionError extends Schema.TaggedError<AgentActionError>()("AgentActionError", {
+  message: Schema.String,
+}, HttpApiSchema.annotations({ status: 400 })) {}
+export const AgentIdentity = Schema.Struct({
+  name: Schema.String, agent: WalletAddress, allocationId: UnsignedInteger,
+  registry: WalletAddress, nameId: UnsignedInteger, resource: UnsignedInteger,
+  approvalThreshold: UnsignedInteger, expiry: UnsignedInteger,
+  active: Schema.Boolean, confirmed: Schema.Boolean, revoked: Schema.Boolean,
+});
+
 export const AccordApi = HttpApi.make("AccordApi")
+  .add(HttpApiGroup.make("approvals")
+    .add(HttpApiEndpoint.get("list")`/v1/approvals`.addSuccess(Schema.Struct({
+      configured: Schema.Boolean, identified: Schema.Boolean, requests: Schema.Array(AgentRequestView),
+    })))
+    .add(HttpApiEndpoint.post("get")`/v1/approvals/get`.setPayload(ApprovalId).addSuccess(AgentRequestView))
+    .add(HttpApiEndpoint.post("authenticate")`/v1/approvals/world/start`.setPayload(ApprovalId).addSuccess(Schema.Struct({ url: Schema.String })))
+    .add(HttpApiEndpoint.get("worldCallback")`/v1/approvals/world/callback`.setUrlParams(Schema.Struct({
+      state: Schema.optional(Schema.String), code: Schema.optional(Schema.String), error: Schema.optional(Schema.String),
+    })).addSuccess(Schema.Void))
+    .add(HttpApiEndpoint.post("decide")`/v1/approvals/decide`.setPayload(Schema.Struct({
+      id: Schema.UUID, decision: Schema.Literal("approve", "deny", "cancel"),
+    })).addSuccess(AgentRequestView))
+    .addError(HttpApiError.Unauthorized).addError(HttpApiError.Forbidden).addError(HttpApiError.NotFound)
+    .addError(HttpApiError.ServiceUnavailable).addError(AgentActionError))
+  .add(HttpApiGroup.make("agents")
+    .add(HttpApiEndpoint.post("prepare")`/v1/agents/prepare`.setPayload(AgentGrantRequest).addSuccess(AgentRequestView))
+    .add(HttpApiEndpoint.post("fund")`/v1/agents/fund`.setPayload(AgentFundRequest).addSuccess(AgentRequestView))
+    .add(HttpApiEndpoint.post("issue")`/v1/agents/issue`.setPayload(ApprovalId).addSuccess(AdminPermitResponse))
+    .add(HttpApiEndpoint.post("revoke")`/v1/agents/revoke`.setPayload(Schema.Struct({ draftId: Schema.UUID, allocationId: UnsignedInteger })).addSuccess(SponsoredTransaction))
+    .add(HttpApiEndpoint.post("identities")`/v1/agents/identities`.setPayload(Schema.Struct({ draftId: Schema.UUID })).addSuccess(Schema.Struct({
+      namespace: Schema.String, registry: Schema.optional(WalletAddress), active: Schema.Boolean, identities: Schema.Array(AgentIdentity),
+    })))
+    .addError(HttpApiError.Unauthorized).addError(HttpApiError.Forbidden).addError(HttpApiError.NotFound)
+    .addError(HttpApiError.ServiceUnavailable).addError(AgentActionError))
   .add(HttpApiGroup.make("sponsor")
     .add(HttpApiEndpoint.post("faucet")`/v1/sponsor/faucet`.addSuccess(SponsoredTransaction))
     .add(HttpApiEndpoint.post("relay")`/v1/sponsor/relay`.setPayload(SponsoredRequest).addSuccess(SponsoredTransaction))
@@ -374,6 +432,7 @@ export const AccordApi = HttpApi.make("AccordApi")
     HttpApiGroup.make("permits")
       .addError(DecisionRejected)
       .addError(ScreeningUnavailable)
+    .addError(AgentApprovalRequired).addError(AgentActionError)
       .add(HttpApiEndpoint.post("prepareClaim")`/v1/permits/claims`
         .setPayload(PreparePermitRequest).addSuccess(PermitIntentResponse))
       .add(HttpApiEndpoint.post("signClaim")`/v1/permits/claims/sign`

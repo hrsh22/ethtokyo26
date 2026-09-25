@@ -9,6 +9,7 @@ export function describeError(error: unknown, fallback: string): string {
   const decision = paymentDecision(error);
   if (decision) return decision.reason;
   const tag = tagOf(error);
+  if (tag === "AgentActionError" && error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
   if (tag === "Forbidden") return `${fallback} Check this allocation's access, limits and current permissions.`;
   if (tag === "ServiceUnavailable") return "A verification service is unavailable, so nothing was submitted. Try again in a moment.";
   if (tag === "Unauthorized") return "Your session expired. Sign in again and retry.";

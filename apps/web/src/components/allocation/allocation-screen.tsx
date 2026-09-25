@@ -4,6 +4,7 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import { ArrowLeft, Bot, Code2, RotateCw, UserRound } from "lucide-react";
 import { zeroAddress } from "viem";
+import { AgentIdentityCard } from "../agent-identity";
 import { useAccord } from "@/lib/accord";
 import { allocationAccess } from "@/lib/allocation-access";
 import { periodUnit, ruleSentence, shortAddress, shortDate } from "@/lib/format";
@@ -52,6 +53,7 @@ export function AllocationScreen({ address, id }: { address: string; id: bigint 
 
   return <div>
     {back}
+    {isAgent ? <div className="mb-5"><AgentIdentityCard draftId={draftId ?? space.profile.data?.id} allocationId={id.toString()} /></div> : null}
     <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
       <motion.section initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} aria-labelledby="allocation-title"
         className="relative overflow-hidden rounded-[2.5rem] p-7 shadow-float sm:p-9 lg:sticky lg:top-28"
@@ -90,7 +92,7 @@ export function AllocationScreen({ address, id }: { address: string; id: bigint 
           : <div className="card p-6"><h2 className="font-display text-2xl font-extrabold">This Space isn’t linked to Accord here</h2><p className="mt-1 text-muted">It exists onchain, but this deployment can’t sign claims or payments for it.</p></div>
           : isAgent ? <>
             {access.canPay ? <PayPanel address={address} draftId={draftId} data={data} decimals={space.decimals} symbol={space.symbol} units={space.units} />
-              : <div className="card p-6"><h2 className="font-display text-2xl font-extrabold">Payments are paused</h2><p className="mt-1 text-muted">{status === "needs-mandate" ? "The owner needs to grant or renew this agent’s mandate." : status === "closed" ? "This budget is closed." : "Today’s limit or the budget is used up."}</p></div>}
+              : <div className="card p-6"><h2 className="font-display text-2xl font-extrabold">Payments are paused</h2><p className="mt-1 text-muted">{status === "needs-mandate" ? "The owner needs to grant or renew this agent’s mandate." : status === "closed" ? "This budget is closed." : !data.ensAuthorized ? "The agent’s ENS identity is revoked or expired." : "Today’s limit or the budget is used up."}</p></div>}
             {access.canPay && client ? <ResearchPurchase client={client} draftId={draftId} allocationId={id.toString()} decimals={space.decimals} symbol={space.symbol} account={account!} /> : null}
             <SdkCard address={address} id={id.toString()} />
           </> : status === "active" || status === "used-up" ? <ClaimPanel address={address} draftId={draftId} data={data} decimals={space.decimals} symbol={space.symbol} units={space.units} palette={palette} />

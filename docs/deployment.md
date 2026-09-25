@@ -32,7 +32,7 @@ curl --fail https://accord-api.hrsh.dev/v1/health
 
 Run `pm2 logs accord-api` to inspect errors. Back up `.data/accord.sqlite`
 before migrations or manual data changes. Keep the API at one PM2 instance.
-Set `FORWARDER_ADDRESS=0x947f24d2749f00be27062cec447457cac3c7a6e0`, `SPACE_FACTORY_ADDRESS=0x3ccbb42840e290e38f4f10040e08140179dfa0a9`, `DEMO_TOKEN_ADDRESS=0x06729abbe1b9683ea3d5addd151c15c93be2a0a4`, and `RESEARCH_PRICE_BASE_UNITS=1000000` in root `.env`. Put a separate funded Sepolia wallet key in `SPONSOR_PRIVATE_KEY` there only. Its address is `0xBf40A6E6C25fED59B18cDCC8C60692E68bCf0CBb`; top it up with Sepolia ETH when needed. `NEXT_PUBLIC_DEMO_SPACE_ADDRESS` now comes from API config, so set the new tUSDC demo Space in the backend `.env` only. The app accepts only the current tUSDC factory and token. Old ACD contracts remain on Sepolia but are no longer listed or actionable here.
+Set `FORWARDER_ADDRESS=0x947f24d2749f00be27062cec447457cac3c7a6e0`, `SPACE_FACTORY_ADDRESS=0x2C080f4EAEB124E07c50F6b9324fAb7894E97A63`, `DEMO_TOKEN_ADDRESS=0x06729abbe1b9683ea3d5addd151c15c93be2a0a4`, and `RESEARCH_PRICE_BASE_UNITS=1000000` in root `.env`. Put a separate funded Sepolia wallet key in `SPONSOR_PRIVATE_KEY` there only. Its address is `0xBf40A6E6C25fED59B18cDCC8C60692E68bCf0CBb`; top it up with Sepolia ETH when needed. `NEXT_PUBLIC_DEMO_SPACE_ADDRESS` now comes from API config, so set the new tUSDC demo Space in the backend `.env` only. The app accepts only the current tUSDC factory and token. Old ACD contracts remain on Sepolia but are no longer listed or actionable here.
 The existing Nginx site has a Let's Encrypt origin certificate; Cloudflare can
 use **Full (strict)** TLS for this hostname.
 `pnpm dev` can reuse this API, but browser sign-in from `localhost:3000` is
@@ -74,3 +74,23 @@ hostnames cannot sign in through this production API.
 After deployment, open `https://accord.hrsh.dev/api/v1/health`. It must return
 `{"status":"ok","chainId":11155111}`. Check wallet sign-in and a shared
 Space page from the production hostname.
+
+## ENSv2 and World Agents
+
+Current deployment: [public manifest](../deployments/ens-world-sepolia.json).
+
+- Parent name: `accordspaces26.eth`
+- Parent subregistry: `0xaE03e5D400faF51CB57acc326CD3412c12fE71a5`
+- Hierarchical adapter: `0x6462eCB827CE2596b7F926664166C25819813eaf`
+- New Space factory: `0x2C080f4EAEB124E07c50F6b9324fAb7894E97A63`
+- tUSDC and trusted forwarder remain at the addresses above.
+
+The server environment sets `ENS_NAMESPACE_NAME`, `ENS_NAMESPACE_REGISTRY`, and `ENS_ADAPTER_ADDRESS`. `ENS_REGISTRAR_PRIVATE_KEY` may be a dedicated key; otherwise `DEPLOYER_PRIVATE_KEY` operates the namespace. Fund this operator and `SPONSOR_PRIVATE_KEY` with Sepolia ETH. No additional Vercel variables are needed for agent approvals.
+
+World Agents uses `WORLD_AGENTS_CLIENT_ID`, `WORLD_AGENTS_ISSUER`, `WORLD_AGENTS_REDIRECT_URI`, `WORLD_AGENTS_TOKEN_ENDPOINT_AUTH_METHOD=private_key_jwt`, `WORLD_AGENTS_PRIVATE_KEY_PATH`, and `WORLD_AGENTS_KEY_ID`. Keep the PEM and all backend credentials private. The registered callback is `https://accord-api.hrsh.dev/v1/approvals/world/callback`; Nginx disables access logging for this exact path so authorization codes do not enter request logs.
+
+Migration `0004` adds private owner identities, immutable review requests, OAuth attempts, namespace deployment recovery, and confirmed agent policies. Keep one PM2 process: issuance, decisions and registrar writes are serialized within it. Multiple workers would require distributed locking.
+
+The pre-migration database and `.env` are saved privately in `.data/before-ens-world-20260925T195101Z/`. On 25 September 2026 the old application rows were cleared after backup. Restoring those rows also requires the old environment and application revision; old Spaces use immutable adapters and cannot be upgraded by changing `.env`.
+
+For repeatable infrastructure deployment, compile contracts first and run `apps/api/scripts/deploy-ens-world.mts` with the root environment. Its default is a dry run; `--broadcast` resumes the public deployment manifest. The private ENS commitment secret is stored outside the repository. Do not remove the deployment manifest between retries.

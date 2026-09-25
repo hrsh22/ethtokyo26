@@ -1,5 +1,7 @@
 # World prize update — Tokyo 2026
 
+Current implementation work and prize targets are specified in the [verified-person → named-agent delegation plan](ens-world-integration-plan.md). The review below records the earlier assessment; its registration and screening prerequisites have since changed.
+
 Checked 25 September 2026 against the [ETHGlobal prize page](https://ethglobal.com/events/tokyo2026/prizes#world), [World ID for Agents sandbox docs](https://sandbox.auth.world.org/docs), the sandbox [OIDC discovery document](https://sandbox.auth.world.org/.well-known/openid-configuration), and World's [official sandbox plugin](https://github.com/worldcoin/world-id-agent-plugin).
 
 ## What changed

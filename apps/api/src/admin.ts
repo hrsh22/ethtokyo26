@@ -19,8 +19,8 @@ function uint(value: string, bits = 256n) {
   return result;
 }
 
-// Owner setup uses wallet authentication plus onchain ownership. World is a claim gate.
-function ownerSpace(draftId: string) {
+// Validate browser session and immutable onchain Space ownership.
+export function ownerSpace(draftId: string) {
   return Effect.gen(function* () {
     yield* requireBrowserOrigin();
     const session = yield* currentSession();
@@ -62,7 +62,7 @@ function ownerSpace(draftId: string) {
 
 type Context = Effect.Effect.Success<ReturnType<typeof ownerSpace>>;
 
-async function makePermit(context: Context, requestKey: string, action: 0 | 1 | 4 | 5, allocationId: bigint,
+export async function makePermit(context: Context, requestKey: string, action: 0 | 1 | 4 | 5 | 6, allocationId: bigint,
   recipient: Address, amount: bigint, detailsHash: `0x${string}`): Promise<SpacePermit> {
   const requestId = keccak256(encodeAbiParameters(
     [{ type: "address" }, { type: "address" }, { type: "bytes32" }],
@@ -76,12 +76,12 @@ async function makePermit(context: Context, requestKey: string, action: 0 | 1 | 
     expiry: context.block.timestamp + 300n, policyVersion: context.policyVersion, detailsHash };
 }
 
-function envelope(context: Context, permit: SpacePermit, signature: `0x${string}`,
-  functionName: "createAllocation" | "createTimedAllocation" | "setMandate" | "revokeMandate" | "recoverAllocation", calldata: `0x${string}`, approvalAmount: bigint) {
+export function envelope(context: Context, permit: SpacePermit, signature: `0x${string}`,
+  functionName: "createAllocation" | "createTimedAllocation" | "setMandate" | "revokeMandate" | "recoverAllocation" | "fundAgentAllocation", calldata: `0x${string}`, approvalAmount: bigint) {
   return {
     spaceAddress: context.space, tokenAddress: context.token, functionName, calldata, signature,
     digest: hashSpacePermit(context.space, permit), approvalAmount: approvalAmount.toString(),
-    permit: { ...permit, action: permit.action as 0 | 1 | 4 | 5,
+    permit: { ...permit, action: permit.action as 0 | 1 | 4 | 5 | 6,
       allocationId: permit.allocationId.toString(), amount: permit.amount.toString(),
       nonce: permit.nonce.toString(), expiry: permit.expiry.toString(), policyVersion: permit.policyVersion.toString() },
   };
@@ -185,59 +185,5 @@ export const AdminLive = HttpApiBuilder.group(AccordApi, "admin", (handlers) => 
       catch: () => new HttpApiError.BadRequest(),
     });
   }))
-  .handle("setMandate", ({ payload }) => Effect.gen(function* () {
-    const context = yield* ownerSpace(payload.draftId);
-    const db = yield* Database;
-    let agentName: string | undefined;
-    if (payload.agentEnsName) {
-      try { agentName = normalize(payload.agentEnsName.trim()); }
-      catch { return yield* Effect.fail(new HttpApiError.BadRequest()); }
-      const [label, tld, ...rest] = agentName.split(".");
-      // The label must be the very name the mandate is bound to.
-      if (!label || tld !== "eth" || rest.length > 0 || BigInt(labelhash(label)) !== BigInt(payload.nameId)) {
-        return yield* Effect.fail(new HttpApiError.BadRequest());
-      }
-    }
-    return yield* Effect.tryPromise({
-      try: async () => {
-        const registryConfig = process.env.ENSV2_REGISTRY_ADDRESS;
-        if (!registryConfig || !isAddress(registryConfig)) throw new Error("ENSv2 registry not configured");
-        const registry = getAddress(payload.registry);
-        const config = { agent: getAddress(payload.agent), registry, nameId: uint(payload.nameId),
-          expectedResource: uint(payload.expectedResource), dailyCap: uint(payload.dailyCap),
-          maxPerPayment: uint(payload.maxPerPayment), expiry: uint(payload.expiry, 64n) };
-        if (registry.toLowerCase() !== registryConfig.toLowerCase() || config.agent === zeroAddress ||
-          config.expectedResource === 0n || config.dailyCap === 0n || config.maxPerPayment === 0n ||
-          config.maxPerPayment > config.dailyCap || config.expiry <= context.block.timestamp) {
-          throw new Error("Invalid mandate terms");
-        }
-        const allocationId = uint(payload.allocationId);
-        const [allocation, nextId, authorized] = await Promise.all([
-          publicClient.readContract({ address: context.space, abi: spaceAccountAbi, functionName: "allocations",
-            args: [allocationId], blockNumber: context.block.number }),
-          publicClient.readContract({ address: context.space, abi: spaceAccountAbi, functionName: "nextAllocationId",
-            blockNumber: context.block.number }),
-          publicClient.readContract({ address: context.adapter, abi: ensPermissionAdapterAbi, functionName: "isAuthorized",
-            args: [registry, config.nameId, config.expectedResource, config.agent], blockNumber: context.block.number }),
-        ]);
-        if (allocationId === 0n || allocationId >= nextId || allocation[6] || allocation[0] !== zeroAddress || !authorized) {
-          throw new Error("Allocation or ENS authority unavailable");
-        }
-        const permit = await makePermit(context, payload.requestKey, PermitAction.SetMandate,
-          allocationId, config.agent, 0n, hashMandateTerms(config));
-        if (permit.expiry > config.expiry) permit.expiry = config.expiry;
-        const signature = await signSpacePermit(context.signer, context.space, permit);
-        const args = [allocationId, config, permit, signature] as const;
-        await publicClient.simulateContract({ address: context.space, abi: spaceAccountAbi,
-          functionName: "setMandate", args, account: context.actor });
-        // Shown only after this permit executes and the mandate still names this agent.
-        if (agentName) await db.client.insert(allocationNames).values({
-          requestId: permit.requestId, spaceAddress: context.space, allocationId: allocationId.toString(),
-          beneficiary: config.agent, name: agentName, resolvedBlock: context.block.number.toString(),
-        }).onConflictDoNothing();
-        return envelope(context, permit, signature, "setMandate",
-          encodeFunctionData({ abi: spaceAccountAbi, functionName: "setMandate", args }), 0n);
-      },
-      catch: () => new HttpApiError.BadRequest(),
-    });
-  })));
+  // Legacy raw mandate requests cannot bypass the owner approval workflow.
+  .handle("setMandate", () => Effect.fail(new HttpApiError.Forbidden())));

@@ -1,6 +1,6 @@
 import { sepolia } from "viem/chains";
 
-export { spaceAccountAbi, spaceFactoryAbi, ensPermissionAdapterAbi, accordForwarderAbi, accordTestUSDCAbi } from "./generated";
+export { spaceAccountAbi, spaceFactoryAbi, ensPermissionAdapterAbi, hierarchicalEnsPermissionAdapterAbi, accordForwarderAbi, accordTestUSDCAbi } from "./generated";
 export * from "./permit";
 export * from "./allocation-window";
 

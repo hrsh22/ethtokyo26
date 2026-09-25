@@ -46,7 +46,7 @@ export function ruleSentence(entry: { allocation: Allocation; mandate: Mandate; 
   if (beneficiary === zeroAddress) {
     const [, , , , dailyCap, maxPerPayment, , , expiry, active] = entry.mandate;
     if (!active) return "An agent budget. It can't pay anyone until you grant a mandate.";
-    return `Pays screened recipients up to ${units(maxPerPayment)} at a time and ${units(dailyCap)} a day, until ${shortDate(expiry)}.`;
+    return `Pays up to ${units(maxPerPayment)} at a time and ${units(dailyCap)} a day, until ${shortDate(expiry)}.`;
   }
   if (period === 0) return `Can claim what's left, ${units(remaining)}, with a fresh World ID check each time.`;
   const until = entry.schedule ? ` until ${shortDateTime(entry.schedule[1])}` : "";

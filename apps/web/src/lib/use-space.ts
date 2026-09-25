@@ -66,7 +66,7 @@ export function useSpace(address: string) {
   const decimals = meta.data?.decimals;
   const symbol = meta.data?.symbol ?? "tokens";
   return {
-    meta, draft, terms, names, isOwner, decimals, symbol,
+    meta, draft, profile, terms, names, isOwner, decimals, symbol,
     units: (value: bigint) => amount(value, decimals, symbol),
     label: (entry: SpaceAllocation) => allocationLabel(entry, names.data?.names),
     title: draft.data?.name ?? profile.data?.name ?? `Space ${shortAddress(address)}`,

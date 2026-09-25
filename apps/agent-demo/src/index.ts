@@ -1,5 +1,5 @@
 import { accordChain, accordForwarderAbi, PermitAction, spaceAccountAbi, type SpacePermit } from "@accord/chain";
-import { createAccordClient, paymentDecision, type PermitRequest } from "@accord/sdk";
+import { createAccordClient, paymentDecision, paymentApprovalRequired, type PermitRequest } from "@accord/sdk";
 import {
   createPublicClient,
   encodeFunctionData,
@@ -61,15 +61,23 @@ if (!draftId || !allocationId || (!researchTask && (!amount || !recipient || !re
   if (quote) console.log(JSON.stringify({ step: "quote", quote }));
   const request = { draftId, allocationId, amount: quote?.amount ?? amount!,
     recipient: getAddress(quote?.recipient ?? recipient!), requestKey: quote?.id ?? requestKey! } satisfies PermitRequest;
-  const authorization = await client.authorizePayment(request).catch((error: unknown) => {
-    const decision = paymentDecision(error);
-    if (decision) console.log(JSON.stringify({ step: "decision", decision }));
-    throw new Error(decision?.reason ?? "Payment authorization failed; no transaction submitted.");
-  });
-  console.log(JSON.stringify({ step: "decision", decision: authorization.decision }));
-  if (authorization.riskVerdict !== "allow" || !authorization.signature) {
-    throw new Error("Payment was not authorized with an allow verdict and signature");
+  async function authorize() {
+    const deadline=Date.now()+8*60_000;
+    let lastId="";
+    while(true) {
+      try{return await client.authorizePayment(request);}
+      catch(error) {
+        const approval=paymentApprovalRequired(error);
+        if(!approval){const decision=paymentDecision(error);if(decision)console.log(JSON.stringify({step:"decision",decision}));throw error;}
+        if(approval.id!==lastId){lastId=approval.id;console.log(JSON.stringify({step:"human-approval-required",requestId:approval.id,reviewUrl:`${process.env.WEB_ORIGIN??"https://accord.hrsh.dev"}/approvals/${approval.id}`,amount:request.amount,recipient:request.recipient}));}
+        if(Date.now()>=deadline)throw new Error("Approval timed out. No transaction submitted. Resume with the same request key.");
+        await new Promise(resolve=>setTimeout(resolve,4000));
+      }
+    }
   }
+  const authorization = await authorize();
+  console.log(JSON.stringify({step:"authorized",requestId:authorization.permit.requestId}));
+  if(!authorization.signature)throw new Error("Payment was not authorized.");
   if (getAddress(authorization.permit.actor) !== account.address) {
     throw new Error("Authorized permit actor does not match the configured agent key");
   }

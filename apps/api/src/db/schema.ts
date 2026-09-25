@@ -119,3 +119,55 @@ export const researchQuotes = sqliteTable("research_quotes", {
   transactionHash: text("transaction_hash").unique(),
   createdAt: createdAt(),
 });
+
+// OIDC subjects are private to the backend and separate from IDKit sessions.
+export const ownerIdentities = sqliteTable("owner_identities", {
+  address: text("address").primaryKey(), id: text("id").notNull(),
+  issuer: text("issuer").notNull(), subject: text("subject").notNull(),
+  createdAt: createdAt(),
+});
+
+export const agentRequests = sqliteTable("agent_requests", {
+  id: text("id").primaryKey(), kind: text("kind").notNull(),
+  owner: text("owner").notNull(), actor: text("actor").notNull(),
+  draftId: text("draft_id").notNull(), spaceAddress: text("space_address").notNull(),
+  allocationId: text("allocation_id").notNull(), requestKey: text("request_key").notNull(),
+  payload: text("payload").notNull(), policyVersion: text("policy_version").notNull(),
+  status: text("status").notNull().default("pending"),
+  identityId: text("identity_id"), verifiedAt: timestamp("verified_at"),
+  verificationSession: text("verification_session"),
+  expiresAt: timestamp("expires_at").notNull(),
+  envelope: text("envelope"), permitIntentId: text("permit_intent_id"),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("agent_requests_actor_key").on(t.actor, t.requestKey), index("agent_requests_owner").on(t.owner)]);
+
+export const worldAuthorizations = sqliteTable("world_authorizations", {
+  stateHash: text("state_hash").primaryKey(), requestId: text("request_id").notNull(),
+  sessionHash: text("session_hash").notNull(), owner: text("owner").notNull(),
+  nonce: text("nonce").notNull(), verifier: text("verifier").notNull(),
+  expiresAt: timestamp("expires_at").notNull(), consumedAt: timestamp("consumed_at"),
+  createdAt: createdAt(),
+});
+
+export const spaceNamespaces = sqliteTable("space_namespaces", {
+  spaceAddress: text("space_address").primaryKey(), draftId: text("draft_id").notNull(),
+  name: text("name").notNull(), registry: text("registry").notNull(),
+  createdAt: createdAt(),
+});
+
+export const agentPolicies = sqliteTable("agent_policies", {
+  requestId: text("request_id").primaryKey(), spaceAddress: text("space_address").notNull(),
+  allocationId: text("allocation_id").notNull(),
+  name: text("name").notNull(), agent: text("agent").notNull(),
+  registry: text("registry").notNull(), nameId: text("name_id").notNull(), resource: text("resource").notNull(),
+  dailyCap: text("daily_cap").notNull(), maxPerPayment: text("max_per_payment").notNull(),
+  approvalThreshold: text("approval_threshold").notNull(), expiry: text("expiry").notNull(),
+  permitRequestId: text("permit_request_id").notNull(),
+  revokedAt: timestamp("revoked_at"), createdAt: createdAt(),
+}, (t) => [index("agent_policies_allocation").on(t.spaceAddress, t.allocationId)]);
+
+// Persist predicted proxy addresses before broadcasting; retries recover receipts.
+export const namespaceDeployments = sqliteTable("namespace_deployments", {
+  id: text("id").primaryKey(), address: text("address").notNull(),
+  transactionHash: text("transaction_hash"), createdAt: createdAt(),
+});

@@ -240,7 +240,8 @@ contract SpaceAccountTest {
 
     function testTopUpAndRecoveryCannotDoubleSpend() public {
         uint256 id = _createAllocation(address(0), 10 * UNIT, 10 * UNIT, SpaceAccount.Period.None);
-        space.fundAllocation(id, 10 * UNIT);
+        SpaceAccount.Permit memory funding = _permit(address(this), SpaceAccount.Action.FundAgentAllocation, id, address(this), 10 * UNIT, bytes32(0));
+        space.fundAgentAllocation(id, 10 * UNIT, funding, _sign(funding));
         registry.setState(NAME_ID, IEnsV2Registry.Status.REGISTERED, agent,
             uint64(block.timestamp + 10 days), RESOURCE);
         _setMandate(id);

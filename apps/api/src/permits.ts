@@ -1,4 +1,4 @@
-import { AccordApi, DecisionRejected, ScreeningUnavailable } from "@accord/api-contract";
+import { AccordApi, DecisionRejected, AgentApprovalRequired, AgentActionError } from "@accord/api-contract";
 import { allocationWindow, ensPermissionAdapterAbi, hashSpacePermit, PermitAction, signSpacePermit, spaceAccountAbi, type SpacePermit } from "@accord/chain";
 import { HttpApiBuilder, HttpApiError } from "@effect/platform";
 import { and, eq, gt, isNotNull, isNull } from "drizzle-orm";
@@ -10,7 +10,9 @@ import { adapterAddress, permitSigner, publicClient } from "./chain";
 import { Database } from "./db";
 import { databaseOperation } from "./db/run";
 import { permitIntents, researchQuotes, spaceDrafts } from "./db/schema";
-import { screenRecipient } from "./risk";
+import { paymentApproval, assertPaymentApproval } from "./payment-approval";
+import { serial } from "./serial";
+import { agentRequests } from "./db/schema";
 
 type IntentRow = typeof permitIntents.$inferSelect;
 type Kind = "claim" | "pay";
@@ -50,11 +52,7 @@ function response(row: IntentRow) {
     },
     ...(row.signature ? { signature: row.signature } : {}),
     worldVerified: !!row.worldVerifiedAt,
-    ...(row.signature && row.action === "pay" ? { riskVerdict: "allow" as const,
-      decision: { outcome: "allow" as const, code: "screening_passed",
-        reason: "ENS authority and spending limits passed. Intercepta reported zero toxic score and no risk traits.",
-        checkedAt: row.riskCheckedAt!.toISOString(), toxicScore: Number(row.riskScore), traits: [] as string[] },
-    } : {}),
+
   };
 }
 
@@ -170,34 +168,35 @@ export const PermitsLive = HttpApiBuilder.group(AccordApi, "permits", (handlers)
       const session = yield* currentSession();
       if (!payload.recipient || !isAddress(payload.recipient)) return yield* Effect.fail(new HttpApiError.BadRequest());
       const actor = getAddress(session.address);
-      const row = yield* prepareIntent("pay", payload, actor);
-      if (row.signature) return yield* reusableSignedIntent(row);
       const db = yield* Database;
-      const screened = yield* Effect.tryPromise({
-        try: () => screenRecipient(row.recipient),
-        catch: () => new ScreeningUnavailable({ decision: { outcome: "unavailable", code: "screening_unavailable",
-          reason: "Intercepta screening is unavailable. Payment is paused; no signature was issued. Try again once screening is available.",
-          checkedAt: new Date().toISOString(), traits: [] } }),
+      return yield* Effect.tryPromise({
+        try: async () => {
+          const approval = await paymentApproval(db.client, payload, actor);
+          return serial(approval ? `approval:${approval.id}` : `payment:${actor}:${payload.requestKey}`, async () => {
+            // Recheck inside the same lock used by approval/denial.
+            const current = approval ? await assertPaymentApproval(db.client, approval.id, approval.permitIntentId ?? undefined) : null;
+            const effect = Effect.gen(function* () {
+              const row = yield* prepareIntent("pay", payload, actor, current?.expiresAt);
+              if (current?.permitIntentId && current.permitIntentId !== row.id) throw new Error("Approval already used");
+              const result = yield* (row.signature ? reusableSignedIntent(row) : signIntent(row));
+              if (current) yield* databaseOperation(() => db.client.update(agentRequests)
+                .set({ status: "issued", permitIntentId: row.id }).where(eq(agentRequests.id, current.id)));
+              return result;
+            }).pipe(Effect.provideService(Database, db), Effect.either);
+            const result = await Effect.runPromise(effect);
+            if (result._tag === "Left") throw result.left;
+            return result.right;
+          });
+        },
+        catch: (error) => error instanceof AgentApprovalRequired || error instanceof AgentActionError || error instanceof DecisionRejected
+          ? error : new HttpApiError.Forbidden(),
       });
-      yield* databaseOperation(() => db.client.update(permitIntents).set({
-        riskScore: screened.toxicScore.toString(),
-        riskTraits: JSON.stringify(screened.traits),
-        riskCheckedAt: new Date(screened.checkedAt),
-      }).where(eq(permitIntents.id, row.id)));
-      if (screened.verdict !== "allow") return yield* Effect.fail(new DecisionRejected({ decision: {
-        outcome: "block", code: "recipient_risk", checkedAt: screened.checkedAt, toxicScore: screened.toxicScore,
-        traits: screened.traits.map((trait) => trait.name),
-        reason: `Intercepta reported toxic score ${screened.toxicScore}${screened.traits.length ? ` and risk traits: ${screened.traits.map((trait) => trait.name.replaceAll("_", " ")).join(", ")}` : ""}. Accord requires zero score and no reported traits; no payment signature was issued.`,
-      } }));
-      const current = yield* databaseOperation(() => db.client.select().from(permitIntents)
-        .where(eq(permitIntents.id, row.id)).limit(1));
-      return yield* signIntent(current[0]!);
     })),
 );
 
 function prepareIntent(kind: Kind, payload: {
   draftId: string; allocationId: string; amount: string; requestKey: string; recipient?: string;
-}, actor: Address) {
+}, actor: Address, approvalExpiry?: Date) {
   return Effect.gen(function* () {
     const db = yield* Database;
     const existing = yield* databaseOperation(() => db.client.select().from(permitIntents).where(and(
@@ -230,6 +229,7 @@ function prepareIntent(kind: Kind, payload: {
       catch: (error) => error instanceof DecisionRejected ? error : new HttpApiError.Forbidden(),
     });
     let expiry = new Date(Date.now() + (kind === "pay" ? 2 * 60_000 : 10 * 60_000));
+    if (approvalExpiry) expiry = new Date(Math.min(expiry.getTime(), approvalExpiry.getTime()));
     const [quote] = yield* databaseOperation(() => db.client.select().from(researchQuotes)
       .where(eq(researchQuotes.id, payload.requestKey)).limit(1));
     if (quote) {
@@ -276,8 +276,7 @@ function signIntent(row: IntentRow) {
     if (row.signature) return yield* reusableSignedIntent(row);
     if (row.expiry <= new Date()) return yield* Effect.fail(denied("permission_expired", "This permission has expired. Start a fresh request before asking your wallet to pay."));
     if (row.action === "claim" && !row.worldVerifiedAt) return yield* Effect.fail(new HttpApiError.Forbidden());
-    if (row.action === "pay" && (!row.riskCheckedAt || row.riskScore !== "0" || row.riskTraits !== "[]" ||
-      Date.now() - row.riskCheckedAt.getTime() > 60_000)) return yield* Effect.fail(new HttpApiError.Forbidden());
+
     const db = yield* Database;
     const draftRows = yield* databaseOperation(() => db.client.select().from(spaceDrafts)
       .where(eq(spaceDrafts.id, row.draftId)).limit(1));
@@ -300,7 +299,7 @@ function signIntent(row: IntentRow) {
     const saved = yield* databaseOperation(() => db.client.update(permitIntents)
       .set({ signature, signedAt: new Date() })
       .where(and(eq(permitIntents.id, row.id), isNull(permitIntents.signature), gt(permitIntents.expiry, new Date()),
-        ...(row.action === "claim" ? [isNotNull(permitIntents.worldVerifiedAt)] : [isNotNull(permitIntents.riskCheckedAt)])))
+        ...(row.action === "claim" ? [isNotNull(permitIntents.worldVerifiedAt)] : [])))
       .returning());
     if (saved.length === 1) return response(saved[0]!);
     const concurrent = yield* databaseOperation(() => db.client.select().from(permitIntents)

@@ -60,7 +60,7 @@ export function WorldIdCard() {
     </div>
     {status.data && !linked ? <Button className="mt-5" loading={busy === "link"} disabled={!!busy} onClick={() => void begin()}>Link World ID</Button> : null}
     <Sheet open={confirmUnlink} onOpenChange={setConfirmUnlink} busy={busy === "unlink"}
-      title="Unlink World ID?" description="You can link it again later. Claims already made won't change.">
+      title="Unlink World ID?" description="Unlinking is enabled for demo purposes only and will be removed later.">
       <div className="flex justify-end gap-2">
         <Button variant="soft" disabled={busy === "unlink"} onClick={() => setConfirmUnlink(false)}>Keep linked</Button>
         <Button variant="danger" loading={busy === "unlink"} onClick={() => void unlink()}>Unlink</Button>

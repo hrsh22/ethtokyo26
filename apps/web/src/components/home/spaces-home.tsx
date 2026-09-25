@@ -1,5 +1,6 @@
 "use client";
 
+import { ApprovalInbox } from "../approval-inbox";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
@@ -68,6 +69,7 @@ export function SpacesHome() {
       </motion.ul>
       <div className="mt-8 grid gap-4 lg:grid-cols-2"><DemoTokenFaucet /><WorldIdCard /></div>
     </>}
+    <ApprovalInbox />
     <section className="mt-12" aria-labelledby="received-title">
       <h2 id="received-title" className="font-display text-3xl font-extrabold">Shared with you</h2>
       {received.isPending ? <div className="card mt-4 p-6 text-muted">Looking for allowances…</div>

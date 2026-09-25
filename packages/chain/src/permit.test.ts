@@ -76,7 +76,7 @@ describe("SpaceAccount permit encoding", () => {
   it.each([
     { nonce: -1n }, { nonce: 1n << 256n }, { expiry: 1n << 64n },
     { policyVersion: -1n }, { requestId: zeroHash }, { requestId: "0x01" },
-    { detailsHash: "0x01" }, { actor: zeroAddress }, { action: 6 },
+    { detailsHash: "0x01" }, { actor: zeroAddress }, { action: 7 },
   ])("rejects malformed or unexecutable permits: %#", (change) => {
     expect(() => hashSpacePermit(space, { ...permit, ...change } as SpacePermit)).toThrow();
   });
