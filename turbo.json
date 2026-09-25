@@ -1,7 +1,8 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
+  "globalPassThroughEnv": ["ENABLE_EXPERIMENTAL_COREPACK"],
   "tasks": {
-    "build": { "dependsOn": ["^build"], "outputs": ["dist/**", ".next/**"] },
+    "build": { "dependsOn": ["^build"], "env": ["API_URL", "NEXT_PUBLIC_*", "ACCORD_LOCAL_E2E"], "outputs": ["dist/**", ".next/**"] },
     "dev": { "dependsOn": ["^build"], "cache": false, "persistent": true },
     "typecheck": { "dependsOn": ["^build"], "outputs": [] },
     "lint": { "outputs": [] },

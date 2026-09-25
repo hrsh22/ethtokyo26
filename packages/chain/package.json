@@ -6,7 +6,7 @@
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
   "scripts": {
     "generate": "node ../../scripts/generate-chain-abi.mjs",
-    "build": "pnpm generate && tsup src/index.ts --format esm --dts --clean",
+    "build": "tsup src/index.ts --format esm --dts --clean",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },

@@ -4,6 +4,8 @@ Accord is a permission protocol for moving ERC-20 tokens on Ethereum Sepolia. A 
 
 See the concise [product plan](research/accord-plan.md) and [implementation plan](research/accord-implementation-plan.md).
 
+For the PM2 API on this machine and the Vercel web deployment, see the [deployment guide](docs/deployment.md).
+
 The [demo guide](docs/demo-guide.md) covers the paid-report task, standalone agent, live demo script, and source pointers. [Integration feedback](docs/integration-feedback.md) records completed checks and pending live evidence.
 
 Owners can share a Space link so recipients can inspect its name, rules and transaction history before connecting their permitted wallet. Confirmed activity links to receipts, and the browser can recover a paid report after refresh without requesting another payment. `pnpm ready:live` checks deployment and integration readiness without submitting transactions; see the demo guide for its results and remaining manual checks.
