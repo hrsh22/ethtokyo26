@@ -4,19 +4,21 @@ import { PermitAction, spaceAccountAbi } from "@accord/chain";
 import { paymentDecision, type AccordClient, type Decision } from "@accord/sdk";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BaseError, UserRejectedRequestError, formatUnits, getAddress, keccak256, toBytes, type Hex } from "viem";
+import { FileSearch, RotateCcw } from "lucide-react";
+import { BaseError, UserRejectedRequestError, getAddress, keccak256, toBytes, type Hex } from "viem";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { PaymentDecision } from "./payment-decision";
+import { amount as formatAmount, shortAddress } from "@/lib/format";
+import { explorerTx } from "@/lib/use-chain-actions";
 import { purchaseStorageKey, readPurchase, savePurchase, transactionHash as validTransactionHash, type SavedPurchase } from "@/lib/purchase-storage";
+import { PaymentDecision } from "./payment-decision";
+import { Button } from "./ui/button";
 
 type Report = Awaited<ReturnType<AccordClient["researchRedeem"]>>;
 class PurchaseMessage extends Error {}
 
-export function ResearchPurchase({ client, draftId, decimals, symbol, account }: {
-  client: AccordClient; draftId: string; decimals?: number; symbol: string; account: string;
+/** A demo paid task: the agent buys a report, and the seller releases it only after verifying the exact onchain payment. */
+export function ResearchPurchase({ client, draftId, allocationId, decimals, symbol, account }: {
+  client: AccordClient; draftId: string; allocationId: string; decimals?: number; symbol: string; account: string;
 }) {
   const publicClient = usePublicClient({ chainId: 11155111 });
   const connection = useAccount();
@@ -36,7 +38,7 @@ export function ResearchPurchase({ client, draftId, decimals, symbol, account }:
   const [storageWarning, setStorageWarning] = useState(false);
   const [reverted, setReverted] = useState(false);
   const [stage, setStage] = useState("");
-  const units = (amount: string) => decimals === undefined ? `${amount} base units` : `${formatUnits(BigInt(amount), decimals)} ${symbol}`;
+  const units = (value: string) => formatAmount(BigInt(value), decimals, symbol);
 
   function remember(purchase: SavedPurchase | null) {
     queryClient.setQueryData(purchaseKey, purchase);
@@ -44,13 +46,10 @@ export function ResearchPurchase({ client, draftId, decimals, symbol, account }:
     catch { setStorageWarning(true); }
   }
 
-  async function requestQuote(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const allocationId = String(new FormData(event.currentTarget).get("allocationId") ?? "").trim();
-    if (!/^[1-9][0-9]*$/.test(allocationId)) { setMessage("Enter an agent allocation ID."); return; }
+  async function requestQuote() {
     setBusy(true); setMessage(undefined); setDecision(undefined);
     try { remember({ version: 1, quote: await client.researchQuote({ draftId, allocationId }), submitted: false }); setReport(undefined); setReverted(false); }
-    catch { setMessage("This report service is not available for this Space. It needs the configured demo asset and a seller address."); }
+    catch { setMessage("The report service isn't available for this Space. It needs the demo token and a configured seller."); }
     finally { setBusy(false); }
   }
 
@@ -61,8 +60,8 @@ export function ResearchPurchase({ client, draftId, decimals, symbol, account }:
       if (connection.chainId !== 11155111 || connection.address?.toLowerCase() !== account.toLowerCase()) throw new PurchaseMessage("Reconnect the signed-in agent wallet on Sepolia.");
       let transactionHash = recoveredHash ?? hash;
       if (!transactionHash) {
-        if (Date.parse(quote.expiresAt) <= Date.now()) throw new PurchaseMessage("This quote expired. Request a new quote before paying. If a payment was already sent, use its transaction hash to retrieve the report.");
-        setStage("Checking permission and recipient…");
+        if (Date.parse(quote.expiresAt) <= Date.now()) throw new PurchaseMessage("This quote expired. Get a new one before paying. If you already paid, retrieve the report with the payment's transaction hash.");
+        setStage("Checking the mandate and screening the seller");
         const authorization = await client.authorizePayment({ draftId, allocationId: quote.allocationId,
           requestKey: quote.id, recipient: getAddress(quote.recipient), amount: quote.amount });
         if (!authorization.signature || authorization.riskVerdict !== "allow") throw new PurchaseMessage("Payment was not authorized.");
@@ -71,10 +70,10 @@ export function ResearchPurchase({ client, draftId, decimals, symbol, account }:
         if (authorization.spaceAddress.toLowerCase() !== quote.spaceAddress.toLowerCase() ||
           p.actor.toLowerCase() !== account.toLowerCase() || p.recipient.toLowerCase() !== quote.recipient.toLowerCase() ||
           p.amount !== quote.amount || p.allocationId !== quote.allocationId || p.action !== PermitAction.Pay ||
-          p.requestId !== keccak256(toBytes(quote.id))) throw new PurchaseMessage("The authorization does not match this purchase.");
+          p.requestId !== keccak256(toBytes(quote.id))) throw new PurchaseMessage("The authorization doesn't match this purchase.");
         // Save before opening the wallet: an interrupted response may hide an already-sent transaction.
         remember({ version: 1, quote, submitted: true });
-        setStage("Confirm in your wallet…");
+        setStage("Confirm in your wallet");
         transactionHash = await writeContractAsync({ address: getAddress(authorization.spaceAddress), abi: spaceAccountAbi,
           functionName: "pay", chainId: 11155111,
           args: [BigInt(p.allocationId), getAddress(p.recipient), BigInt(p.amount), {
@@ -84,57 +83,71 @@ export function ResearchPurchase({ client, draftId, decimals, symbol, account }:
           }, authorization.signature as Hex] });
       }
       remember({ version: 1, quote, hash: transactionHash, submitted: true });
-      setStage("Waiting for payment confirmation…");
+      setStage("Waiting for the payment to confirm");
       const receipt = await publicClient.waitForTransactionReceipt({ hash: transactionHash, timeout: 90_000,
         onReplaced: ({ transactionReceipt, reason }) => {
           transactionHash = transactionReceipt.transactionHash;
           remember({ version: 1, quote, hash: transactionHash, submitted: true });
           if (reason === "cancelled") setReverted(true);
         } });
-      if (receipt.status !== "success") { setReverted(true); throw new PurchaseMessage("The payment reverted. No funds were paid; you can start a new purchase."); }
-      setStage("Retrieving your report…");
-      await queryClient.invalidateQueries({ queryKey: ["space-terms", quote.spaceAddress] });
-      await queryClient.invalidateQueries({ queryKey: ["space-activity", quote.spaceAddress] });
+      if (receipt.status !== "success") { setReverted(true); throw new PurchaseMessage("The payment reverted. Nothing was paid; you can start a new purchase."); }
+      setStage("Fetching your report");
+      await Promise.all(["space-terms", "space-activity", "allocation"].map((key) => queryClient.invalidateQueries({ queryKey: [key, getAddress(quote.spaceAddress)] })));
       setReport(await client.researchRedeem({ quoteId: quote.id, transactionHash: receipt.transactionHash }));
     } catch (error) {
       const nextDecision = paymentDecision(error);
       if (error instanceof BaseError && error.walk((cause) => cause instanceof UserRejectedRequestError)) {
         remember({ version: 1, quote, submitted: false });
         setDecision(undefined);
-        setMessage("You declined the wallet request. No payment was submitted; retry or request a fresh quote.");
+        setMessage("You declined in your wallet, so nothing was paid. Try again or get a fresh quote.");
       }
       else if (nextDecision) setDecision(nextDecision);
       else if (error instanceof PurchaseMessage) setMessage(error.message);
-      else setMessage("The purchase did not finish. If your wallet sent a transaction, retrieve it using the payment reference. Retrieval never asks for another payment. If the wallet request was rejected, retry the same purchase.");
+      else setMessage("The purchase didn't finish. If your wallet sent a payment, retrieve it with the transaction hash below. Retrieving never charges again.");
     } finally { setBusy(false); setStage(""); }
   }
 
   function recover(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const value = String(new FormData(event.currentTarget).get("transactionHash") ?? "").trim();
-    if (!validTransactionHash.test(value)) { setMessage("Enter the full transaction hash from your wallet activity."); return; }
+    if (!validTransactionHash.test(value)) { setMessage("Paste the full transaction hash from your wallet activity."); return; }
     void buy(value as Hex);
   }
 
-  return <article className="research-purchase">
-    <div className="research-purchase__intro"><div><h4>Give your agent a task</h4><p>Purchase an onchain spending report: funds remaining, daily headroom, and ENS authority at the payment block. The service verifies the exact receipt before releasing the result.</p></div><span>Demo research service</span></div>
-    {saved.isPending ? <p role="status">Checking for a saved purchase…</p> : null}
-    {!saved.isPending && !saved.data?.submitted ? <form onSubmit={requestQuote} className="space-console__form compact">
-      <Label className="space-console__field">Agent allocation ID<Input name="allocationId" inputMode="numeric" required placeholder="2" /></Label>
-      <Button variant="outline" disabled={busy}>Get report quote</Button>
-    </form> : null}
-    {quote ? <div className="research-purchase__quote"><div><strong>{quote.title} · {units(quote.amount)}</strong><p>Seller <span className="address-text">{quote.recipient}</span></p><small>Quote expires {new Date(quote.expiresAt).toLocaleTimeString()} · Allocation {quote.allocationId}</small><p>Purchase reference: <span className="address-text">{quote.id}</span></p></div>
-      {!report && !reverted ? <Button onClick={() => void buy()} disabled={busy || decimals === undefined}>{busy ? stage || "Checking purchase…" : hash ? "Retrieve paid report" : saved.data?.submitted ? "Retry same wallet request" : `Pay ${units(quote.amount)} & get report`}</Button> : null}
+  const receiptLink = hash ? explorerTx(hash) : undefined;
+  return <section className="card p-6" aria-labelledby="task-heading">
+    <div className="flex items-start gap-4">
+      <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-sky-soft text-[#2B7CC4]"><FileSearch size={22} /></span>
+      <div><h2 id="task-heading" className="font-display text-2xl font-extrabold">Give your agent a task</h2>
+        <p className="mt-1 text-sm text-muted">Buy an onchain spending report from the demo research service. The seller checks the exact payment before releasing it.</p></div>
+    </div>
+    {saved.isPending ? <p role="status" className="mt-4 text-sm text-muted">Checking for a saved purchase…</p> : null}
+    {!saved.isPending && !quote ? <Button variant="soft" className="mt-5" loading={busy} onClick={() => void requestQuote()}>Get a quote</Button> : null}
+    {quote ? <div className="mt-5 rounded-3xl bg-soft p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2"><b className="text-lg">{quote.title}</b><b className="font-display text-2xl font-extrabold">{units(quote.amount)}</b></div>
+      <p className="mt-1 text-sm text-muted">Seller <span className="address">{shortAddress(quote.recipient)}</span>. Quote valid until {new Date(quote.expiresAt).toLocaleTimeString()}.</p>
+      {!report && !reverted ? <Button className="mt-4" loading={busy} onClick={() => void buy()}>{busy ? stage || "Working" : hash ? "Retrieve the report" : saved.data?.submitted ? "Retry the same payment" : `Pay ${units(quote.amount)} and get the report`}</Button> : null}
     </div> : null}
-    {saved.data?.submitted && !report && !reverted ? <div className="research-purchase__recovery"><p>Your purchase reference is saved in this browser for this wallet and Space. Retrieve an existing payment without paying again. If the wallet response was interrupted, use the transaction hash from wallet activity.</p><form onSubmit={recover} className="space-console__form compact"><Label className="space-console__field">Existing payment hash<Input name="transactionHash" placeholder="0x…" required autoComplete="off" /></Label><Button variant="outline" disabled={busy}>Retrieve existing payment</Button></form></div> : null}
-    {storageWarning ? <p role="status">Browser storage is unavailable. Keep this page open and save the purchase and payment references.</p> : null}
-    {decision ? <PaymentDecision decision={decision} settled={!!report} /> : null}
-    {message ? <p role="status" className="research-purchase__message">{message}</p> : null}
-    {hash ? <p className="research-purchase__receipt">Payment reference: <span className="address-text">{hash}</span>{process.env.NEXT_PUBLIC_ACCORD_LOCAL_E2E !== "1" ? <> · <a href={`https://sepolia.etherscan.io/tx/${hash}`} target="_blank" rel="noreferrer">View receipt</a></> : null}</p> : null}
-    {report ? <section className="research-purchase__result" aria-label="Purchased spending report"><h4>Report delivered</h4><p>Verified payment · snapshot at block {report.blockNumber}</p>
-      <dl><div><dt>Allocation remaining</dt><dd>{units(report.remaining)}</dd></div><div><dt>Daily headroom</dt><dd>{units(report.dailyRemaining)}</dd></div><div><dt>Maximum payment</dt><dd>{units(report.maxPerPayment)}</dd></div><div><dt>ENS authority</dt><dd>{report.ensAuthorized ? "Active" : "Unavailable"}</dd></div></dl>
-      <p>{report.mandateActive ? "Mandate active" : "Mandate inactive"} · expires {new Date(report.mandateExpiry).toLocaleString()}. This snapshot describes the payment block; current permissions may change.</p>
+    {saved.data?.submitted && !report && !reverted ? <details className="mt-4 text-sm">
+      <summary className="cursor-pointer font-semibold text-muted">Paid but the report didn’t arrive?</summary>
+      <p className="mt-2 text-muted">Your purchase is saved in this browser. Paste the payment’s transaction hash to fetch the report without paying again.</p>
+      <form onSubmit={recover} className="mt-2 flex gap-2"><label htmlFor="report-hash" className="sr-only">Payment transaction hash</label>
+        <input id="report-hash" name="transactionHash" className="field" placeholder="0x…" required autoComplete="off" spellCheck={false} />
+        <Button variant="soft" className="h-[50px]" disabled={busy}>Retrieve</Button></form>
+    </details> : null}
+    {storageWarning ? <p role="status" className="mt-3 text-sm text-warn">Browser storage is off. Keep this page open and note the transaction hash.</p> : null}
+    {decision ? <div className="mt-4"><PaymentDecision decision={decision} settled={!!report} /></div> : null}
+    {message ? <p role="status" className="mt-4 rounded-2xl bg-warn-soft px-4 py-3 text-sm font-medium text-warn">{message}</p> : null}
+    {hash ? <p className="mt-3 text-sm text-muted">Payment <span className="address">{shortAddress(hash)}</span>{receiptLink ? <> · <a href={receiptLink} target="_blank" rel="noreferrer" className="font-semibold text-[#6f4bea]">receipt</a></> : null}</p> : null}
+    {report ? <section aria-label="Purchased spending report" className="mt-5 rounded-3xl bg-lime-soft p-5">
+      <h3 className="font-display text-xl font-extrabold">Report delivered</h3>
+      <p className="text-sm text-muted">Verified payment, snapshot at block {report.blockNumber}</p>
+      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+        {[["Budget left", units(report.remaining)], ["Left today", units(report.dailyRemaining)], ["Max per payment", units(report.maxPerPayment)], ["ENS authority", report.ensAuthorized ? "Active" : "Unavailable"]].map(([term, value]) =>
+          <div key={term} className="rounded-2xl bg-white p-3"><dt className="text-muted">{term}</dt><dd className="font-semibold">{value}</dd></div>)}
+      </dl>
+      <p className="mt-3 text-sm text-muted">{report.mandateActive ? "Mandate active" : "Mandate inactive"}, ends {new Date(report.mandateExpiry).toLocaleString()}. This describes the payment block; permissions may have changed since.</p>
     </section> : null}
-    {report || reverted ? <Button variant="outline" onClick={() => { remember(null); setReport(undefined); setReverted(false); setDecision(undefined); setMessage(undefined); }}>Start another purchase</Button> : null}
-  </article>;
+    {report || reverted ? <Button variant="soft" className="mt-4" onClick={() => { remember(null); setReport(undefined); setReverted(false); setDecision(undefined); setMessage(undefined); }}><RotateCcw />Start another purchase</Button> : null}
+  </section>;
 }

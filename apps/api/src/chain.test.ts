@@ -20,7 +20,7 @@ function createdLog(overrides: { factory?: Address; owner?: Address; authorizer?
 }
 
 function receipt(overrides: Record<string, unknown> = {}) {
-  return { status: "success", from: owner, to: factory, logs: [createdLog()], ...overrides } as TransactionReceipt;
+  return { status: "success", from: owner, to: factory, blockNumber: 1234n, logs: [createdLog()], ...overrides } as TransactionReceipt;
 }
 
 beforeEach(() => {
@@ -41,17 +41,17 @@ describe("Space activation receipt validation", () => {
   it("accepts an explicitly retained factory after an upgrade", async () => {
     vi.stubEnv("SPACE_FACTORY_ADDRESS", relay);
     vi.stubEnv("SPACE_LEGACY_FACTORY_ADDRESSES", factory);
-    await expect(deployedSpaceFromReceipt(hash, owner)).resolves.toEqual({ space, token });
+    await expect(deployedSpaceFromReceipt(hash, owner)).resolves.toEqual({ space, token, blockNumber: 1234n });
   });
   it("accepts a direct factory call", async () => {
-    await expect(deployedSpaceFromReceipt(hash, owner)).resolves.toEqual({ space, token });
+    await expect(deployedSpaceFromReceipt(hash, owner)).resolves.toEqual({ space, token, blockNumber: 1234n });
   });
 
   it.each([owner, relay])("accepts a wrapped smart-account call submitted by %s", async (from) => {
     // MetaMask EIP-7702 uses a top-level executor, while the trusted factory
     // creates the Space in an internal call. Bundlers may also be the sender.
     vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue(receipt({ from, to: relay, type: "eip7702" }));
-    await expect(deployedSpaceFromReceipt(hash, owner)).resolves.toEqual({ space, token });
+    await expect(deployedSpaceFromReceipt(hash, owner)).resolves.toEqual({ space, token, blockNumber: 1234n });
   });
 
   it.each([

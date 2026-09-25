@@ -11,6 +11,7 @@ import { Database } from "./db";
 import { databaseOperation } from "./db/run";
 import { allocationNames, spaceDrafts } from "./db/schema";
 import { normalizeRecipientName, resolveRecipientName } from "./ens-recipient";
+import { labelhash, normalize } from "viem/ens";
 
 function uint(value: string, bits = 256n) {
   const result = BigInt(value);
@@ -186,6 +187,17 @@ export const AdminLive = HttpApiBuilder.group(AccordApi, "admin", (handlers) => 
   }))
   .handle("setMandate", ({ payload }) => Effect.gen(function* () {
     const context = yield* ownerSpace(payload.draftId);
+    const db = yield* Database;
+    let agentName: string | undefined;
+    if (payload.agentEnsName) {
+      try { agentName = normalize(payload.agentEnsName.trim()); }
+      catch { return yield* Effect.fail(new HttpApiError.BadRequest()); }
+      const [label, tld, ...rest] = agentName.split(".");
+      // The label must be the very name the mandate is bound to.
+      if (!label || tld !== "eth" || rest.length > 0 || BigInt(labelhash(label)) !== BigInt(payload.nameId)) {
+        return yield* Effect.fail(new HttpApiError.BadRequest());
+      }
+    }
     return yield* Effect.tryPromise({
       try: async () => {
         const registryConfig = process.env.ENSV2_REGISTRY_ADDRESS;
@@ -218,6 +230,11 @@ export const AdminLive = HttpApiBuilder.group(AccordApi, "admin", (handlers) => 
         const args = [allocationId, config, permit, signature] as const;
         await publicClient.simulateContract({ address: context.space, abi: spaceAccountAbi,
           functionName: "setMandate", args, account: context.actor });
+        // Shown only after this permit executes and the mandate still names this agent.
+        if (agentName) await db.client.insert(allocationNames).values({
+          requestId: permit.requestId, spaceAddress: context.space, allocationId: allocationId.toString(),
+          beneficiary: config.agent, name: agentName, resolvedBlock: context.block.number.toString(),
+        }).onConflictDoNothing();
         return envelope(context, permit, signature, "setMandate",
           encodeFunctionData({ abi: spaceAccountAbi, functionName: "setMandate", args }), 0n);
       },

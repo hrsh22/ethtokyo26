@@ -8,6 +8,12 @@ export const publicClient = createPublicClient({
   transport: http(process.env.SEPOLIA_RPC_URL ?? "https://ethereum-sepolia-rpc.publicnode.com", { timeout: 12_000 }),
 });
 
+// Activity reads old logs. Some public Sepolia RPCs silently return nothing for
+// older blocks, so history can come from a separate RPC. Defaults to the main one.
+export const historyClient = process.env.SEPOLIA_HISTORY_RPC_URL
+  ? createPublicClient({ chain: sepolia, transport: http(process.env.SEPOLIA_HISTORY_RPC_URL, { timeout: 20_000 }) })
+  : publicClient;
+
 export function permitSigner() {
   const privateKey = process.env.PERMIT_SIGNER_PRIVATE_KEY;
   if (!privateKey || !/^0x[a-fA-F0-9]{64}$/.test(privateKey)) throw new Error("Permit signer is not configured");
@@ -57,5 +63,5 @@ export async function deployedSpaceFromReceipt(txHash: Hex, expectedOwner: Addre
     authorizer.toLowerCase() !== signer.address.toLowerCase() ||
     token.toLowerCase() !== created[0]!.token.toLowerCase() ||
     ensAdapter.toLowerCase() !== adapter.toLowerCase()) throw new Error("Deployed Space configuration mismatch");
-  return { space, token: getAddress(token) };
+  return { space, token: getAddress(token), blockNumber: receipt.blockNumber };
 }

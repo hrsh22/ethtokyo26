@@ -6,7 +6,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "turbo dev --filter=@accord/api --filter=@accord/web",
+    "dev": "node scripts/dev.mjs",
     "build": "turbo build",
     "typecheck": "turbo typecheck && tsc -p scripts/tsconfig.walletconnect.json --noEmit",
     "lint": "turbo lint",

@@ -88,6 +88,8 @@ export const ActivateSpaceDraft = Schema.Struct({
   deploymentTx: Schema.String.pipe(Schema.pattern(/^0x[a-fA-F0-9]{64}$/)),
 });
 export const LookupSpace = Schema.Struct({ spaceAddress: WalletAddress });
+// Public: the name an owner gave an activated Space. Drafts and other metadata stay private.
+export const SpaceProfile = Schema.Struct({ name: Schema.String, spaceAddress: WalletAddress });
 
 export const WorldStatus = Schema.Struct({
   configured: Schema.Boolean,
@@ -215,6 +217,8 @@ export const AdminSetMandate = Schema.Struct({
   agent: WalletAddress, registry: WalletAddress, nameId: UnsignedInteger,
   expectedResource: UnsignedInteger, dailyCap: UnsignedInteger,
   maxPerPayment: UnsignedInteger, expiry: UnsignedInteger,
+  // Display label only; it must hash to nameId, and authority still comes from the registry.
+  agentEnsName: Schema.optional(Schema.String.pipe(Schema.minLength(5), Schema.maxLength(255))),
 });
 export const AdminRevokeMandate = Schema.Struct({
   draftId: Schema.UUID, requestKey: Schema.UUID, allocationId: UnsignedInteger,
@@ -318,6 +322,11 @@ export const AccordApi = HttpApi.make("AccordApi")
         HttpApiEndpoint.post("lookup")`/v1/spaces/lookup`
           .setPayload(LookupSpace)
           .addSuccess(SpaceDraft),
+      )
+      .add(
+        HttpApiEndpoint.post("profile")`/v1/spaces/profile`
+          .setPayload(LookupSpace)
+          .addSuccess(SpaceProfile),
       )
       .addError(HttpApiError.Unauthorized)
       .addError(HttpApiError.Forbidden)

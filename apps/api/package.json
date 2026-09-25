@@ -9,6 +9,7 @@
     "start": "node --env-file-if-exists=../../.env dist/index.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/migrate-db.mts",
+    "db:backfill-blocks": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/backfill-deployment-blocks.mts",
     "db:import-postgres": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/import-postgres.mts",
     "deploy:sepolia": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/deploy-sepolia.mts",
     "deploy:sepolia:broadcast": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/deploy-sepolia.mts --broadcast",

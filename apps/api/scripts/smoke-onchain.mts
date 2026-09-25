@@ -127,7 +127,7 @@ async function main() {
   const createReceipt = await publicClient.waitForTransactionReceipt({ hash: createTx });
   if (createReceipt.status !== "success") throw new Error("Factory creation failed");
 
-  const env = { ...process.env, RESEARCH_SELLER_ADDRESS: seller.address, RESEARCH_PRICE_BASE_UNITS: "5", API_PORT: "4001", SEPOLIA_RPC_URL: rpc,
+  const env = { ...process.env, RESEARCH_SELLER_ADDRESS: seller.address, RESEARCH_PRICE_BASE_UNITS: "5", API_PORT: "4001", SEPOLIA_RPC_URL: rpc, SEPOLIA_HISTORY_RPC_URL: rpc,
     SPACE_FACTORY_ADDRESS: factory.address, ENS_ADAPTER_ADDRESS: adapter.address,
     ENSV2_REGISTRY_ADDRESS: registry.address, ENSV2_UNIVERSAL_RESOLVER_ADDRESS: resolver.address, DEMO_TOKEN_ADDRESS: token.address,
     WORLD_APP_ID: "app_local_anvil", WORLD_RP_ID: "rp_local_anvil",
@@ -170,6 +170,10 @@ async function main() {
     if (openedByHuman.body?.id !== draftId) throw new Error("Shared Space lookup returned a different draft");
     const missingSpace = await request("/v1/spaces/lookup", { spaceAddress: seller.address }, agentToken);
     assertStatus(missingSpace.status, 404, "Unknown Space lookup");
+    const profile = await request("/v1/spaces/profile", { spaceAddress: space });
+    assertStatus(profile.status, 200, "Public Space name without a session");
+    if (profile.body?.name !== draft.body?.name || "id" in profile.body! || "owner" in profile.body!) throw new Error("Public profile returned more than the name");
+    assertStatus((await request("/v1/spaces/profile", { spaceAddress: seller.address })).status, 404, "Unknown Space has no public profile");
     const config = await request("/v1/config");
     assertStatus(config.status, 200, "Public config");
     if (String(config.body?.factoryAddress).toLowerCase() !== factory.address.toLowerCase() ||
@@ -263,11 +267,18 @@ async function main() {
       String(name.body?.owner).toLowerCase() !== agent.address.toLowerCase()) {
       throw new Error("ENSv2 name state did not match agent");
     }
-    const mandate = await request("/v1/admin/mandates", { draftId, requestKey: randomUUID(), allocationId: "2",
-      agent: agent.address, registry: registry.address, nameId: nameId.toString(), expectedResource: "7",
-      dailyCap: "50", maxPerPayment: "20", expiry: String(block.timestamp + 3600n) }, ownerToken);
+    const mandateTerms = { draftId, allocationId: "2", agent: agent.address, registry: registry.address, nameId: nameId.toString(),
+      expectedResource: "7", dailyCap: "50", maxPerPayment: "20", expiry: String(block.timestamp + 3600n) };
+    assertStatus((await request("/v1/admin/mandates", { ...mandateTerms, requestKey: randomUUID(), agentEnsName: "family.eth" }, ownerToken)).status,
+      400, "Reject an agent label that is not the mandate's name");
+    const mandate = await request("/v1/admin/mandates", { ...mandateTerms, requestKey: randomUUID(), agentEnsName: "agent.eth" }, ownerToken);
     assertStatus(mandate.status, 200, "Set ENSv2 mandate permit");
+    const agentNameBefore = await request("/v1/ens/allocations", { spaceAddress: space, allocationIds: ["2"] });
+    if ((agentNameBefore.body?.names as unknown[]).length !== 0) throw new Error("Unexecuted mandate label was exposed");
     await send(space, String(mandate.body!.calldata) as Hex);
+    const agentName = await request("/v1/ens/allocations", { spaceAddress: space, allocationIds: ["2"] });
+    const agentLabel = (agentName.body?.names as Array<{ name: string; address: string }>)[0];
+    if (agentLabel?.name !== "agent.eth" || agentLabel.address.toLowerCase() !== agent.address.toLowerCase()) throw new Error("Agent ENS label was not confirmed");
     const unavailablePayment = await request("/v1/permits/payments", { draftId, requestKey: randomUUID(),
       allocationId: "2", amount: "10", recipient: human.address }, agentToken);
     assertStatus(unavailablePayment.status, 503, "Fail closed on Intercepta outage fixture");
