@@ -36,7 +36,7 @@ Use the Sepolia ENSv2 records, not mainnet records. The default Universal Resolv
 
 There are exactly five windows measured from the funding block, including the immediately available first window. Unused allowance does not accumulate. These are contract rules, not a browser-only timer or a World ID bypass. The general timed-allocation API accepts intervals from 60 seconds to one day and durations up to 365 days, in whole intervals. The UI offers per-minute allowances for a chosen number of minutes, and daily allowances either with no end date or for a chosen number of days (for example **1 month**, which is 30 days). Monthly allowances have no end date. Timed allowances and end dates need a Space from the scheduled factory; the form says so for older Spaces.
 
-The scheduled factory is `0x9a34aa06d9920cbd42547f097b740c268e281d69` on Sepolia. Existing Spaces remain supported, and `SPACE_LEGACY_FACTORY_ADDRESSES` retains the old factory for activation recovery. No token or ENS adapter redeployment was needed.
+The factory is `0xb1a653a68fcd2de8a7448db391d7de68f49cef3f` on Sepolia, redeployed with the ENS adapter and demo token on 25 September 2026. Every Space it creates supports timed allowances. Spaces from earlier deployments are no longer trusted by the API.
 
 ## Paid report service
 
