@@ -1,6 +1,6 @@
 # Accord
 
-Accord is a permission protocol for moving ERC-20 tokens on Ethereum Sepolia. A **Space** holds one token. Its owner creates an **Allocation** for a person or a capped **Mandate** for an agent. Claims require a fresh, action-bound World ID session proof; agent payments require live ENSv2 authority and Intercepta recipient screening before the API signs a short-lived permit. The person or agent submits the final transaction from their own wallet. The API signer is trusted to perform the offchain World and Intercepta checks; the contract enforces the signed permit and live ENS authority.
+Accord is a permission protocol for moving test tUSDC on Ethereum Sepolia. A **Space** holds tUSDC. Its owner creates an **Allocation** for a person or a capped **Mandate** for an agent. Claims require a fresh, action-bound World ID session proof; agent payments require live ENSv2 authority and Intercepta recipient screening before the API signs a short-lived permit. The person or agent signs a transaction request; Accord’s sponsor submits it and pays the Sepolia network fee. The API signer is trusted to perform the offchain World and Intercepta checks; the contract enforces the signed permit and live ENS authority.
 
 See the concise [product plan](research/accord-plan.md) and [implementation plan](research/accord-implementation-plan.md).
 
