@@ -17,6 +17,7 @@ export const Catalog = Schema.Struct({
 });
 
 export const WalletAddress = Schema.String.pipe(Schema.pattern(/^0x[a-fA-F0-9]{40}$/));
+const UnsignedInteger = Schema.String.pipe(Schema.pattern(/^(0|[1-9][0-9]*)$/));
 
 export const DeploymentConfig = Schema.Struct({
   configured: Schema.Boolean,
@@ -79,6 +80,12 @@ export const SpaceDraft = Schema.Struct({
   activatedAt: Schema.optional(Schema.String),
 });
 export const SpaceDraftList = Schema.Struct({ spaces: Schema.Array(SpaceDraft) });
+export const ReceivedAllowanceList = Schema.Struct({ allowances: Schema.Array(Schema.Struct({
+  spaceAddress: WalletAddress,
+  spaceName: Schema.String,
+  allocationId: UnsignedInteger,
+  createdBlock: UnsignedInteger,
+})) });
 export const CreateSpaceDraft = Schema.Struct({
   name: Schema.String.pipe(Schema.minLength(2), Schema.maxLength(80)),
   templateId: Schema.Literal("recurring-support", "research-budget"),
@@ -127,7 +134,6 @@ export const WorldVerification = Schema.Struct({
   intentId: Schema.optional(Schema.UUID),
 });
 
-const UnsignedInteger = Schema.String.pipe(Schema.pattern(/^(0|[1-9][0-9]*)$/));
 export const SpaceActivityRequest = Schema.Struct({ spaceAddress: WalletAddress,
   beforeBlock: Schema.optional(Schema.String.pipe(Schema.pattern(/^[0-9]{1,20}$/))),
 });
@@ -307,6 +313,9 @@ export const AccordApi = HttpApi.make("AccordApi")
     HttpApiGroup.make("spaces")
       .add(
         HttpApiEndpoint.get("list")`/v1/spaces`.addSuccess(SpaceDraftList),
+      )
+      .add(
+        HttpApiEndpoint.get("received")`/v1/spaces/received`.addSuccess(ReceivedAllowanceList),
       )
       .add(
         HttpApiEndpoint.post("createDraft")`/v1/spaces/drafts`

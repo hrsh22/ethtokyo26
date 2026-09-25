@@ -380,8 +380,8 @@ function Done({ address, kind, who, result, sentence }: { address: string; kind:
     {result.mandate ? <p className="text-lg text-ink-soft">{sentence}</p>
       : <p className="rounded-2xl bg-warn-soft px-4 py-3 font-medium text-warn">The budget is funded, but the agent can’t pay until you grant its mandate. You can do that from its page.</p>}
     <div>
-      <h2 className="font-display text-2xl font-extrabold">{kind === "person" ? `Send ${who} their link` : "Share it with whoever runs the agent"}</h2>
-      <p className="mb-4 mt-1 text-muted">{kind === "person" ? "They open it, verify with World ID, and claim." : "The agent uses this allocation to request payments."}</p>
+      <h2 className="font-display text-2xl font-extrabold">{kind === "person" ? `${who} can find this allowance` : "Share it with whoever runs the agent"}</h2>
+      <p className="mb-4 mt-1 text-muted">{kind === "person" ? "It appears under Shared with you when they sign in with this wallet. You can send the direct link too." : "The agent uses this allocation to request payments."}</p>
       <SharePanel path={path} />
     </div>
     <div className="flex flex-wrap justify-end gap-2">

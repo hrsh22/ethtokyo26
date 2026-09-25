@@ -96,6 +96,7 @@ export async function createAccordClient(baseUrl: string, options?: { bearerToke
     }) => Effect.runPromise(client.auth.verify({ payload })),
     session: () => run(client.auth.session()),
     listSpaces: () => run(client.spaces.list()),
+    listReceivedAllowances: () => run(client.spaces.received()),
     createDraft: (payload: {
       name: string;
       templateId: "recurring-support" | "research-budget";

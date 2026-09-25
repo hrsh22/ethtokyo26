@@ -10,6 +10,7 @@ import { deployedSpaceFromReceipt } from "./chain";
 import { Database } from "./db";
 import { databaseOperation } from "./db/run";
 import { spaceDrafts } from "./db/schema";
+import { listReceivedAllocations } from "./received-allocations";
 
 function draftResponse(row: typeof spaceDrafts.$inferSelect) {
   return {
@@ -41,6 +42,15 @@ export const SpacesLive = HttpApiBuilder.group(AccordApi, "spaces", (handlers) =
         };
       }),
     )
+    .handle("received", () => Effect.gen(function* () {
+      const session = yield* currentSession();
+      const db = yield* Database;
+      const allowances = yield* Effect.tryPromise({
+        try: () => listReceivedAllocations(db.client, session.address),
+        catch: () => new HttpApiError.ServiceUnavailable(),
+      });
+      return { allowances };
+    }))
     .handle("createDraft", ({ payload }) =>
       Effect.gen(function* () {
         yield* requireBrowserOrigin();

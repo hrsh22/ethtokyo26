@@ -34,7 +34,7 @@ export default function Landing() {
       <section className="mx-auto grid max-w-[1240px] items-center gap-12 px-6 pb-8 pt-14 sm:px-10 lg:grid-cols-[1.05fr_1fr] lg:pt-20">
         <div>
           <h1 className="font-display text-[56px] font-extrabold leading-[0.93] tracking-[-0.03em] sm:text-[80px] lg:text-[88px]">Allowances for humans and their AI agents.</h1>
-          <p className="mt-7 max-w-[44ch] text-lg text-ink-soft">Set a budget, share a link, and let the rules do the rest. People claim with World ID. Agents spend within limits you can revoke in one tap.</p>
+          <p className="mt-7 max-w-[44ch] text-lg text-ink-soft">Set a budget for a person or agent, and let the rules do the rest. People find their allowances after signing in and claim with World ID. Agents spend within limits you can revoke in one tap.</p>
           <div className="mt-9 flex flex-wrap gap-3">
             <Button asChild size="lg"><Link href="/spaces/new">Start a Space</Link></Button>
             <Button asChild size="lg" variant="light"><Link href={demoAddress ? `/spaces/${demoAddress}` : "#how"}>{demoAddress ? "Try the live demo" : "See how it works"}</Link></Button>

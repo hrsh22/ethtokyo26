@@ -60,8 +60,8 @@ export function OwnerPanel({ address, draftId, data, label, decimals, symbol, un
 
   return <div className="grid grid-cols-1 gap-4">
     <section className="card p-6 sm:p-7" aria-labelledby="share-heading">
-      <h2 id="share-heading" className="font-display text-3xl font-extrabold">{isAgent ? "Share with whoever runs the agent" : `Send ${label} this link`}</h2>
-      <p className="mb-5 mt-1 text-muted">{isAgent ? "It shows the agent its limits and lets it pay from this budget." : "They open it, verify with World ID, and claim."}</p>
+      <h2 id="share-heading" className="font-display text-3xl font-extrabold">{isAgent ? "Share with whoever runs the agent" : "Share a direct link"}</h2>
+      <p className="mb-5 mt-1 text-muted">{isAgent ? "It shows the agent its limits and lets it pay from this budget." : `${label} will see this under Shared with you after signing in with their wallet. You can also send the link.`}</p>
       <SharePanel path={`/spaces/${address}/a/${data.id}`} />
     </section>
     <section className="card grid gap-3 p-6 sm:p-7" aria-labelledby="manage-heading">

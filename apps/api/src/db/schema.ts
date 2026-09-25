@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 const timestamp = (name: string) => integer(name, { mode: "timestamp_ms" });
 const createdAt = () => timestamp("created_at").default(sql`(unixepoch() * 1000)`).notNull();
@@ -30,9 +30,22 @@ export const spaceDrafts = sqliteTable("space_drafts", {
   deploymentTx: text("deployment_tx").unique(),
   // Saved at activation: some RPCs stop serving receipts for older transactions.
   deploymentBlock: text("deployment_block"),
+  allocationScanBlock: text("allocation_scan_block"),
   activatedAt: timestamp("activated_at"),
   createdAt: createdAt(),
 });
+
+// Public AllocationCreated events indexed for each activated Space. The cursor
+// advances only after the events in that block range have been saved.
+export const receivedAllocations = sqliteTable("received_allocations", {
+  spaceAddress: text("space_address").notNull(),
+  allocationId: text("allocation_id").notNull(),
+  beneficiary: text("beneficiary").notNull(),
+  createdBlock: text("created_block").notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.spaceAddress, table.allocationId] }),
+  index("received_allocations_beneficiary_idx").on(table.beneficiary),
+]);
 
 export const worldSessions = sqliteTable("world_sessions", {
   address: text("address").primaryKey(),

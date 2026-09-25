@@ -3,14 +3,15 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { ArrowUpRight, Hammer, Link2, Plus, RotateCw } from "lucide-react";
+import { ArrowUpRight, Hammer, Link2, Plus, RotateCw, UserRound } from "lucide-react";
 import { useEffect } from "react";
 import { zeroAddress } from "viem";
 import type { AccordClient } from "@accord/sdk";
 import { useAccord } from "@/lib/accord";
-import { amount } from "@/lib/format";
+import { amount, shortAddress } from "@/lib/format";
 import { allocationPalette, keyPalette } from "@/lib/palette";
-import { summarize } from "@/lib/space-summary";
+import { allocationStatus, statusLabel, summarize } from "@/lib/space-summary";
+import { useAllocation } from "@/lib/use-allocation";
 import { useSpaceMeta } from "@/lib/use-space";
 import { useSpaceTerms } from "@/lib/use-space-terms";
 import { Avatar } from "../avatar";
@@ -20,25 +21,29 @@ import { WorldIdCard } from "../world-id-card";
 import { Button } from "../ui/button";
 
 type Draft = Awaited<ReturnType<AccordClient["listSpaces"]>>["spaces"][number];
+type Received = Awaited<ReturnType<AccordClient["listReceivedAllowances"]>>["allowances"][number];
 const demoAddress = process.env.NEXT_PUBLIC_DEMO_SPACE_ADDRESS;
 
 export function SpacesHome() {
   const { client, auth, account, checkSession } = useAccord();
   const spaces = useQuery({ queryKey: ["spaces", account?.toLowerCase()], queryFn: () => client!.listSpaces(), enabled: !!client && auth.signedIn, retry: false });
+  const received = useQuery({ queryKey: ["received-allowances", account?.toLowerCase()], queryFn: () => client!.listReceivedAllowances(),
+    enabled: !!client && auth.signedIn, retry: false, refetchInterval: 30_000 });
   useEffect(() => { if (spaces.error) checkSession(spaces.error); }, [spaces.error, checkSession]);
+  useEffect(() => { if (received.error) checkSession(received.error); }, [received.error, checkSession]);
   const list = (spaces.data?.spaces ?? []).toSorted((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 
   return <div>
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div>
         <h1 className="font-display text-5xl font-extrabold tracking-[-0.03em] sm:text-6xl">Your Spaces</h1>
-        <p className="mt-2 text-lg text-ink-soft">Each Space holds funds and the rules for who can use them.</p>
+        <p className="mt-2 text-lg text-ink-soft">Spaces you own and allowances shared with your wallet.</p>
       </div>
       {auth.signedIn ? <Button asChild size="lg"><Link href="/spaces/new"><Plus />New Space</Link></Button> : null}
     </header>
 
     {!auth.signedIn ? <div className="mt-8 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-      <SignInCard title="Sign in to see your Spaces" body="Connect a wallet, then sign one message to see the Spaces you own. No transaction, no fee." />
+      <SignInCard title="Sign in to see your Spaces" body="Connect a wallet, then sign one message to see the Spaces you own and allowances shared with you. No transaction, no fee." />
       <div className="grid gap-4">
         <LinkCard />
         {demoAddress ? <Link href={`/spaces/${demoAddress}`} className="card group flex items-center gap-4 p-6 transition-transform hover:-translate-y-0.5">
@@ -47,12 +52,26 @@ export function SpacesHome() {
           <ArrowUpRight className="text-muted transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
         </Link> : null}
       </div>
-    </div> : spaces.isPending ? <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="h-[260px] animate-pulse rounded-tile bg-white/70" />)}</div>
+    </div> : <>
+    {received.data?.allowances.length ? <section className="mt-8" aria-labelledby="received-title">
+      <h2 id="received-title" className="font-display text-3xl font-extrabold">Shared with you</h2>
+      <p className="mt-1 text-sm text-muted">Allowances assigned to your connected wallet appear here automatically.</p>
+      <ul className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {received.data.allowances.map((entry) => <li key={`${entry.spaceAddress}:${entry.allocationId}`}>
+          <ReceivedCard entry={entry} account={account!} />
+        </li>)}
+      </ul>
+    </section> : received.isError ? <div role="alert" className="card mt-8 flex flex-wrap items-center gap-4 p-6">
+      <span className="flex-1"><b className="block font-display text-xl font-extrabold">We couldn’t load allowances shared with you</b>
+        <span className="text-sm text-muted">Check your connection and try again.</span></span>
+      <Button variant="soft" onClick={() => void received.refetch()}><RotateCw />Try again</Button>
+    </div> : null}
+    {spaces.isPending ? <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="h-[260px] animate-pulse rounded-tile bg-white/70" />)}</div>
     : spaces.isError ? <div role="alert" className="card mt-8 flex flex-wrap items-center gap-4 p-7">
       <span className="flex-1"><b className="block font-display text-2xl font-extrabold">We couldn’t load your Spaces</b><span className="text-muted">Your Spaces are safe. Check your connection and try again.</span></span>
       <Button variant="soft" onClick={() => void spaces.refetch()}><RotateCw />Try again</Button>
     </div>
-    : list.length === 0 ? <EmptyHome />
+    : list.length === 0 ? <EmptyHome hasReceived={!!received.data?.allowances.length} />
     : <>
       <motion.ul initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.06 } } }} className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {list.map((space) => <motion.li key={space.id} variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}>
@@ -66,7 +85,29 @@ export function SpacesHome() {
       </motion.ul>
       <div className="mt-10 grid gap-4 lg:grid-cols-2"><LinkCard /><WorldIdCard /></div>
     </>}
+    </>}
   </div>;
+}
+
+function ReceivedCard({ entry, account }: { entry: Received; account: string }) {
+  const allocation = useAllocation(entry.spaceAddress, BigInt(entry.allocationId));
+  const meta = useSpaceMeta(entry.spaceAddress);
+  const data = allocation.data;
+  if (data && data.allocation[0].toLowerCase() !== account.toLowerCase()) return null;
+  const status = data ? allocationStatus(data, data.blockTimestamp) : null;
+  const palette = allocationPalette(BigInt(entry.allocationId), false);
+  return <Link href={`/spaces/${entry.spaceAddress}/a/${entry.allocationId}`}
+    className="group flex h-full min-h-[190px] flex-col rounded-tile p-6 shadow-float transition-transform hover:-translate-y-1"
+    style={{ background: palette.tile, color: palette.ink }}>
+    <div className="flex items-start justify-between gap-3">
+      <span className="flex items-center gap-2"><UserRound size={18} />Allowance #{entry.allocationId}</span>
+      <ArrowUpRight className="opacity-60 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+    </div>
+    <h3 className="mt-5 font-display text-2xl font-extrabold leading-tight">{entry.spaceName || `Space ${shortAddress(entry.spaceAddress)}`}</h3>
+    <p className="mt-auto pt-4 font-semibold">{data && meta.data ? `${amount(data.allocation[1], meta.data.decimals)} ${meta.data.symbol} left`
+      : allocation.isError || meta.isError ? "Open to view current terms" : "Reading Sepolia…"}</p>
+    {status ? <span className="mt-2 text-sm opacity-75">{statusLabel[status]}</span> : null}
+  </Link>;
 }
 
 function SpaceCard({ draft, address }: { draft: Draft; address: string }) {
@@ -102,9 +143,15 @@ function DraftCard({ draft }: { draft: Draft }) {
   </Link>;
 }
 
-function EmptyHome() {
+function EmptyHome({ hasReceived }: { hasReceived: boolean }) {
   const warm = allocationPalette(BigInt(1), false);
   const cool = allocationPalette(BigInt(1), true);
+  if (hasReceived) return <div className="mt-10 grid gap-4 lg:grid-cols-2">
+    <section className="card p-6"><h2 className="font-display text-2xl font-extrabold">Create a Space of your own</h2>
+      <p className="mt-1 text-sm text-muted">You can also set up allowances and budgets for others.</p>
+      <Button asChild className="mt-4"><Link href="/spaces/new"><Plus />New Space</Link></Button></section>
+    <WorldIdCard />
+  </div>;
   return <div className="mt-8 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
     <section className="card relative overflow-hidden p-8 sm:p-10">
       <div className="blob -right-10 -top-16 size-64 bg-tang/40" />
@@ -123,7 +170,7 @@ function LinkCard() {
   return <section className="card p-6" aria-labelledby="link-card-title">
     <span className="mb-4 grid size-11 place-items-center rounded-2xl bg-sky-soft text-[#2B7CC4]"><Link2 size={20} /></span>
     <h2 id="link-card-title" className="font-display text-2xl font-extrabold">Got a link?</h2>
-    <p className="mb-4 mt-1 text-sm text-muted">Someone shared an allowance or a budget with you. Paste it to open it.</p>
+    <p className="mb-4 mt-1 text-sm text-muted">Have a direct Space link? Open it here. Allowances assigned to your wallet appear after sign-in.</p>
     <OpenLinkForm />
   </section>;
 }
