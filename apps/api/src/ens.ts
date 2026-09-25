@@ -1,0 +1,43 @@
+import { AccordApi } from "@accord/api-contract";
+import { HttpApiBuilder, HttpApiError } from "@effect/platform";
+import { Effect } from "effect";
+import { getAddress, isAddress, zeroAddress } from "viem";
+import { labelhash, normalize } from "viem/ens";
+import { publicClient } from "./chain";
+
+const registryAbi = [{
+  type: "function", name: "getState", stateMutability: "view",
+  inputs: [{ name: "anyId", type: "uint256" }],
+  outputs: [{ name: "state", type: "tuple", components: [
+    { name: "status", type: "uint8" }, { name: "expiry", type: "uint64" },
+    { name: "latestOwner", type: "address" }, { name: "tokenId", type: "uint256" },
+    { name: "resource", type: "uint256" },
+  ] }],
+}] as const;
+
+export const EnsLive = HttpApiBuilder.group(AccordApi, "ens", (handlers) =>
+  handlers.handle("resolve", ({ payload }) => Effect.gen(function* () {
+    let name: string;
+    try { name = normalize(payload.name.trim()); }
+    catch { return yield* Effect.fail(new HttpApiError.BadRequest()); }
+    const labels = name.split(".");
+    if (labels.length !== 2 || labels[1] !== "eth" || !labels[0]) {
+      return yield* Effect.fail(new HttpApiError.BadRequest());
+    }
+    const configured = process.env.ENSV2_REGISTRY_ADDRESS;
+    if (!configured || !isAddress(configured)) return yield* Effect.fail(new HttpApiError.ServiceUnavailable());
+    const registry = getAddress(configured);
+    const nameId = BigInt(labelhash(labels[0]!));
+    const state = yield* Effect.tryPromise({
+      try: () => publicClient.readContract({ address: registry, abi: registryAbi, functionName: "getState", args: [nameId] }),
+      catch: () => new HttpApiError.ServiceUnavailable(),
+    });
+    return {
+      name, registry, nameId: nameId.toString(),
+      resource: state.resource.toString(), owner: getAddress(state.latestOwner),
+      expiry: state.expiry.toString(),
+      active: state.status === 2 && state.expiry > BigInt(Math.floor(Date.now() / 1000)) &&
+        state.latestOwner !== zeroAddress && state.resource > 0n,
+    };
+  })),
+);

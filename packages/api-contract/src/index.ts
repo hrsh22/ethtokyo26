@@ -1,0 +1,331 @@
+import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, HttpApiSchema } from "@effect/platform";
+import { Schema } from "effect";
+
+export const Health = Schema.Struct({
+  status: Schema.Literal("ok"),
+  chainId: Schema.Literal(11155111),
+});
+export const SpaceTemplate = Schema.Struct({
+  id: Schema.Literal("recurring-support", "research-budget"),
+  mode: Schema.Literal("people", "agents"),
+  name: Schema.String,
+  description: Schema.String,
+});
+
+export const Catalog = Schema.Struct({
+  templates: Schema.Array(SpaceTemplate),
+});
+
+export const WalletAddress = Schema.String.pipe(Schema.pattern(/^0x[a-fA-F0-9]{40}$/));
+
+export const DeploymentConfig = Schema.Struct({
+  configured: Schema.Boolean,
+  factoryAddress: Schema.optional(WalletAddress),
+  adapterAddress: Schema.optional(WalletAddress),
+  authorizerAddress: Schema.optional(WalletAddress),
+  demoTokenAddress: Schema.optional(WalletAddress),
+  ensRegistryAddress: Schema.optional(WalletAddress),
+});
+export const ResolveEnsName = Schema.Struct({
+  name: Schema.String.pipe(Schema.minLength(5), Schema.maxLength(255)),
+});
+export const EnsNameState = Schema.Struct({
+  name: Schema.String,
+  registry: WalletAddress,
+  nameId: Schema.String,
+  resource: Schema.String,
+  owner: WalletAddress,
+  expiry: Schema.String,
+  active: Schema.Boolean,
+});
+
+export const ChallengeRequest = Schema.Struct({ address: WalletAddress });
+export const ChallengeResponse = Schema.Struct({
+  id: Schema.UUID,
+  message: Schema.String,
+  expiresAt: Schema.String,
+});
+export const VerifyRequest = Schema.Struct({
+  id: Schema.UUID,
+  address: WalletAddress,
+  signature: Schema.String.pipe(Schema.pattern(/^0x[a-fA-F0-9]{130}$/)),
+  client: Schema.Literal("browser", "agent"),
+});
+export const SessionResponse = Schema.Struct({
+  address: WalletAddress,
+  expiresAt: Schema.String,
+  token: Schema.optional(Schema.String),
+});
+
+export const SpaceDraft = Schema.Struct({
+  id: Schema.UUID,
+  name: Schema.String,
+  templateId: Schema.Literal("recurring-support", "research-budget"),
+  owner: WalletAddress,
+  createdAt: Schema.String,
+  spaceAddress: Schema.optional(WalletAddress),
+  tokenAddress: Schema.optional(WalletAddress),
+  activatedAt: Schema.optional(Schema.String),
+});
+export const SpaceDraftList = Schema.Struct({ spaces: Schema.Array(SpaceDraft) });
+export const CreateSpaceDraft = Schema.Struct({
+  name: Schema.String.pipe(Schema.minLength(2), Schema.maxLength(80)),
+  templateId: Schema.Literal("recurring-support", "research-budget"),
+});
+export const ActivateSpaceDraft = Schema.Struct({
+  draftId: Schema.UUID,
+  deploymentTx: Schema.String.pipe(Schema.pattern(/^0x[a-fA-F0-9]{64}$/)),
+});
+export const LookupSpace = Schema.Struct({ spaceAddress: WalletAddress });
+
+export const WorldStatus = Schema.Struct({
+  configured: Schema.Boolean,
+  enrolled: Schema.Boolean,
+  sessionId: Schema.optional(Schema.String),
+  environment: Schema.Literal("staging", "production"),
+});
+export const WorldChallengeRequest = Schema.Struct({
+  mode: Schema.Literal("enroll", "reverify", "claim"),
+  intentId: Schema.optional(Schema.UUID),
+});
+export const WorldChallenge = Schema.Struct({
+  id: Schema.UUID,
+  appId: Schema.String,
+  environment: Schema.Literal("staging", "production"),
+  sessionId: Schema.optional(Schema.String),
+  requireUserPresence: Schema.Boolean,
+  signal: Schema.optional(Schema.String),
+  rpContext: Schema.Struct({
+    rp_id: Schema.String,
+    nonce: Schema.String,
+    created_at: Schema.Number,
+    expires_at: Schema.Number,
+    signature: Schema.String,
+  }),
+});
+export const WorldVerifyRequest = Schema.Struct({
+  id: Schema.UUID,
+  result: Schema.Unknown,
+});
+export const WorldVerification = Schema.Struct({
+  verified: Schema.Literal(true),
+  enrolled: Schema.Boolean,
+  sessionId: Schema.String,
+  intentId: Schema.optional(Schema.UUID),
+});
+
+const UnsignedInteger = Schema.String.pipe(Schema.pattern(/^(0|[1-9][0-9]*)$/));
+export const SpaceActivityRequest = Schema.Struct({ spaceAddress: WalletAddress,
+  beforeBlock: Schema.optional(Schema.String.pipe(Schema.pattern(/^[0-9]{1,20}$/))),
+});
+export const SpaceActivity = Schema.Struct({
+  fromBlock: UnsignedInteger, toBlock: UnsignedInteger,
+  nextBeforeBlock: Schema.optional(UnsignedInteger),
+  deploymentTx: Schema.String,
+  events: Schema.Array(Schema.Struct({ id: Schema.String,
+    kind: Schema.Literal("AllocationCreated", "AllocationFunded", "Claimed", "MandateSet", "MandateRevoked", "PaymentMade", "AllocationRecovered"),
+    allocationId: UnsignedInteger, transactionHash: Schema.String, blockNumber: UnsignedInteger,
+    amount: Schema.optional(UnsignedInteger), actor: Schema.optional(WalletAddress), recipient: Schema.optional(WalletAddress),
+  })),
+});
+export const PreparePermitRequest = Schema.Struct({
+  draftId: Schema.UUID,
+  allocationId: UnsignedInteger,
+  amount: UnsignedInteger,
+  requestKey: Schema.UUID,
+  recipient: Schema.optional(WalletAddress),
+});
+export const PermitEnvelope = Schema.Struct({
+  actor: WalletAddress,
+  action: Schema.Literal(2, 3),
+  allocationId: UnsignedInteger,
+  recipient: WalletAddress,
+  amount: UnsignedInteger,
+  requestId: Schema.String,
+  nonce: UnsignedInteger,
+  expiry: UnsignedInteger,
+  policyVersion: UnsignedInteger,
+  detailsHash: Schema.String,
+});
+export const PermitIntentResponse = Schema.Struct({
+  id: Schema.UUID,
+  spaceAddress: WalletAddress,
+  digest: Schema.String,
+  permit: PermitEnvelope,
+  signature: Schema.optional(Schema.String),
+  worldVerified: Schema.Boolean,
+  riskVerdict: Schema.optional(Schema.Literal("allow")),
+  decision: Schema.optional(Schema.Struct({
+    outcome: Schema.Literal("allow"), code: Schema.String, reason: Schema.String,
+    checkedAt: Schema.String, toxicScore: Schema.Number, traits: Schema.Array(Schema.String),
+  })),
+});
+export const PaymentDecision = Schema.Struct({
+  outcome: Schema.Literal("allow", "block", "unavailable"),
+  code: Schema.String, reason: Schema.String, checkedAt: Schema.String,
+  toxicScore: Schema.optional(Schema.Number), traits: Schema.Array(Schema.String),
+});
+export class DecisionRejected extends Schema.TaggedError<DecisionRejected>()("DecisionRejected", {
+  decision: PaymentDecision,
+}, HttpApiSchema.annotations({ status: 403 })) {}
+export class ScreeningUnavailable extends Schema.TaggedError<ScreeningUnavailable>()("ScreeningUnavailable", {
+  decision: PaymentDecision,
+}, HttpApiSchema.annotations({ status: 503 })) {}
+
+export const ResearchQuoteRequest = Schema.Struct({ draftId: Schema.UUID, allocationId: UnsignedInteger });
+export const ResearchQuote = Schema.Struct({
+  id: Schema.UUID, title: Schema.String, draftId: Schema.UUID, allocationId: UnsignedInteger,
+  spaceAddress: WalletAddress, tokenAddress: WalletAddress, recipient: WalletAddress,
+  amount: UnsignedInteger, expiresAt: Schema.String,
+});
+export const ResearchRedeem = Schema.Struct({ quoteId: Schema.UUID,
+  transactionHash: Schema.String.pipe(Schema.pattern(/^0x[a-fA-F0-9]{64}$/)),
+});
+export const ResearchReport = Schema.Struct({
+  title: Schema.String, quoteId: Schema.UUID, transactionHash: Schema.String,
+  spaceAddress: WalletAddress, allocationId: UnsignedInteger, tokenAddress: WalletAddress,
+  blockNumber: UnsignedInteger, generatedAt: Schema.String, remaining: UnsignedInteger,
+  dailyRemaining: UnsignedInteger, maxPerPayment: UnsignedInteger, agent: WalletAddress,
+  mandateActive: Schema.Boolean, ensAuthorized: Schema.Boolean, mandateExpiry: Schema.String,
+});
+export const SignClaimRequest = Schema.Struct({ intentId: Schema.UUID });
+
+export const AdminCreateAllocation = Schema.Struct({
+  draftId: Schema.UUID, requestKey: Schema.UUID, beneficiary: WalletAddress,
+  amount: UnsignedInteger, periodCap: UnsignedInteger, period: Schema.Literal(0, 1, 2),
+});
+export const AdminSetMandate = Schema.Struct({
+  draftId: Schema.UUID, requestKey: Schema.UUID, allocationId: UnsignedInteger,
+  agent: WalletAddress, registry: WalletAddress, nameId: UnsignedInteger,
+  expectedResource: UnsignedInteger, dailyCap: UnsignedInteger,
+  maxPerPayment: UnsignedInteger, expiry: UnsignedInteger,
+});
+export const AdminRevokeMandate = Schema.Struct({
+  draftId: Schema.UUID, requestKey: Schema.UUID, allocationId: UnsignedInteger,
+});
+export const AdminRecoverAllocation = AdminRevokeMandate;
+export const AdminPermitResponse = Schema.Struct({
+  spaceAddress: WalletAddress, tokenAddress: WalletAddress,
+  functionName: Schema.Literal("createAllocation", "setMandate", "revokeMandate", "recoverAllocation"),
+  calldata: Schema.String, signature: Schema.String, digest: Schema.String,
+  permit: Schema.Struct({
+    actor: WalletAddress, action: Schema.Literal(0, 1, 4, 5), allocationId: UnsignedInteger,
+    recipient: WalletAddress, amount: UnsignedInteger, requestId: Schema.String,
+    nonce: UnsignedInteger, expiry: UnsignedInteger, policyVersion: UnsignedInteger,
+    detailsHash: Schema.String,
+  }),
+  // createAllocation transfers this amount from the owner; approve the Space first.
+  approvalAmount: UnsignedInteger,
+});
+
+export const AccordApi = HttpApi.make("AccordApi")
+  .add(HttpApiGroup.make("activity")
+    .add(HttpApiEndpoint.post("list")`/v1/spaces/activity`.setPayload(SpaceActivityRequest).addSuccess(SpaceActivity))
+    .addError(HttpApiError.NotFound).addError(HttpApiError.BadRequest).addError(HttpApiError.ServiceUnavailable))
+  .add(HttpApiGroup.make("research")
+    .add(HttpApiEndpoint.post("quote")`/v1/research/quotes`.setPayload(ResearchQuoteRequest).addSuccess(ResearchQuote))
+    .add(HttpApiEndpoint.post("redeem")`/v1/research/redeem`.setPayload(ResearchRedeem).addSuccess(ResearchReport))
+    .addError(HttpApiError.Unauthorized).addError(HttpApiError.Forbidden)
+    .addError(HttpApiError.BadRequest).addError(HttpApiError.ServiceUnavailable))
+  .add(HttpApiGroup.make("ens")
+    .add(HttpApiEndpoint.post("resolve")`/v1/ens/resolve`
+      .setPayload(ResolveEnsName).addSuccess(EnsNameState))
+    .addError(HttpApiError.BadRequest)
+    .addError(HttpApiError.ServiceUnavailable))
+  .add(
+    HttpApiGroup.make("admin")
+      .add(HttpApiEndpoint.post("createAllocation")`/v1/admin/allocations`
+        .setPayload(AdminCreateAllocation).addSuccess(AdminPermitResponse))
+      .add(HttpApiEndpoint.post("setMandate")`/v1/admin/mandates`
+        .setPayload(AdminSetMandate).addSuccess(AdminPermitResponse))
+      .add(HttpApiEndpoint.post("revokeMandate")`/v1/admin/mandates/revoke`
+        .setPayload(AdminRevokeMandate).addSuccess(AdminPermitResponse))
+      .add(HttpApiEndpoint.post("recoverAllocation")`/v1/admin/allocations/recover`
+        .setPayload(AdminRecoverAllocation).addSuccess(AdminPermitResponse))
+      .addError(HttpApiError.Unauthorized)
+      .addError(HttpApiError.Forbidden)
+      .addError(HttpApiError.BadRequest)
+      .addError(HttpApiError.ServiceUnavailable),
+  )
+  .add(
+    HttpApiGroup.make("status").add(
+      HttpApiEndpoint.get("health")`/v1/health`.addSuccess(Health),
+    ).add(HttpApiEndpoint.get("config")`/v1/config`.addSuccess(DeploymentConfig)),
+  )
+  .add(
+    HttpApiGroup.make("catalog").add(
+      HttpApiEndpoint.get("list")`/v1/catalog`.addSuccess(Catalog),
+    ),
+  )
+  .add(
+    HttpApiGroup.make("auth")
+      .add(
+        HttpApiEndpoint.post("challenge")`/v1/auth/challenge`
+          .setPayload(ChallengeRequest)
+          .addSuccess(ChallengeResponse),
+      )
+      .add(
+        HttpApiEndpoint.post("verify")`/v1/auth/verify`
+          .setPayload(VerifyRequest)
+          .addSuccess(SessionResponse),
+      )
+      .add(
+        HttpApiEndpoint.get("session")`/v1/auth/session`.addSuccess(SessionResponse),
+      )
+      .addError(HttpApiError.Unauthorized)
+      .addError(HttpApiError.Forbidden)
+      .addError(HttpApiError.BadRequest)
+      .addError(HttpApiError.ServiceUnavailable),
+  )
+  .add(
+    HttpApiGroup.make("spaces")
+      .add(
+        HttpApiEndpoint.get("list")`/v1/spaces`.addSuccess(SpaceDraftList),
+      )
+      .add(
+        HttpApiEndpoint.post("createDraft")`/v1/spaces/drafts`
+          .setPayload(CreateSpaceDraft)
+          .addSuccess(SpaceDraft),
+      )
+      .add(
+        HttpApiEndpoint.post("activate")`/v1/spaces/activate`
+          .setPayload(ActivateSpaceDraft)
+          .addSuccess(SpaceDraft),
+      )
+      .add(
+        HttpApiEndpoint.post("lookup")`/v1/spaces/lookup`
+          .setPayload(LookupSpace)
+          .addSuccess(SpaceDraft),
+      )
+      .addError(HttpApiError.Unauthorized)
+      .addError(HttpApiError.Forbidden)
+      .addError(HttpApiError.BadRequest)
+      .addError(HttpApiError.NotFound)
+      .addError(HttpApiError.ServiceUnavailable),
+  )
+  .add(
+    HttpApiGroup.make("world")
+      .add(HttpApiEndpoint.get("status")`/v1/world/status`.addSuccess(WorldStatus))
+      .add(HttpApiEndpoint.post("challenge")`/v1/world/challenge`
+        .setPayload(WorldChallengeRequest).addSuccess(WorldChallenge))
+      .add(HttpApiEndpoint.post("verify")`/v1/world/verify`
+        .setPayload(WorldVerifyRequest).addSuccess(WorldVerification))
+      .addError(HttpApiError.Unauthorized)
+      .addError(HttpApiError.Forbidden)
+      .addError(HttpApiError.ServiceUnavailable),
+  )
+  .add(
+    HttpApiGroup.make("permits")
+      .addError(DecisionRejected)
+      .addError(ScreeningUnavailable)
+      .add(HttpApiEndpoint.post("prepareClaim")`/v1/permits/claims`
+        .setPayload(PreparePermitRequest).addSuccess(PermitIntentResponse))
+      .add(HttpApiEndpoint.post("signClaim")`/v1/permits/claims/sign`
+        .setPayload(SignClaimRequest).addSuccess(PermitIntentResponse))
+      .add(HttpApiEndpoint.post("authorizePayment")`/v1/permits/payments`
+        .setPayload(PreparePermitRequest).addSuccess(PermitIntentResponse))
+      .addError(HttpApiError.Unauthorized)
+      .addError(HttpApiError.Forbidden)
+      .addError(HttpApiError.BadRequest)
+      .addError(HttpApiError.ServiceUnavailable),
+  );

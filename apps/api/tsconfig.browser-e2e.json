@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "scripts/browser-e2e.mts",
+    "scripts/live-readiness.mts",
+    "scripts/migrate-db.mts",
+    "scripts/import-postgres.mts",
+    "scripts/smoke-onchain.mts"
+  ]
+}

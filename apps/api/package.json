@@ -1,0 +1,48 @@
+{
+  "name": "@accord/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs watch src/index.ts",
+    "build": "tsup src/index.ts --format esm --platform node --clean",
+    "start": "node --env-file-if-exists=../../.env dist/index.js",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/migrate-db.mts",
+    "db:import-postgres": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/import-postgres.mts",
+    "deploy:sepolia": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/deploy-sepolia.mts",
+    "deploy:sepolia:broadcast": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/deploy-sepolia.mts --broadcast",
+    "ens:sepolia": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/register-ens-sepolia.mts",
+    "ens:sepolia:broadcast": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/register-ens-sepolia.mts --broadcast",
+    "demo:sepolia": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/demo-sepolia.mts",
+    "demo:beneficiary": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/demo-beneficiary.mts",
+    "smoke:world-request": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/smoke-world-request.mts",
+    "smoke:auth": "tsx scripts/smoke-auth.mts",
+    "smoke:onchain": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/smoke-onchain.mts",
+    "e2e:browser": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/browser-e2e.mts",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.browser-e2e.json",
+    "test": "vitest run --passWithNoTests",
+    "ready:live": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/live-readiness.mts"
+  },
+  "dependencies": {
+    "@accord/api-contract": "workspace:*",
+    "@accord/chain": "workspace:*",
+    "@effect/platform": "0.97.2",
+    "@effect/platform-node": "0.108.2",
+    "@libsql/client": "0.18.0",
+    "@worldcoin/idkit-core": "4.3.0",
+    "drizzle-orm": "0.45.3",
+    "effect": "3.22.2",
+    "viem": "2.56.8"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.13",
+    "@types/pg": "8.23.1",
+    "drizzle-kit": "0.31.11",
+    "pg": "8.23.0",
+    "tsup": "8.5.1",
+    "tsx": "4.20.5",
+    "typescript": "5.9.3",
+    "vitest": "4.0.18"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "accord",
+  "private": true,
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "turbo dev --filter=@accord/api --filter=@accord/web",
+    "build": "turbo build",
+    "typecheck": "turbo typecheck && tsc -p scripts/tsconfig.walletconnect.json --noEmit",
+    "lint": "turbo lint",
+    "test": "turbo test && forge test --root contracts",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
+    "wallet:demo": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file-if-exists=.env scripts/walletconnect-demo-wallet.ts",
+    "wallet:demo:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file-if-exists=.env scripts/walletconnect-demo-wallet.ts --check",
+    "ready:live": "pnpm --filter @accord/api ready:live"
+  },
+  "devDependencies": {
+    "@openzeppelin/contracts": "5.6.1",
+    "@types/node": "24.10.13",
+    "turbo": "2.11.3",
+    "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "@reown/walletkit": "1.6.0",
+    "@walletconnect/core": "2.25.0",
+    "@walletconnect/utils": "2.25.0",
+    "viem": "2.56.8"
+  }
+}

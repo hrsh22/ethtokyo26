@@ -1,0 +1,30 @@
+packages:
+  - apps/*
+  - packages/*
+overrides:
+  # AppKit's open-ended peers otherwise resolve Wagmi 3 connectors beside Wagmi 2.
+  '@wagmi/core': 2.22.1
+  '@wagmi/connectors': 6.1.1
+  # The older transitive release rejects React 19's peer range.
+  use-sync-external-store: 1.4.0
+allowBuilds:
+  '@parcel/watcher': true
+  '@reown/appkit': false
+  bufferutil: false
+  esbuild: true
+  keccak: true
+  msgpackr-extract: true
+  unrs-resolver: true
+  utf-8-validate: false
+minimumReleaseAgeExclude:
+  - '@next/swc-linux-x64-musl@16.3.6'
+  - '@turbo/darwin-64@2.11.3'
+  - '@turbo/darwin-arm64@2.11.3'
+  - '@turbo/linux-64@2.11.3'
+  - '@turbo/linux-arm64@2.11.3'
+  - '@turbo/windows-64@2.11.3'
+  - '@turbo/windows-arm64@2.11.3'
+  - eslint-config-next@16.3.6
+  - next@16.3.6
+  - turbo@2.11.3
+  - '@worldcoin/idkit@4.3.0'

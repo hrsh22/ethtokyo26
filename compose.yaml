@@ -1,0 +1,13 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: accord
+      POSTGRES_PASSWORD: accord
+      POSTGRES_DB: accord
+    ports:
+      - "5432:5432"
+    volumes:
+      - accord-postgres:/var/lib/postgresql/data
+volumes:
+  accord-postgres:
