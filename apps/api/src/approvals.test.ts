@@ -23,9 +23,10 @@ const bearer="a".repeat(64),agentBearer="b".repeat(64),otherSession="c".repeat(6
 const hash=(s:string)=>createHash("sha256").update(s).digest("hex");
 const issuer="https://sandbox.auth.world.org",consumedGrant=`0x${"d".repeat(64)}`;
 let connection:ReturnType<typeof createClient>,db:ReturnType<typeof drizzle>,api:ReturnType<typeof HttpApiBuilder.toWebHandler>;
-let draftId:string,policyId:string,version:bigint,ensActive:boolean,consumed:boolean;
-const expiry=()=>BigInt(Math.floor(Date.now()/1000)+86400);
+let draftId:string,policyId:string,version:bigint,ensActive:boolean,consumed:boolean,mandateExpiry:bigint;
+const expiry=()=>mandateExpiry;
 beforeEach(async()=>{
+  mandateExpiry=BigInt(Math.floor(Date.now()/1000)+86400);
   version=2n;ensActive=true;consumed=false;draftId=randomUUID();policyId=randomUUID();
   for(const [k,v] of Object.entries({PERMIT_SIGNER_PRIVATE_KEY:key,ENS_ADAPTER_ADDRESS:adapter,SPACE_FACTORY_ADDRESS:addr("8"),DEMO_TOKEN_ADDRESS:token,
     ENS_NAMESPACE_NAME:"accordspaces26.eth",WORLD_AGENTS_CLIENT_ID:"fixture",WORLD_AGENTS_PRIVATE_KEY_PATH:"/fixture",WORLD_AGENTS_REDIRECT_URI:"https://accord-api.hrsh.dev/v1/approvals/world/callback",WORLD_AGENTS_ISSUER:issuer,WORLD_AGENTS_TOKEN_ENDPOINT_AUTH_METHOD:"private_key_jwt",WEB_ORIGIN:"http://localhost:3000"}))vi.stubEnv(k,v);
@@ -89,6 +90,8 @@ describe("joint ENS and World approval protocol",()=>{
     const {payload,id}=await pending();await approve(id);
     expect((await post("/v1/permits/payments",payload,agentBearer)).status).toBe(200);
     ensActive=false;expect((await post("/v1/permits/payments",payload,agentBearer)).status).toBe(400);
+    const view=await post("/v1/approvals/get",{id});
+    expect(view.status).toBe(200);expect((await view.json()).status).toBe("invalidated");
     expect(await db.select().from(permitIntents)).toHaveLength(1);
   });
   it("rejects policy changes and expired requests",async()=>{

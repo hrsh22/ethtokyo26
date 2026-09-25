@@ -53,7 +53,8 @@ export function ApprovalReview({id}:{id:string}) {
     <Link className="mb-5 inline-flex items-center gap-2 font-semibold text-muted" href={`/spaces/${row.spaceAddress}`}><ArrowLeft size={18}/>{row.spaceName}</Link>
     <section className="card overflow-hidden">
       <div className="bg-[#eae2ff] p-7 sm:p-9"><span className="pill bg-white"><AtSign size={14}/>ENSv2 agent</span>
-        <h1 className="mt-4 break-all font-display text-4xl font-extrabold">{row.agentName}</h1>
+        <h1 className="mt-4 break-words font-display text-4xl font-extrabold">{row.agentName.split(".")[0]}</h1>
+        <p className="mt-2 break-all text-sm font-medium text-ink-soft">{row.agentName}</p>
         <p className="mt-2 text-ink-soft">{row.kind==="payment"?"Review this payment":row.kind==="fund"?"Increase the agent's budget":"Authorize this agent"}</p></div>
       <div className="p-7 sm:p-9"><dl className="grid gap-4 sm:grid-cols-2">
         <div><dt className="text-sm text-muted">{row.kind==="payment"?"Amount":"Budget"}</dt><dd className="font-display text-3xl font-extrabold">{units(row.amount)}</dd></div>

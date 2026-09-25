@@ -59,19 +59,19 @@ export function AllocationScreen({ address, id }: { address: string; id: bigint 
         className="relative overflow-hidden rounded-[2.5rem] p-7 shadow-float sm:p-9 lg:sticky lg:top-28"
         style={live ? { background: palette.tile, color: palette.ink } : { background: "#fff" }}>
         <div className="blob -bottom-24 -right-24 size-72 opacity-70" style={{ background: palette.soft }} />
-        <div className="relative flex items-center gap-4">
+        <div className="relative flex items-start gap-4">
           <Avatar kind={isAgent ? "agent" : "person"} palette={palette} size={68} className={live ? "" : "grayscale"} />
           <div className="min-w-0 flex-1">
-            <h1 id="allocation-title" className="truncate font-display text-[40px] font-extrabold leading-none tracking-[-0.03em]">{label}</h1>
-            <p className="mt-1 flex items-center gap-1.5 opacity-75">{isAgent ? <Bot size={16} /> : <UserRound size={16} />}{isAgent ? "Agent budget" : "Allowance"} in {space.title}</p>
+            <h1 id="allocation-title" className="break-words font-display text-[32px] font-extrabold leading-none tracking-[-0.03em] sm:text-[40px]">{isAgent && label.endsWith(".eth") ? label.split(".")[0] : label}</h1>
+            <p className="mt-1 flex items-center gap-1.5 text-sm opacity-75 sm:text-base">{isAgent ? <Bot size={16} className="shrink-0" /> : <UserRound size={16} className="shrink-0" />}{isAgent ? "Agent budget" : "Allowance"} in {space.title}</p>
+            <span className={`pill mt-3 ${live ? "" : "bg-soft text-muted"}`}>{statusLabel[status]}</span>
           </div>
-          <span className={`pill ${live ? "" : "bg-soft text-muted"}`}>{statusLabel[status]}</span>
         </div>
         <div className="relative my-8 flex justify-center">
           <Ring value={live ? ring.fraction : 0} size={260} stroke={24} colors={live ? ["#fff", "#fff"] : ["#c9c4dd", "#c9c4dd"]}
-            track={live ? "rgb(255 255 255 / 0.3)" : "var(--color-line)"} label={`${space.units(ring.available)} available`}>
-            <b className="font-display text-[76px] font-extrabold leading-none">{space.units(ring.available).split(" ")[0]}</b>
-            <span className="font-semibold opacity-75">{space.symbol} {isAgent ? "left today" : "ready now"}</span>
+            track={live ? "rgb(255 255 255 / 0.3)" : "var(--color-line)"} label={`${space.units(live ? ring.available : BigInt(0))} available`}>
+            <b className="font-display text-[76px] font-extrabold leading-none">{space.units(live ? ring.available : BigInt(0)).split(" ")[0]}</b>
+            <span className="font-semibold opacity-75">{status === "ens-inactive" ? "Payments paused" : `${space.symbol} ${isAgent ? "left today" : "ready now"}`}</span>
           </Ring>
         </div>
         <p className="relative text-center text-lg font-medium">{ruleSentence(data, space.decimals, space.symbol)}</p>

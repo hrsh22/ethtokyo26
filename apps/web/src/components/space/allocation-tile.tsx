@@ -20,7 +20,9 @@ export function AllocationTile({ spaceAddress, entry, timestamp, label, units, y
   const palette = allocationPalette(entry.id, isAgent);
   const status = allocationStatus(entry, timestamp);
   const live = status === "active";
+  const namedAgent = isAgent && label.endsWith(".eth");
   const ring = ringProgress(entry, timestamp);
+  const available = live ? ring.available : BigInt(0);
   const [, remaining, cap, , , period] = entry.allocation;
   const facts = status === "closed" ? ["Unspent funds returned"] : isAgent
     ? [entry.mandate[9] ? `${units(entry.mandate[5])} max each` : "No mandate yet", `${units(remaining)} left`]
@@ -32,15 +34,16 @@ export function AllocationTile({ spaceAddress, entry, timestamp, label, units, y
       {live ? <div className="blob -bottom-20 -right-20 size-56 opacity-60" style={{ background: palette.soft }} /> : null}
       <div className="relative flex items-center gap-3">
         <Avatar kind={isAgent ? "agent" : "person"} palette={palette} size={48} className={live ? "" : "opacity-50 grayscale"} />
-        <span className="min-w-0 flex-1"><b className="block truncate text-lg font-semibold leading-tight">{label}</b>
-          <small className="opacity-70">{isAgent ? "Agent" : "Person"}{yours ? ", yours" : ""}</small></span>
+        <span className="min-w-0 flex-1"><b className="block truncate text-lg font-semibold leading-tight">{namedAgent ? label.split(".")[0] : label}</b>
+          <small className="opacity-70">{namedAgent ? "ENSv2 agent" : isAgent ? "Agent" : "Person"}{yours ? ", yours" : ""}</small></span>
         <span className={`pill ${live ? "" : "bg-soft text-muted"}`}>{isAgent && live ? <ShieldCheck size={13} /> : null}{statusLabel[status]}</span>
       </div>
+      {namedAgent ? <p className="relative mt-3 break-all text-sm opacity-75">{label}</p> : null}
       <div className="relative my-5 flex justify-center">
         <Ring value={live ? ring.fraction : 0} size={150} stroke={16} colors={live ? ["#fff", "#fff"] : ["#c9c4dd", "#c9c4dd"]}
-          track={live ? "rgb(255 255 255 / 0.3)" : "var(--color-line)"} label={`${units(ring.available)} available ${isAgent ? "today" : "now"}`}>
-          <b className="font-display text-[34px] font-extrabold leading-none">{units(ring.available).split(" ")[0]}</b>
-          <small className="text-[12px] font-semibold opacity-70">{isAgent ? "left today" : "ready now"}</small>
+          track={live ? "rgb(255 255 255 / 0.3)" : "var(--color-line)"} label={`${units(available)} available ${isAgent ? "today" : "now"}`}>
+          <b className="font-display text-[34px] font-extrabold leading-none">{units(available).split(" ")[0]}</b>
+          <small className="text-[12px] font-semibold opacity-70">{status === "ens-inactive" ? "payments paused" : isAgent ? "left today" : "ready now"}</small>
         </Ring>
       </div>
       <div className="relative mt-auto flex flex-wrap items-center gap-2">

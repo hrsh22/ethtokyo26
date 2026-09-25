@@ -19,6 +19,7 @@ The authorization boundary is **live ENS identity + budget/caps + exact human co
 
 ## Rehearsal and evidence
 
+- [Completed live walkthrough evidence](ens-world-live-evidence.md) contains the successful payments, denied request, provider nonce rejection and onchain rejection after ENS revocation.
 - [Deployment manifest](../deployments/ens-world-sepolia.json) lists the root name, pinned ENS implementations, new factory and adapter, and infrastructure transactions.
 - `apps/api/scripts/demo-ens-world.mts` drives the live API using the configured test wallets. It never inserts a verified identity or policy. Its private session file is in `.data/`; do not publish it.
 - `prepare` creates/funds a demo and writes the real World authorization URL privately. Complete that URL in the browser, then `issue` records explicit consent and deploys the ENS identity. `routine`, `request-payment`, `authenticate-payment`, `approve-payment`, `deny`, `cache-payment`, and `revoke-cached` exercise the corresponding cases.

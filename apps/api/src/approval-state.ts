@@ -29,6 +29,10 @@ export async function requestView(db:DatabaseClient,row:RequestRow) {
       else if((saved?Number(saved.expiry)*1000:intent!.expiry.getTime())<=Date.now())status="expired";
     }
   }
+  if(["pending","verified","approved","issued"].includes(status)) {
+    try { await validateRequest(db,row); }
+    catch(error) { if(error instanceof AgentActionError)status="invalidated";else throw error; }
+  }
   return {id:row.id,kind:row.kind,status,draftId:row.draftId,spaceAddress:getAddress(row.spaceAddress),
     spaceName:draft?.name??"Space",allocationId:row.allocationId,owner:getAddress(row.owner),agent:getAddress(t.agent),
     agentName:t.agentName,amount:t.amount,...(t.recipient?{recipient:getAddress(t.recipient)}:{}),

@@ -64,7 +64,7 @@ describe("tiles and rings", () => {
   });
   it("labels agents without a live mandate so owners know what to fix", () => {
     expect(allocationStatus(agentBudget, timestamp)).toBe("active");
-    expect(allocationStatus({ ...agentBudget, ensAuthorized: false }, timestamp)).toBe("needs-mandate");
+    expect(allocationStatus({ ...agentBudget, ensAuthorized: false }, timestamp)).toBe("ens-inactive");
     expect(allocationStatus(personal, timestamp)).toBe("active");
   });
   it("keeps an allocation's colour stable across screens", () => {

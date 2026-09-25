@@ -2,7 +2,7 @@
 import {readFile,writeFile} from "node:fs/promises";
 import {createAccordClient,paymentApprovalRequired} from "../../../packages/sdk/src/index";
 import {accordForwarderAbi,spaceFactoryAbi,spaceAccountAbi} from "@accord/chain";
-import {createPublicClient,createWalletClient,encodeFunctionData,erc20Abi,getAddress,http,zeroAddress,type Address,type Hex} from "viem";
+import {createPublicClient,createWalletClient,decodeFunctionData,encodeFunctionData,erc20Abi,getAddress,http,zeroAddress,type Address,type Hex} from "viem";
 import {privateKeyToAccount} from "viem/accounts";
 import {sepolia} from "viem/chains";
 const mode=process.argv[2]??"prepare",base="https://accord-api.hrsh.dev";
@@ -64,14 +64,24 @@ async function main(){
     await api.decideApproval(state.paymentApproval,"deny");
     try{await agentApi.authorizePayment(state.payment);throw new Error("Denied request returned a signature");}catch(error){if((error as any)._tag!=="AgentActionError")throw error;state.deniedRequest=state.paymentApproval;await save();console.log("Denied payment rejected while ENS identity is active");}
   }else if(mode==="revoke-cached"){
-    state.ensRevocationTx=(await api.revokeAgentIdentity(state.draft.id,state.funding.permit.allocationId)).transactionHash;await save();
+    if(Number(state.authorization?.permit?.expiry)<=Math.floor(Date.now()/1000)+60)throw new Error("Cache a fresh approved permit before the revocation test");
+    if(!state.ensRevocationTx){state.ensRevocationTx=(await api.revokeAgentIdentity(state.draft.id,state.funding.permit.allocationId)).transactionHash;await save();}
     let rejected=false;try{await agentApi.authorizePayment(state.payment);}catch(error){rejected=(error as any)._tag==="AgentActionError";}if(!rejected)throw new Error("Revoked ENS identity was not rejected by API");
     const result=state.authorization,data=paymentData(result);
+    let invalidEns=false;
+    try{await chain.simulateContract({account:agent.address,address:getAddress(state.space),abi:spaceAccountAbi,...decodeFunctionData({abi:spaceAccountAbi,data})});}catch(error){
+      let cause:any=error;while(cause){if(cause.data?.errorName==="InvalidEnsAuthority")invalidEns=true;cause=cause.cause;}
+      if(!invalidEns)console.log("Unexpected simulation rejection",(error as any).shortMessage);
+    }
+    // Inspect the custom error, so expiry or a depleted budget cannot explain this rejection.
+    if(!invalidEns)throw new Error("Expected InvalidEnsAuthority from the revoked identity");
     const wallet=createWalletClient({account:agent,chain:sepolia,transport:http(process.env.SEPOLIA_RPC_URL)});
     // Deliberate onchain failure for evidence, using only the test agent's Sepolia ETH.
     const tx=await wallet.sendTransaction({to:getAddress(state.space),data,gas:500000n});
     const receipt=await chain.waitForTransactionReceipt({hash:tx});if(receipt.status!=="reverted")throw new Error("Cached payment unexpectedly executed");
-    state.cachedPaymentRevertedTx=tx;await save();console.log(JSON.stringify({ensRevocationTx:state.ensRevocationTx,cachedPaymentRevertedTx:tx,status:receipt.status}));
+    const block=await chain.getBlock({blockNumber:receipt.blockNumber});
+    if(block.timestamp>=BigInt(result.permit.expiry))throw new Error("Cached permit expired before the rejection was mined");
+    state.cachedPaymentRevertedTx=tx;state.cachedPaymentRevertReason="InvalidEnsAuthority";await save();console.log(JSON.stringify({ensRevocationTx:state.ensRevocationTx,cachedPaymentRevertedTx:tx,status:receipt.status,reason:state.cachedPaymentRevertReason}));
   }else throw new Error("Unknown demo action");
 }
 function paymentData(result:any){const p=result.permit;return encodeFunctionData({abi:spaceAccountAbi,functionName:"pay",args:[BigInt(p.allocationId),getAddress(p.recipient),BigInt(p.amount),{...p,actor:getAddress(p.actor),recipient:getAddress(p.recipient),allocationId:BigInt(p.allocationId),amount:BigInt(p.amount),nonce:BigInt(p.nonce),expiry:BigInt(p.expiry),policyVersion:BigInt(p.policyVersion)},result.signature]});}

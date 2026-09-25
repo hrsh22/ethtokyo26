@@ -1,6 +1,6 @@
 # Integration feedback
 
-Developer observations from the Accord build. This separates completed engineering checks from live partner results still awaiting testing.
+Developer observations from the Accord build. [Live ENSv2 and World Agents results](ens-world-live-evidence.md) distinguish provider testing from isolated fixtures.
 
 ## World IDKit
 
@@ -14,7 +14,7 @@ Developer observations from the Accord build. This separates completed engineeri
 ## World ID for Agents
 
 - **Implemented:** official sandbox OIDC code flow with S256 PKCE, `private_key_jwt`, pinned issuer/JWKS, nonce, audience, signature, `auth_time`, Orb ACR and `amr: pop` validation. The first delegation binds the owner; subsequent grants/increases and sensitive payments require the same subject and fresh authentication plus explicit consent.
-- **First success:** client registration completed on 25 September 2026. Live authentication/payment evidence is still pending; the 20 new isolated API tests use fixtures and are not counted as provider success.
+- **First success:** client registration completed on 25 September 2026; the first live sandbox authentication completed at 19:57:42 UTC. A subsequent fresh authentication by the same identity and explicit owner consent completed a 20 tUSDC payment. Changing the nonce caused a real provider token to be rejected. [Transaction and request evidence](ens-world-live-evidence.md).
 - **Friction:** IDKit app/RP credentials and World Agents OIDC credentials belong to separate systems. Portal management requires its own MCP OAuth scope and human consent. The callback reaches the API hostname, while the wallet cookie belongs to the frontend; requests must retain the initiating session server-side.
 - **Most useful improvement:** an end-to-end wallet-session + OIDC step-up example showing private-key client authentication, cancellation, exact-action consent, and callback session continuity across frontend/API domains.
 - **Environment:** World’s event sandbox uses mocked credentials. The implementation uses its real authentication endpoints; no sandbox identity is described as production biometric assurance.
@@ -24,6 +24,7 @@ Developer observations from the Accord build. This separates completed engineeri
 - Registered `accordspaces26.eth` under the existing Sepolia beta `.eth` registry. Space subregistries and per-agent resolvers use pinned official `UserRegistry` / `PermissionedResolver` implementations; addresses and transactions are in `deployments/ens-world-sepolia.json`.
 - The backend registrar holds root roles. Space owners and agents hold their name tokens with no transfer, renewal, resolver, or admin permissions. Owners request revocation through their authenticated Space controls; this privileged operator is part of the trust model.
 - `HierarchicalEnsPermissionAdapter` pins each child to its parent registration resource, owner and subregistry pointer. Every payment checks the live hierarchy and leaf. Eight new contract tests cover cached permits after revocation, parent expiry/detachment/reassignment, registration versions, and permit-bound funding.
+- **Live result:** the full agent name resolved to its wallet; unauthorized token transfer, renewal and metadata changes were rejected. After actual ENS revocation, an approved cached payment reverted with `InvalidEnsAuthority` before its permit expired.
 - **Friction:** deployment revisions differ; latest ABIs cannot be assumed to match the existing `.eth` registry. A never-registered name still has a derived nonzero resource, so issuance checks its expiry/history rather than `resource == 0`.
 - **Most useful improvement:** a versioned example covering registrar → child registry → permissioned resolver, precise role bitmaps, and the distinctions between label IDs, token IDs and registration resources.
 

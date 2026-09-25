@@ -2,7 +2,7 @@ import { allocationWindow } from "@accord/chain";
 import { zeroAddress } from "viem";
 import type { SpaceAllocation } from "./use-space-terms";
 
-export type AllocationStatus = "active" | "needs-mandate" | "used-up" | "ended" | "closed";
+export type AllocationStatus = "active" | "needs-mandate" | "ens-inactive" | "used-up" | "ended" | "closed";
 
 /** Reserved funds and counts across a Space's open allocations. */
 export function summarize(allocations: readonly SpaceAllocation[]) {
@@ -20,12 +20,15 @@ export function allocationStatus(entry: Pick<SpaceAllocation, "allocation" | "ma
   if (allocation[6]) return "closed";
   if (schedule && schedule[1] <= timestamp) return "ended";
   if (allocation[1] === BigInt(0)) return "used-up";
-  if (allocation[0] === zeroAddress && !(mandate[9] && mandate[8] > timestamp && entry.ensAuthorized)) return "needs-mandate";
+  if (allocation[0] === zeroAddress) {
+    if (!(mandate[9] && mandate[8] > timestamp)) return "needs-mandate";
+    if (!entry.ensAuthorized) return "ens-inactive";
+  }
   return "active";
 }
 
 export const statusLabel: Record<AllocationStatus, string> = {
-  active: "Active", "needs-mandate": "Needs mandate", "used-up": "Used up", ended: "Ended", closed: "Closed",
+  active: "Active", "needs-mandate": "Needs mandate", "ens-inactive": "ENS inactive", "used-up": "Used up", ended: "Ended", closed: "Closed",
 };
 
 /**
