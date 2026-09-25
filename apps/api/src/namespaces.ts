@@ -64,13 +64,25 @@ export async function ensureNamespace(db: DatabaseClient, draft: Draft) {
   const wallet = registrarWallet(), { label, name } = namespaceName(draft);
   const registry = await deployProxy(db, `namespace:${space}`, ensRegistryAbiAddress,
     encodeFunctionData({ abi: ensRegistryAbi, functionName: "initialize", args: [wallet.account.address, ENS_ROOT_ROLES] }));
+  const resolver = await deployProxy(db, `space-resolver:${space}`, ensResolverAbiAddress,
+    encodeFunctionData({ abi: ensResolverAbi, functionName: "initialize", args: [wallet.account.address, ENS_ROOT_ROLES, [
+      encodeFunctionData({ abi: ensResolverAbi, functionName: "setAddr", args: [namehash(name), space] }),
+      encodeFunctionData({ abi: ensResolverAbi, functionName: "setText", args: [namehash(name), "description", `${draft.name} — Accord Space`] }),
+      encodeFunctionData({ abi: ensResolverAbi, functionName: "setText", args: [namehash(name), "url", `${process.env.WEB_ORIGIN}/spaces/${space}`] }),
+    ]] }));
   const state = await registryState(parent,label);
   if (state.status !== 2) {
     if (state.expiry !== 0n) throw new Error("This Space namespace has expired or was revoked. Create a new Space.");
     const expiry = BigInt(Math.floor(Date.now()/1000)+365*86400);
     await confirmed(await wallet.writeContract({ address: parent, abi: ensRegistryAbi, functionName: "register",
-      args: [label, getAddress(draft.owner), registry, zeroAddress, 0n, expiry] }));
+      args: [label, getAddress(draft.owner), registry, resolver, 0n, expiry] }));
   } else if (state.latestOwner.toLowerCase() !== draft.owner.toLowerCase()) throw new Error("The Space namespace has another owner.");
+  const currentResolver = await publicClient.readContract({ address: parent, abi: ensRegistryAbi, functionName: "getResolver", args: [label] });
+  if (currentResolver === zeroAddress) await confirmed(await wallet.writeContract({ address: parent, abi: ensRegistryAbi,
+    functionName: "setResolver", args: [BigInt(labelhash(label)), resolver] }));
+  else if (currentResolver.toLowerCase() !== resolver.toLowerCase()) throw new Error("The Space ENS resolver was changed.");
+  const resolvedSpace = await publicClient.readContract({ address: resolver, abi: ensResolverAbi, functionName: "addr", args: [namehash(name)] });
+  if (resolvedSpace.toLowerCase() !== space.toLowerCase()) throw new Error("The ENS name does not resolve to this Space.");
   const child = await publicClient.readContract({ address: parent, abi: ensRegistryAbi, functionName: "getSubregistry", args: [label] });
   if (child.toLowerCase()!==registry.toLowerCase()) throw new Error("The Space namespace was detached.");
   const currentParent = await publicClient.readContract({ address: registry, abi: ensRegistryAbi, functionName: "getParent" });
@@ -81,6 +93,10 @@ export async function ensureNamespace(db: DatabaseClient, draft: Draft) {
   if (!active) throw new Error("The ENS namespace is no longer active.");
   await db.insert(spaceNamespaces).values({ spaceAddress: space, draftId:draft.id,name,registry }).onConflictDoNothing();
   return { registry,name };
+}
+
+export function provisionSpaceNamespace(db: DatabaseClient, draft: Draft) {
+  return serial("ens-registrar", () => ensureNamespace(db, draft));
 }
 
 export function provisionAgent(db: DatabaseClient, draft: Draft, requestId: string, input: { label: string; agent: string; expiry: string }) {

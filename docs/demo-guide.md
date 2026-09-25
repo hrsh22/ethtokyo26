@@ -4,7 +4,7 @@
 
 ## Main walkthrough
 
-1. Create a Space and choose **Give someone a budget → An agent**.
+1. Create a Space. Open **Space ENS** to show its registered name and explain that agents can have names beneath it. Then choose **Give someone a budget → An agent**.
 2. Choose the agent label and wallet. Show the full **ENSv2** subname preview. Set 100 tUSDC total, 100 per day, 50 per payment, and **Require approval above 10**.
 3. Fund the inert budget, review its exact terms, choose **Verify with World ID**, then **Authorize agent**. The first verification binds the owner; later authority increases must authenticate that same person again.
 4. Open the agent allocation. Show its ENS name, active status, expiry and World authorization. The namespace and agent resolver are real Sepolia ENSv2 contracts.

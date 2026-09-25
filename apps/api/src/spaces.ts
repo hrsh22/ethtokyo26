@@ -7,10 +7,21 @@ import { type Hex } from "viem";
 import { getAddress } from "viem";
 import { currentSession, requireBrowserOrigin } from "./auth";
 import { deployedSpaceFromReceipt } from "./chain";
-import { Database } from "./db";
+import { Database, type DatabaseClient } from "./db";
 import { databaseOperation } from "./db/run";
 import { spaceDrafts } from "./db/schema";
 import { listReceivedAllocations } from "./received-allocations";
+import { provisionSpaceNamespace } from "./namespaces";
+
+function registerSpaceName(db: DatabaseClient, draft: typeof spaceDrafts.$inferSelect) {
+  return Effect.tryPromise({
+    try: () => provisionSpaceNamespace(db, draft),
+    catch: () => {
+      console.warn(JSON.stringify({ event: "space_name_registration_failed", draftId: draft.id }));
+      return new HttpApiError.ServiceUnavailable();
+    },
+  });
+}
 
 function draftResponse(row: typeof spaceDrafts.$inferSelect) {
   return {
@@ -91,12 +102,16 @@ export const SpacesLive = HttpApiBuilder.group(AccordApi, "spaces", (handlers) =
         if (draft.deploymentTx !== deploymentTx || !draft.tokenAddress || !draft.activatedAt) {
           return yield* Effect.fail(new HttpApiError.Forbidden());
         }
+        yield* registerSpaceName(db.client, draft);
         return draftResponse(draft);
       }
       const deployment = yield* Effect.tryPromise({
         try: () => deployedSpaceFromReceipt(payload.deploymentTx as Hex, session.address as `0x${string}`),
         catch: () => new HttpApiError.BadRequest(),
       });
+      // Keep the draft resumable until its onchain name is ready. Namespace
+      // provisioning resumes confirmed steps and shares the agent registrar lock.
+      yield* registerSpaceName(db.client, { ...draft, spaceAddress: deployment.space, tokenAddress: deployment.token });
       const activatedAt = new Date();
       const updated = yield* databaseOperation(() => db.client.update(spaceDrafts).set({
         spaceAddress: deployment.space,

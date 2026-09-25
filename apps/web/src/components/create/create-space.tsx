@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, Check, Coins, Rocket } from "lucide-react";
+import { ArrowLeft, AtSign, Check, Coins, Rocket } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { encodeFunctionData, erc20Abi, getAddress, zeroAddress, type Address, type Hex } from "viem";
@@ -29,7 +29,7 @@ const deploySteps = [
   { id: "save", label: "Save your Space" },
   { id: "wallet", label: "Approve the deployment" },
   { id: "chain", label: "Deploy on Sepolia" },
-  { id: "link", label: "Finish setup" },
+  { id: "link", label: "Register your Space’s ENS name" },
 ];
 
 export function CreateSpace() {
@@ -112,7 +112,7 @@ function Wizard({ existing, deployment }: { existing?: Draft; deployment: { fact
       const receipt = await requireWallet().waitForTransactionReceipt({ hash, timeout: 90_000 });
       if (receipt.status !== "success") { remember(null); throw Object.assign(new Error("The deployment reverted. You can try again."), { reverted: true }); }
     });
-    const activated = await tracker.run("link", "Saving it to your account", () => client!.activateSpace({ draftId: current.id, deploymentTx: hash }));
+    const activated = await tracker.run("link", "Registering your Space’s ENS name", () => client!.activateSpace({ draftId: current.id, deploymentTx: hash }));
     remember(null);
     await cache.invalidateQueries({ queryKey: ["spaces"] });
     toast.success(`${activated.name} is live`, { description: "Now give a person an allowance or an agent a budget." });
@@ -187,6 +187,12 @@ function Wizard({ existing, deployment }: { existing?: Draft; deployment: { fact
             <div className="mt-3 flex flex-wrap gap-2">{suggestions.map((item) => <button type="button" key={item} onClick={() => setName(item)}
               className="rounded-full bg-soft px-4 py-2 text-sm font-semibold transition-colors hover:bg-[#ebe9f3]">{item}</button>)}</div>
             <p className="mt-4 text-sm text-muted">You can hold both people and agents in the same Space. Anyone with a link to it sees this name.</p>
+            <div className="mt-5 flex items-start gap-3 rounded-2xl bg-lilac-soft p-4">
+              <AtSign size={20} className="mt-0.5 shrink-0 text-[#6544ba]" />
+              <div><p className="text-sm font-semibold">An ENS name for your Space</p>
+                <p className="mt-1 text-sm text-ink-soft">We’ll register a unique ENSv2 name for this Space during setup. Any agents you add later get their own names beneath it.</p>
+              </div>
+            </div>
             <div className="mt-7 flex justify-end"><Button type="submit" size="lg" disabled={!nameValid}>Continue</Button></div>
           </form> : <div>
             <div className="mb-5 flex items-center gap-4 rounded-3xl bg-lime-soft p-4">

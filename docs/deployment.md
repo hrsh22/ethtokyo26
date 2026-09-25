@@ -94,6 +94,10 @@ Current deployment: [public manifest](../deployments/ens-world-sepolia.json).
 
 The server environment sets `ENS_NAMESPACE_NAME`, `ENS_NAMESPACE_REGISTRY`, and `ENS_ADAPTER_ADDRESS`. `ENS_REGISTRAR_PRIVATE_KEY` may be a dedicated key; otherwise `DEPLOYER_PRIVATE_KEY` operates the namespace. Fund this operator and `SPONSOR_PRIVATE_KEY` with Sepolia ETH. No additional Vercel variables are needed for agent approvals.
 
+Space activation now registers its ENSv2 name and a resolver pointing to the Space contract, before marking setup complete. This applies to Spaces for people as well as agents. Agent authorization later registers a child name. If ENS registration fails, the saved deployment transaction can be resumed with **Finish setup**; the Space contract is not deployed again.
+
+For Spaces activated before this change, run `apps/api/scripts/backfill-space-names.mts` from `apps/api` with the root environment. It defaults to a dry run. Pause the API before adding `--broadcast` so both processes cannot use the registrar at once, then restart the API. The script preserves existing names and agent revocations and resumes confirmed deployments on retry.
+
 World Agents uses `WORLD_AGENTS_CLIENT_ID`, `WORLD_AGENTS_ISSUER`, `WORLD_AGENTS_REDIRECT_URI`, `WORLD_AGENTS_TOKEN_ENDPOINT_AUTH_METHOD=private_key_jwt`, `WORLD_AGENTS_PRIVATE_KEY_PATH`, and `WORLD_AGENTS_KEY_ID`. Keep the PEM and all backend credentials private. The registered callback is `https://accord-api.hrsh.dev/v1/approvals/world/callback`; Nginx disables access logging for this exact path so authorization codes do not enter request logs.
 
 Migration `0004` adds private owner identities, immutable review requests, OAuth attempts, namespace deployment recovery, and confirmed agent policies. Keep one PM2 process: issuance, decisions and registrar writes are serialized within it. Multiple workers would require distributed locking.
