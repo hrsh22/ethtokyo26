@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowUpRight, Fingerprint, ShieldCheck } from "lucide-react";
 import { motion } from "motion/react";
 import { zeroAddress } from "viem";
+import { periodUnit } from "@/lib/format";
 import { allocationPalette } from "@/lib/palette";
 import { allocationStatus, ringProgress, statusLabel } from "@/lib/space-summary";
 import type { SpaceAllocation } from "@/lib/use-space-terms";
@@ -23,7 +24,7 @@ export function AllocationTile({ spaceAddress, entry, timestamp, label, units, y
   const [, remaining, cap, , , period] = entry.allocation;
   const facts = status === "closed" ? ["Unspent funds returned"] : isAgent
     ? [entry.mandate[9] ? `${units(entry.mandate[5])} max each` : "No mandate yet", `${units(remaining)} left`]
-    : [period === 0 ? "Any time" : `${units(cap)} ${period === 1 ? "a day" : period === 2 ? "a month" : "a window"}`, `${units(remaining)} left`];
+    : [period === 0 ? "Any time" : `${units(cap)} per ${periodUnit(period, entry.schedule)}`, `${units(remaining)} left`];
   return <motion.div layout initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -4 }} transition={{ type: "spring", stiffness: 300, damping: 26 }}>
     <Link href={`/spaces/${spaceAddress}/a/${entry.id}`} aria-label={`${label}, ${isAgent ? "agent" : "person"}, ${statusLabel[status]}`}
       className={`relative flex min-h-[300px] flex-col overflow-hidden rounded-tile p-6 ${live ? "shadow-float" : "bg-white/70"} ${yours ? "ring-4 ring-white" : ""}`}

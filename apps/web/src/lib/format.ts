@@ -20,6 +20,9 @@ export function every(seconds: number) {
   return `${seconds} seconds`;
 }
 
+export const shortDateTime = (seconds: bigint | number) =>
+  new Date(Number(seconds) * 1000).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
 export const shortDate = (seconds: bigint | number) =>
   new Date(Number(seconds) * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
@@ -46,11 +49,14 @@ export function ruleSentence(entry: { allocation: Allocation; mandate: Mandate; 
     return `Pays screened recipients up to ${units(maxPerPayment)} at a time and ${units(dailyCap)} a day, until ${shortDate(expiry)}.`;
   }
   if (period === 0) return `Can claim what's left, ${units(remaining)}, with a fresh World ID check each time.`;
-  const per = period === 1 ? "a day" : period === 2 ? "a month" : entry.schedule ? `every ${every(entry.schedule[2])}` : "per window";
-  return `Can claim up to ${units(cap)} ${per}, with a fresh World ID check each time.`;
+  const until = entry.schedule ? ` until ${shortDateTime(entry.schedule[1])}` : "";
+  const unit = periodUnit(period, entry.schedule);
+  return `Can claim up to ${units(cap)} ${/\d/.test(unit) ? "every" : "a"} ${unit}${until}, with a fresh World ID check each time.`;
 }
 
-export const periodName = (period: number) => ["All at once", "Every day", "Every month", "Every minute"][period] ?? "Custom";
+/** "day", "month", or a timed allowance's interval, like "minute". */
+export const periodUnit = (period: number, schedule?: AllocationSchedule) =>
+  period === 1 ? "day" : period === 2 ? "month" : schedule ? every(schedule[2]) : "window";
 
 export type NameEntry = { allocationId: string; name: string; address: string };
 

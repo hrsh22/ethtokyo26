@@ -6,7 +6,7 @@ import { ArrowLeft, Bot, Code2, RotateCw, UserRound } from "lucide-react";
 import { zeroAddress } from "viem";
 import { useAccord } from "@/lib/accord";
 import { allocationAccess } from "@/lib/allocation-access";
-import { ruleSentence, shortAddress, shortDate } from "@/lib/format";
+import { periodUnit, ruleSentence, shortAddress, shortDate } from "@/lib/format";
 import { allocationPalette } from "@/lib/palette";
 import { allocationStatus, ringProgress, statusLabel } from "@/lib/space-summary";
 import { useAllocation } from "@/lib/use-allocation";
@@ -72,7 +72,7 @@ export function AllocationScreen({ address, id }: { address: string; id: bigint 
         <p className="relative text-center text-lg font-medium">{ruleSentence(data, space.decimals, space.symbol)}</p>
         <div className="relative mt-5 flex flex-wrap justify-center gap-2">
           <span className="pill">{space.units(remaining)} left in total</span>
-          {!isAgent && period !== 0 ? <span className="pill">{space.units(cap)} per {period === 1 ? "day" : period === 2 ? "month" : "window"}</span> : null}
+          {!isAgent && period !== 0 ? <span className="pill">{space.units(cap)} per {periodUnit(period, data.schedule)}</span> : null}
           {isAgent && data.mandate[9] ? <span className="pill">Ends {shortDate(data.mandate[8])}</span> : null}
           <WindowTimer data={data} />
         </div>
