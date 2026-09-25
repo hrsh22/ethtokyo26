@@ -12,9 +12,9 @@ export function SignInCard({ title = "Connect to continue", body, compact = fals
   const label = auth.signing ? "Confirm in your wallet" : waiting ? "Checking your session" : auth.status === "unavailable" ? "Try again"
     : auth.status === "signed-out" ? "Sign in with wallet" : "Connect wallet";
   const hint = auth.status === "signed-out"
-    ? "Your wallet is connected. Sign a message to prove it's you. It's free and sends no transaction."
+    ? "Your wallet is connected. Sign a message to prove it's you."
     : auth.status === "unavailable" ? "We couldn't reach Accord to check your session."
-    : body ?? "Connect a wallet, then sign one message. No transaction, no fee.";
+    : body ?? "Connect a wallet, then sign one message.";
   return <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
     className={`card relative overflow-hidden ${compact ? "p-6" : "p-8 sm:p-10"}`} aria-labelledby="sign-in-title">
     <div className="blob -right-16 -top-20 size-64 bg-lilac/40" />

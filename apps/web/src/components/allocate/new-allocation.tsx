@@ -368,7 +368,7 @@ function Signer({ address, draft, kind, person, agent, units, total, terms, cap,
         <Button size="lg" loading={busy} onClick={() => void run()}>{fundedId ? "Grant mandate" : `Fund ${units(total)}`}</Button>
       </div>
     </div>
-    <p className="mt-3 text-right text-sm text-muted">{fundedId ? "1 wallet prompt" : `${prompts} wallet prompts`}. Network fees are paid in Sepolia ETH.</p>
+    <p className="mt-3 text-right text-sm text-muted">{fundedId ? "1 wallet prompt" : `${prompts} wallet prompts`}</p>
   </div>;
 }
 

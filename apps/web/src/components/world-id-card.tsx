@@ -18,14 +18,14 @@ export function WorldIdCard() {
   const status = useQuery({ queryKey: ["world-status", account], queryFn: () => client!.worldStatus(), enabled: !!client, retry: false });
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState<"verify" | "unlink" | null>(null);
+  const [busy, setBusy] = useState<"link" | "unlink" | null>(null);
   if (status.data && !status.data.configured) return null;
   const linked = status.data?.enrolled;
 
   async function begin() {
     if (!client || busy) return;
-    setBusy("verify");
-    try { setChallenge(await client.worldChallenge(linked ? "reverify" : "enroll")); setOpen(true); }
+    setBusy("link");
+    try { setChallenge(await client.worldChallenge("enroll")); setOpen(true); }
     catch (cause) { checkSession(cause); toast.error("Couldn’t start a World ID check. Try again."); }
     finally { setBusy(null); }
   }
@@ -45,17 +45,19 @@ export function WorldIdCard() {
     } finally { setBusy(null); }
   }
 
-  return <section className="card flex flex-wrap items-center gap-4 p-6" aria-labelledby="world-card-title">
-    <span className={`grid size-11 place-items-center rounded-2xl ${linked ? "bg-good-soft text-good" : "bg-tang-soft text-[#e2561c]"}`}>{linked ? <Check size={20} strokeWidth={3} /> : <Fingerprint size={20} />}</span>
-    <span className="min-w-[200px] flex-1">
-      <h2 id="world-card-title" className="font-display text-2xl font-extrabold">{linked ? "World ID linked" : "Receiving an allowance?"}</h2>
-      <span className="text-sm text-muted">{status.isPending ? "Checking your World ID status…" : linked ? "This wallet is ready to claim. Each claim still asks for a quick fresh check."
-        : "Link World ID to this wallet now, so your first claim is a single check."}</span>
-    </span>
-    {status.data ? <div className="flex flex-wrap gap-2">
-      <Button variant={linked ? "soft" : "primary"} loading={busy === "verify"} disabled={!!busy} onClick={() => void begin()}>{linked ? "Check again" : "Link World ID"}</Button>
-      {linked ? <Button variant="ghost" loading={busy === "unlink"} disabled={!!busy} onClick={() => void unlink()}>Unlink World ID</Button> : null}
-    </div> : null}
+  return <section className="card flex flex-col items-start gap-5 p-6" aria-labelledby="world-card-title">
+    <div className="flex items-start gap-4">
+      <span className={`grid size-11 shrink-0 place-items-center rounded-2xl ${linked ? "bg-good-soft text-good" : "bg-tang-soft text-[#e2561c]"}`}>{linked ? <Check size={20} strokeWidth={3} /> : <Fingerprint size={20} />}</span>
+      <div>
+        <h2 id="world-card-title" className="font-display text-2xl font-extrabold">{linked ? "World ID linked" : "Receiving an allowance?"}</h2>
+        <p className="text-sm text-muted">{status.isPending ? "Checking World ID…" : linked ? "Ready to claim." : "Link World ID before your first claim."}</p>
+      </div>
+    </div>
+    {status.data ? linked
+      ? <button type="button" className="text-sm font-medium text-bad underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bad disabled:opacity-45"
+          disabled={!!busy} aria-busy={busy === "unlink"} onClick={() => void unlink()}>{busy === "unlink" ? "Unlinking…" : "Unlink World ID"}</button>
+      : <Button loading={busy === "link"} disabled={!!busy} onClick={() => void begin()}>Link World ID</Button>
+      : null}
     {challenge ? <WorldSession open={open} onOpenChange={setOpen}
       app_id={challenge.appId as `app_${string}`} rp_context={challenge.rpContext} environment={challenge.environment}
       existing_session_id={challenge.sessionId as `session_${string}` | undefined} require_user_presence={challenge.requireUserPresence}

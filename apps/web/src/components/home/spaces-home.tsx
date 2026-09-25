@@ -42,7 +42,7 @@ export function SpacesHome() {
     </header>
 
     {!auth.signedIn ? <div className={`mt-8 grid gap-4 ${demoAddress ? "lg:grid-cols-[1.4fr_1fr]" : ""}`}>
-      <SignInCard title="Sign in to see your Spaces" body="Connect a wallet, then sign one message to see the Spaces you own and allowances shared with you. No transaction, no fee." />
+      <SignInCard title="Sign in to see your Spaces" body="Connect a wallet to see your Spaces and shared allowances." />
       {demoAddress ? <Link href={`/spaces/${demoAddress}`} className="card group flex items-center gap-4 p-6 transition-transform hover:-translate-y-0.5">
         <Avatar kind="agent" palette={allocationPalette(BigInt(1), true)} size={52} />
         <span className="flex-1"><b className="block font-display text-xl font-extrabold">Explore the live demo</b><span className="text-sm text-muted">A public Space with a person and an agent. No wallet needed.</span></span>

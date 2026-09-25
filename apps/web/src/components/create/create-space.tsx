@@ -142,7 +142,7 @@ function Wizard({ existing, deployment }: { existing?: Draft; deployment: { fact
         router.replace(`/spaces/new?draft=${current.id}`, { scroll: false });
         await cache.invalidateQueries({ queryKey: ["spaces"] });
       } else tracker.update("save", { state: "done" });
-      const hash = await tracker.run("wallet", "Sign the gasless deployment", () => sponsor.send(deployment.factory,
+      const hash = await tracker.run("wallet", "Sign to create Space", () => sponsor.send(deployment.factory,
         encodeFunctionData({ abi: spaceFactoryAbi, functionName: "createSpace",
           args: [deployment.authorizer, token, deployment.adapter] }), BigInt(7_500_000)));
       submitted = true;
@@ -207,7 +207,7 @@ function Wizard({ existing, deployment }: { existing?: Draft; deployment: { fact
               <Button variant="ghost" disabled={busy} onClick={() => setStep("name")}>Back</Button>
               {!pending.data ? <Button size="lg" onClick={() => void deploy()} loading={busy} disabled={!token || !asset.isSuccess}><Rocket />{draft ? "Deploy Space" : "Create Space"}</Button> : null}
             </div>
-            <p className="mt-4 text-sm text-muted">Accord pays the network fee. The Space is owned by {account ? shortAddress(account) : "your wallet"}.</p>
+            <p className="mt-4 text-sm text-muted">The Space is owned by {account ? shortAddress(account) : "your wallet"}.</p>
             {draft ? <details className="mt-5 text-sm" open={recoverOpen} onToggle={(event) => setRecoverOpen(event.currentTarget.open)}>
               <summary className="cursor-pointer font-semibold text-muted">Already deployed from another tab?</summary>
               <form className="mt-3 flex gap-2" onSubmit={(event) => {

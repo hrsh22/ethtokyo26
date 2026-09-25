@@ -56,7 +56,7 @@ export function PayPanel({ address, draftId, data, decimals, symbol, units }: {
         setDecision(result.decision);
         return { result, to };
       });
-      await tracker.run("wallet", "Sign the gasless payment", () => sendPermitTransaction(authorized.result.permit.requestId as Hex, () =>
+      await tracker.run("wallet", "Sign the payment", () => sendPermitTransaction(authorized.result.permit.requestId as Hex, () =>
         sponsor.send(getAddress(authorized.result.spaceAddress), encodeFunctionData({ abi: spaceAccountAbi, functionName: "pay",
           args: [BigInt(authorized.result.permit.allocationId), authorized.to, BigInt(authorized.result.permit.amount),
             permitFrom(authorized.result), authorized.result.signature as Hex] }))));

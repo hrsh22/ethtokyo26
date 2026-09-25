@@ -53,11 +53,10 @@ export function DemoTokenFaucet({ inline = false }: { inline?: boolean }) {
         {balance.data !== undefined ? <p className="mt-2 text-sm font-semibold">Your balance: {amount(balance.data, 6, "tUSDC")}</p> : null}
       </div>
     </div>
-    <div className="mt-5 flex flex-wrap items-center gap-3">
+    <div className="mt-5">
       <Button variant={inline ? "light" : "primary"} loading={pending} onClick={() => void claim()}>
         {pending ? "Confirming on Sepolia" : "Get 1,000 tUSDC"}
       </Button>
-      <span className="text-xs text-muted">Accord pays the network fee.</span>
     </div>
     {error ? <p role="alert" className="mt-3 text-sm font-medium text-bad">{error}</p> : null}
   </section>;

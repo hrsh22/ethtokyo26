@@ -74,7 +74,7 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
           p.requestId !== keccak256(toBytes(quote.id))) throw new PurchaseMessage("The authorization doesn't match this purchase.");
         // Save before opening the wallet: an interrupted response may hide an already-sent transaction.
         remember({ version: 1, quote, submitted: true });
-        setStage("Sign the gasless payment");
+        setStage("Sign the payment");
         transactionHash = await sponsor.send(getAddress(authorization.spaceAddress), encodeFunctionData({ abi: spaceAccountAbi,
           functionName: "pay", args: [BigInt(p.allocationId), getAddress(p.recipient), BigInt(p.amount), {
             actor: getAddress(p.actor), action: p.action, allocationId: BigInt(p.allocationId), recipient: getAddress(p.recipient),
