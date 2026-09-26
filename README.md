@@ -9,6 +9,7 @@ Both controls remain necessary: an approval cannot rescue a revoked ENS identity
 - [Agent developer toolkit plan — SDK, CLI and MCP](docs/agent-developer-toolkit-plan.md)
 - [Install and connect an agent — SDK/MCP quickstart](packages/agent-kit/README.md)
 - [Developer setup in the app](https://accord.hrsh.dev/developers)
+- [Live SDK/MCP purchase, denial and ENS revocation evidence](docs/agent-toolkit-live-evidence.md)
 - [Demo walkthrough](docs/demo-guide.md)
 - [PM2 / Vercel deployment](docs/deployment.md)
 - [Public contract manifest](deployments/ens-world-sepolia.json)

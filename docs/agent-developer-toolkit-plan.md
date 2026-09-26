@@ -270,7 +270,7 @@ After the submission journey works, add a guided task on the agent page using th
 
 Implemented: ENS connection resolution and owner pairing; separate scoped agent sessions; immutable repository-research quotes; durable relay/receipt recovery; the `@accord/agent` SDK, CLI and nine-tool stdio MCP connector; compact setup/connection UI; exact report terms on the owner approval page; a versioned installable artifact and [quickstart](../packages/agent-kit/README.md).
 
-Verified so far: isolated API permission/pairing/relay tests, SDK concurrent-retry/restart tests, an MCP protocol-client purchase/resume test, existing app/contract regressions, real GitHub source collection and installation outside the monorepo. Backend migration preserves application data and expires old unscoped sessions. Live toolkit evidence and the recorded assistant journey are separate gates below; automated fixtures do not satisfy them.
+Verified: isolated API permission/pairing/relay tests, SDK concurrent-retry/restart tests, existing app/contract regressions, real GitHub source collection and installation outside the monorepo. The installed stdio connector completed real 1/20 tUSDC purchases, same-owner World approval, denial, ENS revocation and retrieval after restart. A controlled harness confirmed that an unexpired approved permit fails after actual ENS revocation. See [live toolkit evidence](agent-toolkit-live-evidence.md) for transactions, scope and limitations. The recorded end-user assistant journey remains a submission gate; protocol checks and automated fixtures do not replace that video.
 
 ## Implementation order and completion gates
 
