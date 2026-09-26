@@ -10,7 +10,8 @@ import { agentPolicies, agentRequests, ownerIdentities, permitIntents, spaceDraf
 export type RequestRow=typeof agentRequests.$inferSelect;
 export type PolicyRow=typeof agentPolicies.$inferSelect;
 export type Terms={agent:string;agentName:string;amount:string;recipient?:string;label?:string;dailyCap?:string;
-  maxPerPayment?:string;approvalThreshold?:string;expiry?:string;policyId?:string;remaining?:string};
+  maxPerPayment?:string;approvalThreshold?:string;expiry?:string;policyId?:string;remaining?:string;
+  purchaseTitle?:string;purchaseDescription?:string};
 export const actionError=(message:string)=>new AgentActionError({message});
 export function requestStatus(row:RequestRow) {
   return ["pending","verified","approved"].includes(row.status) && row.expiresAt<=new Date() ? "expired" : row.status;
@@ -38,6 +39,7 @@ export async function requestView(db:DatabaseClient,row:RequestRow) {
     agentName:t.agentName,amount:t.amount,...(t.recipient?{recipient:getAddress(t.recipient)}:{}),
     ...(t.dailyCap?{dailyCap:t.dailyCap}:{}),...(t.maxPerPayment?{maxPerPayment:t.maxPerPayment}:{}),
     ...(t.approvalThreshold!==undefined?{approvalThreshold:t.approvalThreshold}:{}),...(t.expiry?{expiry:t.expiry}:{}),
+    ...(t.purchaseTitle?{purchaseTitle:t.purchaseTitle}:{}),...(t.purchaseDescription?{purchaseDescription:t.purchaseDescription}:{}),
     expiresAt:row.expiresAt.toISOString(),createdAt:row.createdAt.toISOString(),verified:!!row.verifiedAt};
 }
 export async function readRequest(db:DatabaseClient,id:string) {

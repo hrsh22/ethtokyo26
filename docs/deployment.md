@@ -47,6 +47,24 @@ rejected while `WEB_ORIGIN` is set to the production hostname.
 
 ## Web on Vercel
 
+### Agent toolkit rollout
+
+Migration `0005` adds scoped connections, one-time signer pairing and durable research operations. It expires pre-migration sessions because older agent credentials were not distinguishable from browser credentials. Users sign in once again; Spaces, allowances, World identities and onchain budgets are preserved. Back up SQLite before applying this additive migration. No contract replacement or Vercel environment change is required.
+
+`GITHUB_RESEARCH_TOKEN` in the backend `.env` is optional for a higher GitHub public API rate limit. Without it, source rate limits stop new quotes before payment. `RESEARCH_SELLER_ADDRESS` remains the merchant recipient. The old `RESEARCH_PRICE_BASE_UNITS` controls the legacy Space report; toolkit offers have fixed test prices of 1 and 20 tUSDC.
+
+Build the toolkit and refresh the versioned public artifact when releasing a new version:
+
+```bash
+pnpm --filter @accord/agent build
+cd packages/agent-kit
+pnpm pack --pack-destination ../../apps/web/public/downloads
+```
+
+Keep the package version, public download path and setup instructions in sync. Check installation outside the workspace before pushing. This is a versioned tarball distribution, not an npm publication. The MCP connector runs on the developer's machine, not in Vercel or the API process.
+
+### Frontend project settings
+
 Commit and push the deployment changes before importing the GitHub repository
 as one **Next.js** project. Set its Root Directory
 to `apps/web`, with **Include source files outside the Root Directory** enabled

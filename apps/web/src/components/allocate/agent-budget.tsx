@@ -15,14 +15,16 @@ import { useSponsoredTransaction } from "@/lib/use-sponsored-transaction";
 import { useAgentIdentities } from "../agent-identity";
 import { AmountField } from "../amount-field";
 import { Button } from "../ui/button";
+import { AgentSetupButton } from "../agent-tools";
 
 type Funding=Awaited<ReturnType<AccordClient["createAllocation"]>>;
 type Defaults={label:string;agent:string;daily:string;per:string;threshold:string;ends:string};
-export function AgentBudget({address,draftId,allocationId,defaults}:{address:string;draftId:string;allocationId?:string;defaults?:Defaults}) {
+export function AgentBudget({address,draftId,allocationId,defaults,initialAgent,pairingId}:{address:string;draftId:string;allocationId?:string;defaults?:Defaults;initialAgent?:string;pairingId?:string}) {
   const {client,account,checkSession}=useAccord(),router=useRouter(),cache=useQueryClient();
   const identities=useAgentIdentities(draftId),sponsor=useSponsoredTransaction();
   const {requireWallet,sendPermitTransaction,waitForSuccess,chain}=useChainActions(address);
-  const [label,setLabel]=useState(defaults?.label??"research"),[agent,setAgent]=useState(defaults?.agent??"");
+  const [label,setLabel]=useState(defaults?.label??"research"),[agent,setAgent]=useState(defaults?.agent??initialAgent??"");
+  const [manual,setManual]=useState(!!defaults?.agent || !!initialAgent);
   const [total,setTotal]=useState("100"),[daily,setDaily]=useState(defaults?.daily??"100");
   const [per,setPer]=useState(defaults?.per??"50"),[threshold,setThreshold]=useState(defaults?.threshold??"10");
   const [ends,setEnds]=useState(()=>defaults?.ends??new Date(Date.now()+14*86400_000).toISOString().slice(0,10));
@@ -65,6 +67,7 @@ export function AgentBudget({address,draftId,allocationId,defaults}:{address:str
       setMessage("Preparing the agent authorization…");
       const request=await client.prepareAgent({draftId,requestKey:crypto.randomUUID(),allocationId:id,label,agent:getAddress(agent),
         dailyCap:dailyCap.toString(),maxPerPayment:maxPerPayment.toString(),approvalThreshold:approvalThreshold.toString(),expiry:String(expiry)});
+      if(pairingId)sessionStorage.setItem(`accord:pairing-return:${request.id}`,pairingId);
       if(!allocationId)remember(null);
       router.push(`/approvals/${request.id}`);
     }catch(error){checkSession(error);setMessage(describeError(error,"The agent setup could not be completed."));}
@@ -80,8 +83,9 @@ export function AgentBudget({address,draftId,allocationId,defaults}:{address:str
       <p className="mt-3 text-ink-soft">Give your agent a name, set its limits, and choose when it needs your approval.</p>
     </div>
     <form className="grid gap-5 p-7 sm:p-9" onSubmit={event=>void submit(event)}>
-      <div className="grid gap-4 sm:grid-cols-[1fr_1.5fr]"><div><label className="font-semibold" htmlFor="agent-label">Agent name</label><input id="agent-label" className="field mt-2" value={label} onChange={e=>setLabel(e.target.value.toLowerCase())} required pattern="[a-z0-9][a-z0-9-]{0,31}" disabled={busy}/></div>
-        <div><label className="font-semibold" htmlFor="agent-wallet">Agent wallet</label><input id="agent-wallet" className="field mt-2" value={agent} onChange={e=>setAgent(e.target.value)} placeholder="0x…" required disabled={busy} autoComplete="off" spellCheck={false}/></div></div>
+      {!allocationId && !initialAgent?<div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-soft p-4"><AgentSetupButton/><button type="button" className="text-sm font-semibold text-muted hover:text-ink" onClick={()=>setManual(!manual)}>{manual?"Hide manual entry":"Enter a wallet manually"}</button></div>:null}
+      <div className={`grid gap-4 ${manual?"sm:grid-cols-[1fr_1.5fr]":""}`}><div><label className="font-semibold" htmlFor="agent-label">Agent name</label><input id="agent-label" className="field mt-2" value={label} onChange={e=>setLabel(e.target.value.toLowerCase())} required pattern="[a-z0-9][a-z0-9-]{0,31}" disabled={busy}/></div>
+        {manual?<div><label className="font-semibold" htmlFor="agent-wallet">{initialAgent?"Signer from your terminal":"Agent wallet"}</label><input id="agent-wallet" className="field mt-2" value={agent} onChange={e=>setAgent(e.target.value)} placeholder="0x…" required readOnly={!!initialAgent} disabled={busy} autoComplete="off" spellCheck={false}/></div>:null}</div>
       <div className="rounded-2xl bg-lilac-soft p-4">
         <p className="flex items-center gap-2 text-sm font-semibold text-[#6544ba]"><AtSign size={16}/>{allocationId?"ENSv2 agent name":"ENSv2 name preview"}</p>
         <p className="mt-2 break-all text-sm font-semibold">{identities.data?`${label||"agent"}.${identities.data.namespace}`:"Loading name preview…"}</p>
@@ -93,7 +97,7 @@ export function AgentBudget({address,draftId,allocationId,defaults}:{address:str
       <div><label className="font-semibold" htmlFor="agent-expiry">Authority ends</label><input className="field mt-2" id="agent-expiry" type="date" value={ends} onChange={e=>setEnds(e.target.value)} required disabled={busy}/></div>
       <p className="flex items-center gap-2 text-sm text-muted"><Fingerprint size={17} className="shrink-0"/>Review these terms with World ID before authorizing the agent.</p>
       {message?<p role="status" className="rounded-2xl bg-soft p-4 text-sm">{message}</p>:null}
-      <Button size="lg" type="submit" loading={busy} disabled={!identities.data || (!allocationId && saved.isPending)}>{allocationId?"Review changes":saved.data?"Continue setup":"Fund and review"}</Button>
+      <Button size="lg" type="submit" loading={busy} disabled={!agent || !identities.data || (!allocationId && saved.isPending)}>{allocationId?"Review changes":saved.data?"Continue setup":"Fund and review"}</Button>
     </form>
   </section>;
 }

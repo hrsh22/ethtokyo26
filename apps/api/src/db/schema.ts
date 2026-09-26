@@ -17,6 +17,8 @@ export const sessions = sqliteTable("sessions", {
   tokenHash: text("token_hash").primaryKey(),
   address: text("address").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
+  kind: text("kind").notNull().default("browser"),
+  connectionId: text("connection_id"),
   createdAt: createdAt(),
 });
 
@@ -117,7 +119,35 @@ export const researchQuotes = sqliteTable("research_quotes", {
   tokenAddress: text("token_address").notNull(), recipient: text("recipient").notNull(),
   amount: text("amount").notNull(), expiresAt: timestamp("expires_at").notNull(),
   transactionHash: text("transaction_hash").unique(),
+  service: text("service").notNull().default("space-report"),
+  terms: text("terms"),
+  result: text("result"),
+  connectionId: text("connection_id"),
+  operationKey: text("operation_key"),
   createdAt: createdAt(),
+}, (t) => [uniqueIndex("research_quotes_connection_operation").on(t.connectionId, t.operationKey)]);
+
+export const agentConnections = sqliteTable("agent_connections", {
+  id: text("id").primaryKey(), owner: text("owner").notNull(), agent: text("agent").notNull(),
+  draftId: text("draft_id").notNull(), spaceAddress: text("space_address").notNull(),
+  allocationId: text("allocation_id").notNull(), name: text("name").notNull(),
+  registry: text("registry").notNull(), nameId: text("name_id").notNull(), resource: text("resource").notNull(),
+  expiresAt: timestamp("expires_at").notNull(), revokedAt: timestamp("revoked_at"),
+  lastSeenAt: timestamp("last_seen_at"), createdAt: createdAt(),
+}, (t) => [index("agent_connections_allocation").on(t.spaceAddress, t.allocationId)]);
+
+export const agentPairings = sqliteTable("agent_pairings", {
+  id: text("id").primaryKey(), agent: text("agent").notNull(), name: text("name"),
+  reviewHash: text("review_hash").notNull(), pollHash: text("poll_hash").notNull(),
+  connectionId: text("connection_id"), expiresAt: timestamp("expires_at").notNull(),
+  acceptedAt: timestamp("accepted_at"), createdAt: createdAt(),
+});
+
+// Save a sponsored payment's hash before returning to the client. A timed-out
+// client can reconcile this record and the consumed request event without repaying.
+export const agentSubmissions = sqliteTable("agent_submissions", {
+  requestId: text("request_id").primaryKey(), connectionId: text("connection_id").notNull(),
+  transactionHash: text("transaction_hash").notNull(), createdAt: createdAt(),
 });
 
 // OIDC subjects are private to the backend and separate from IDKit sessions.

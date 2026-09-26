@@ -31,7 +31,7 @@ export function Sheet({ open, onOpenChange, title, description, children, busy =
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
                 <Dialog.Title className="font-display text-[28px] font-extrabold leading-tight">{title}</Dialog.Title>
-                {description ? <Dialog.Description className="mt-1 text-muted">{description}</Dialog.Description> : <Dialog.Description className="sr-only">{title}</Dialog.Description>}
+                {description ? <Dialog.Description className="mt-1 break-words text-muted">{description}</Dialog.Description> : <Dialog.Description className="sr-only">{title}</Dialog.Description>}
               </div>
               <Dialog.Close className="grid size-10 shrink-0 place-items-center rounded-full bg-soft text-ink-soft hover:bg-[#ebe9f3] disabled:opacity-40" aria-label="Close" disabled={busy}><X size={18} /></Dialog.Close>
             </div>

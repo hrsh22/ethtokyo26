@@ -1,5 +1,7 @@
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, HttpApiSchema } from "@effect/platform";
 import { Schema } from "effect";
+import { ToolkitGroup } from "./toolkit";
+export * from "./toolkit";
 
 export const Health = Schema.Struct({
   status: Schema.Literal("ok"),
@@ -65,6 +67,7 @@ export const VerifyRequest = Schema.Struct({
   address: WalletAddress,
   signature: Schema.String.pipe(Schema.pattern(/^0x[a-fA-F0-9]{130}$/)),
   client: Schema.Literal("browser", "agent"),
+  connectionId: Schema.optional(Schema.UUID),
 });
 export const SessionResponse = Schema.Struct({
   address: WalletAddress,
@@ -278,6 +281,8 @@ export const AgentRequestView = Schema.Struct({
   maxPerPayment: Schema.optional(UnsignedInteger), approvalThreshold: Schema.optional(UnsignedInteger),
   expiry: Schema.optional(UnsignedInteger), expiresAt: Schema.String,
   createdAt: Schema.String, verified: Schema.Boolean,
+  purchaseTitle: Schema.optional(Schema.String),
+  purchaseDescription: Schema.optional(Schema.String),
 });
 export class AgentApprovalRequired extends Schema.TaggedError<AgentApprovalRequired>()("AgentApprovalRequired", {
   request: AgentRequestView,
@@ -293,6 +298,7 @@ export const AgentIdentity = Schema.Struct({
 });
 
 export const AccordApi = HttpApi.make("AccordApi")
+  .add(ToolkitGroup)
   .add(HttpApiGroup.make("approvals")
     .add(HttpApiEndpoint.get("list")`/v1/approvals`.addSuccess(Schema.Struct({
       configured: Schema.Boolean, identified: Schema.Boolean, requests: Schema.Array(AgentRequestView),

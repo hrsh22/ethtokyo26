@@ -5,7 +5,8 @@ import { and, eq, gt, isNotNull, isNull } from "drizzle-orm";
 import { Effect } from "effect";
 import { randomBytes, randomUUID } from "node:crypto";
 import { getAddress, isAddress, keccak256, toBytes, zeroHash, type Address, type Hex } from "viem";
-import { currentSession, requireBrowserOrigin } from "./auth";
+import { assertAgentScope, currentSession, requireBrowserOrigin } from "./auth";
+import { connectionIdentity } from "./agent-connection";
 import { adapterAddress, permitSigner, publicClient } from "./chain";
 import { Database } from "./db";
 import { databaseOperation } from "./db/run";
@@ -166,11 +167,18 @@ export const PermitsLive = HttpApiBuilder.group(AccordApi, "permits", (handlers)
     .handle("authorizePayment", ({ payload }) => Effect.gen(function* () {
       yield* requireBrowserOrigin();
       const session = yield* currentSession();
+      yield* assertAgentScope(session, payload);
       if (!payload.recipient || !isAddress(payload.recipient)) return yield* Effect.fail(new HttpApiError.BadRequest());
       const actor = getAddress(session.address);
       const db = yield* Database;
       return yield* Effect.tryPromise({
         try: async () => {
+          if (session.connection) {
+            await connectionIdentity(db.client, session.connection);
+            const [quote] = await db.client.select().from(researchQuotes).where(and(eq(researchQuotes.id, payload.requestKey),
+              eq(researchQuotes.connectionId, session.connection.id)));
+            if (!quote) throw new HttpApiError.Forbidden();
+          }
           const approval = await paymentApproval(db.client, payload, actor);
           return serial(approval ? `approval:${approval.id}` : `payment:${actor}:${payload.requestKey}`, async () => {
             // Recheck inside the same lock used by approval/denial.

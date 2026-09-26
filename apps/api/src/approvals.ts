@@ -3,7 +3,7 @@ import { HttpApiBuilder, HttpServerResponse } from "@effect/platform";
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import { Effect } from "effect";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { currentSession, requireBrowserOrigin } from "./auth";
+import { assertAgentScope, currentSession, requireBrowserOrigin } from "./auth";
 import { Database } from "./db";
 import { agentRequests, ownerIdentities, sessions, worldAuthorizations } from "./db/schema";
 import { actionError, readRequest, requestStatus, requestView, validateRequest } from "./approval-state";
@@ -24,6 +24,8 @@ export const ApprovalsLive=HttpApiBuilder.group(AccordApi,"approvals",handlers=>
   }))
   .handle("get",({payload})=>Effect.gen(function*(){
     const session=yield* currentSession(),db=yield* Database;
+    const scopedRow=yield* agentTry(()=>readRequest(db.client,payload.id));
+    yield* assertAgentScope(session,scopedRow);
     return yield* agentTry(async()=>{
       const row=await readRequest(db.client,payload.id);
       if(row.owner!==session.address && row.actor!==session.address)throw actionError("This request belongs to another account.");

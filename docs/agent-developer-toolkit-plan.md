@@ -266,6 +266,12 @@ The live assistant's decisions and useful result belong in the main video. Sourc
 
 After the submission journey works, add a guided task on the agent page using the same SDK, policies, review links, receipts and restart behavior. It needs a real model, bounded tool calls, server-side model credentials, a protected signer per connection and a durable worker. The owner explicitly authorizes the hosted signer; the UI identifies it as hosted by Accord. Stop new work on cancellation or lost authority and reconcile transactions already submitted. This follow-up must not delay the external-agent demo or require a model credential from Accord for SDK/MCP users.
 
+## Implementation progress — 26 September 2026
+
+Implemented: ENS connection resolution and owner pairing; separate scoped agent sessions; immutable repository-research quotes; durable relay/receipt recovery; the `@accord/agent` SDK, CLI and nine-tool stdio MCP connector; compact setup/connection UI; exact report terms on the owner approval page; a versioned installable artifact and [quickstart](../packages/agent-kit/README.md).
+
+Verified so far: isolated API permission/pairing/relay tests, SDK concurrent-retry/restart tests, an MCP protocol-client purchase/resume test, existing app/contract regressions, real GitHub source collection and installation outside the monorepo. Backend migration preserves application data and expires old unscoped sessions. Live toolkit evidence and the recorded assistant journey are separate gates below; automated fixtures do not satisfy them.
+
 ## Implementation order and completion gates
 
 | Phase | Deliverables | Gate before proceeding |

@@ -7,6 +7,8 @@ Both controls remain necessary: an approval cannot rescue a revoked ENS identity
 - [Live app](https://accord.hrsh.dev)
 - [Four-point implementation plan and prize mapping](docs/ens-world-integration-plan.md)
 - [Agent developer toolkit plan — SDK, CLI and MCP](docs/agent-developer-toolkit-plan.md)
+- [Install and connect an agent — SDK/MCP quickstart](packages/agent-kit/README.md)
+- [Developer setup in the app](https://accord.hrsh.dev/developers)
 - [Demo walkthrough](docs/demo-guide.md)
 - [PM2 / Vercel deployment](docs/deployment.md)
 - [Public contract manifest](deployments/ens-world-sepolia.json)
@@ -25,7 +27,7 @@ flowchart LR
 ## The main journey
 
 1. **Create a Space** and claim free tUSDC using the repeatable **Get 1,000 tUSDC** faucet.
-2. **Give someone a budget → An agent**. Choose its short name and wallet, total budget, daily/per-payment caps, expiry and approval threshold.
+2. **Give someone a budget → An agent → Connect your agent**. Create a local toolkit signer and open its pairing link, then choose the name, budget, caps, expiry and approval threshold. Advanced users can still enter a signer address manually.
 3. Fund the inert allocation, review the terms, complete fresh World authentication, then explicitly **Authorize agent**. This provisions the ENSv2 subname and signs the exact mandate. Increasing funding, raising caps, extending expiry, changing identity or lowering the approval threshold needs fresh verification by the same person. Reductions and revocation remain available without a World check.
 4. The agent pays from its allocation. Above-threshold payments appear in the owner's **Needs your approval** inbox. The owner verifies freshly, then **Approve payment** or **Deny**. The agent resumes the same request and permit.
 5. **Revoke ENS** unregisters the name through its namespace. The next payment fails even if an approval/signature was issued earlier. **Close** recovers the remaining funds.
@@ -57,6 +59,6 @@ World Agents uses the registered official sandbox client with `private_key_jwt`,
 
 `apps/api/scripts/deploy-ens-world.mts` previews/resumes the current ENS namespace, adapter and factory deployment; `--broadcast` sends transactions. `demo-ens-world.mts` uses the real API and World callback with test wallets; it never inserts a verified identity or policy. `verify-agent-ens.mts` checks real resolver records and rejected agent permission changes. The older local browser/onchain fixtures predate the new agent model and are not proof of this integration.
 
-The independent client in `apps/agent-demo` supports direct payments and `ACCORD_AGENT_TASK=research`. It prints a review URL for sensitive payments, waits for the owner, and resumes the same request. A report quote is redeemed only against the exact confirmed payment; public quote/transaction references let a browser or agent resume retrieval without paying again.
+`packages/agent-kit` provides the installable `@accord/agent` SDK, CLI and local stdio MCP server. It connects through an ENS name and owner-approved signer pairing. Scoped credentials cannot call owner routes or cross allocation boundaries. `apps/agent-demo` is a deterministic example using the same runtime and a paired local profile. It prints pending approval/submission states and resumes the same quote ID on a later invocation. Real public GitHub research costs 1 tUSDC for a snapshot or 20 for comparison evidence; delivery requires the exact confirmed payment. See the package README for setup, idempotency and recovery.
 
 Current contracts and infrastructure transaction hashes are recorded in the [deployment manifest](deployments/ens-world-sepolia.json). Old demo data was backed up before cleanup; old immutable contracts remain on Sepolia but are no longer the app's active deployment.

@@ -42,7 +42,10 @@ export function ApprovalReview({id}:{id:string}) {
           setMessage("Confirm the authorization in your wallet.");
           await sendPermitTransaction(permit.permit.requestId as Hex,()=>sponsor.send(getAddress(permit.spaceAddress),permit.calldata as Hex));
           await cache.invalidateQueries();
-          router.push(`/spaces/${row.spaceAddress}/a/${row.allocationId}`);
+          const pairing=sessionStorage.getItem(`accord:pairing-return:${id}`);
+          if(pairing && /^[0-9a-f-]{36}$/i.test(pairing)) {
+            sessionStorage.removeItem(`accord:pairing-return:${id}`);router.push(`/connect/${pairing}`);
+          } else router.push(`/spaces/${row.spaceAddress}/a/${row.allocationId}`);
         }
       }
       await query.refetch();await cache.invalidateQueries({queryKey:["owner-approvals"]});
@@ -56,7 +59,9 @@ export function ApprovalReview({id}:{id:string}) {
         <h1 className="mt-4 break-words font-display text-4xl font-extrabold">{row.agentName.split(".")[0]}</h1>
         <p className="mt-2 break-all text-sm font-medium text-ink-soft">{row.agentName}</p>
         <p className="mt-2 text-ink-soft">{row.kind==="payment"?"Review this payment":row.kind==="fund"?"Increase the agent's budget":"Authorize this agent"}</p></div>
-      <div className="p-7 sm:p-9"><dl className="grid gap-4 sm:grid-cols-2">
+      <div className="p-7 sm:p-9">
+      {row.purchaseTitle?<div className="mb-5 rounded-2xl bg-soft p-4"><p className="font-semibold">{row.purchaseTitle}</p><p className="mt-1 break-words text-sm text-muted">{row.purchaseDescription}</p></div>:null}
+      <dl className="grid gap-4 sm:grid-cols-2">
         <div><dt className="text-sm text-muted">{row.kind==="payment"?"Amount":"Budget"}</dt><dd className="font-display text-3xl font-extrabold">{units(row.amount)}</dd></div>
         {row.recipient?<div><dt className="text-sm text-muted">Recipient</dt><dd className="mt-1 break-all font-mono text-sm">{row.recipient}</dd></div>:null}
         {row.dailyCap?<div><dt className="text-sm text-muted">Daily cap</dt><dd className="font-semibold">{units(row.dailyCap)}</dd></div>:null}
@@ -75,7 +80,7 @@ export function ApprovalReview({id}:{id:string}) {
             {ready?<Button size="lg" loading={busy} onClick={()=>void act("approve")}>{row.kind==="payment"?"Approve payment":row.kind==="fund"?"Approve increase":"Authorize agent"}</Button>
               :<Button size="lg" loading={busy} onClick={()=>void act("verify")}><Fingerprint/>Verify with World ID</Button>}
           </div>
-          <p className="mt-3 text-right text-sm text-muted">{ready?"You are approving the terms shown above.":"A fresh check from the Space owner is required."}</p>
+          <p className="mt-3 text-right text-sm text-muted">{ready?"You are approving the terms shown above.":row.kind === "payment" ? "Verify as the same person who authorized this agent." : "Verify to authorize this agent’s budget."}</p>
         </div>:<p role="status" className="mt-6 rounded-2xl bg-soft p-4">Waiting for the Space owner to review this request.</p>}
       {message?<p role="status" className="mt-4 text-sm text-ink-soft">{message}</p>:null}
       </div>

@@ -11,7 +11,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { getAddress, verifyMessage } from "viem";
 import { createSiweMessage } from "viem/siwe";
 import { Database } from "./db";
-import { authChallenges, sessions } from "./db/schema";
+import { agentConnections, authChallenges, sessions } from "./db/schema";
 import { databaseOperation } from "./db/run";
 
 const webOrigin = process.env.WEB_ORIGIN ?? "http://localhost:3000";
@@ -21,7 +21,7 @@ const sessionCookieName = process.env.ACCORD_SESSION_COOKIE_NAME ?? "accord_sess
 const sessionCookie = HttpApiSecurity.apiKey({ in: "cookie", key: sessionCookieName });
 const sessionDurationMs = 24 * 60 * 60 * 1000;
 
-function tokenHash(token: string) {
+export function tokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
@@ -55,7 +55,45 @@ export function currentSession() {
     );
     const session = rows[0];
     if (!session) return yield* Effect.fail(new HttpApiError.Unauthorized());
-    return session;
+    let connection: typeof agentConnections.$inferSelect | undefined;
+    const path = new URL(request.url, "http://localhost").pathname;
+    if (session.kind === "agent_setup") {
+      if (!["/v1/auth/session", "/v1/toolkit/pair", "/v1/toolkit/pair/poll"].includes(path)) {
+        return yield* Effect.fail(new HttpApiError.Forbidden());
+      }
+    } else if (session.kind === "agent") {
+      if (!session.connectionId) return yield* Effect.fail(new HttpApiError.Unauthorized());
+      [connection] = yield* databaseOperation(() => db.client.select().from(agentConnections).where(and(
+        eq(agentConnections.id, session.connectionId!), eq(agentConnections.agent, session.address),
+        isNull(agentConnections.revokedAt), gt(agentConnections.expiresAt, new Date()),
+      )).limit(1));
+      if (!connection) return yield* Effect.fail(new HttpApiError.Unauthorized());
+      // Deny new endpoints by default. Payload-level scope is checked by the
+      // payment, relay, approval-read and toolkit handlers below this gate.
+      if (!["/v1/auth/session", "/v1/toolkit/identity", "/v1/toolkit/disconnect", "/v1/toolkit/services",
+        "/v1/toolkit/quotes", "/v1/toolkit/operations", "/v1/toolkit/operation", "/v1/toolkit/redeem",
+        "/v1/permits/payments", "/v1/sponsor/relay", "/v1/approvals/get"].includes(path)) {
+        return yield* Effect.fail(new HttpApiError.Forbidden());
+      }
+      if (!connection.lastSeenAt || Date.now() - connection.lastSeenAt.getTime() > 60_000) {
+        yield* databaseOperation(() => db.client.update(agentConnections).set({ lastSeenAt: new Date() })
+          .where(eq(agentConnections.id, connection!.id)));
+      }
+    } else if (session.kind !== "browser") return yield* Effect.fail(new HttpApiError.Unauthorized());
+    return { ...session, connection };
+  });
+}
+
+export type Session = Effect.Effect.Success<ReturnType<typeof currentSession>>;
+export function assertAgentScope(session: Session, target: { draftId?: string; allocationId?: string; spaceAddress?: string }) {
+  return Effect.gen(function* () {
+    if (session.kind === "browser") return;
+    const c = session.connection;
+    if (!c || (target.draftId && c.draftId !== target.draftId) ||
+      (target.allocationId && c.allocationId !== target.allocationId) ||
+      (target.spaceAddress && c.spaceAddress.toLowerCase() !== target.spaceAddress.toLowerCase())) {
+      return yield* Effect.fail(new HttpApiError.Forbidden());
+    }
   });
 }
 
@@ -123,6 +161,14 @@ export const AuthLive = HttpApiBuilder.group(AccordApi, "auth", (handlers) =>
         });
         if (!valid) return yield* Effect.fail(new HttpApiError.Unauthorized());
 
+        if (payload.client === "agent" && payload.connectionId) {
+          const [connection] = yield* databaseOperation(() => db.client.select().from(agentConnections).where(and(
+            eq(agentConnections.id, payload.connectionId!), eq(agentConnections.agent, address.toLowerCase()),
+            isNull(agentConnections.revokedAt), gt(agentConnections.expiresAt, new Date()),
+          )).limit(1));
+          if (!connection) return yield* Effect.fail(new HttpApiError.Forbidden());
+        }
+
         const claimed = yield* databaseOperation(() =>
           db.client
             .update(authChallenges)
@@ -139,6 +185,8 @@ export const AuthLive = HttpApiBuilder.group(AccordApi, "auth", (handlers) =>
             tokenHash: tokenHash(token),
             address: address.toLowerCase(),
             expiresAt,
+            kind: payload.client === "browser" ? "browser" : payload.connectionId ? "agent" : "agent_setup",
+            connectionId: payload.client === "agent" ? payload.connectionId ?? null : null,
           }),
         );
         if (payload.client === "browser") {

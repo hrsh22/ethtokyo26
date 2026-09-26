@@ -1,0 +1,19 @@
+{
+  "name": "@accord/agent",
+  "version": "0.1.0",
+  "description": "ENS-named agent budgets, human approvals and sponsored payments for Accord on Sepolia",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/hrsh22/ethtokyo26.git", "directory": "packages/agent-kit" },
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "bin": { "accord": "./dist/cli.js" },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": { "@modelcontextprotocol/server": "2.1.0", "proper-lockfile": "4.1.2", "viem": "2.56.8", "zod": "4.6.5" },
+  "devDependencies": { "@accord/chain": "workspace:*", "@modelcontextprotocol/client": "2.1.0", "@types/proper-lockfile": "4.1.4", "@types/node": "24.10.13", "tsup": "8.5.1", "typescript": "5.9.3", "vitest": "4.0.18" }
+}

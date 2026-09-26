@@ -50,7 +50,9 @@ export function NewAllocation({ address }: { address: string }) {
   if (!space.isOwner) return frame(<div className="card p-8"><h1 className="font-display text-3xl font-extrabold">Only the owner can do this</h1><p className="mt-2 text-ink-soft">This Space belongs to {space.meta.data ? shortAddress(space.meta.data.owner) : "another wallet"}. Switch to that wallet to add a budget.</p></div>);
   if (!space.draft.data) return frame(<div className="card p-8"><h1 className="font-display text-3xl font-extrabold">This Space isn’t linked to Accord here</h1><p className="mt-2 text-ink-soft">It exists onchain, but this Accord deployment has no record of it, so it can’t sign new budgets.</p></div>);
   const initial: Kind = params.get("for") === "agent" ? "agent" : "person";
-  if (initial === "agent") return frame(<AgentBudget address={address} draftId={space.draft.data.id} />);
+  if (initial === "agent") return frame(<AgentBudget address={address} draftId={space.draft.data.id}
+    initialAgent={isAddress(params.get("agent")??"")?params.get("agent")!:undefined}
+    pairingId={/^[0-9a-f-]{36}$/i.test(params.get("pairing")??"")?params.get("pairing")!:undefined} />);
   return frame(<Flow address={address} draft={space.draft.data} initialKind={initial} decimals={space.decimals} symbol={space.symbol}
     nextId={(space.terms.data?.count ?? BigInt(0)) + BigInt(1)} />);
 }

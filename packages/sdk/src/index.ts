@@ -87,6 +87,13 @@ export async function createAccordClient(baseUrl: string, options?: { bearerToke
 
   return {
     approvals: () => run(client.approvals.list()),
+    resolveAgent: (name: string) => run(client.toolkit.resolve({ payload: { name } })),
+    pairAgent: (name?: string) => run(client.toolkit.pair({ payload: { ...(name ? { name } : {}) } })),
+    reviewAgentPairing: (id: string, reviewToken: string) => run(client.toolkit.review({ payload: { id, reviewToken } })),
+    acceptAgentPairing: (payload: { id: string; reviewToken: string; draftId: string; allocationId: string }) => run(client.toolkit.accept({ payload })),
+    pollAgentPairing: (id: string, pollToken: string) => run(client.toolkit.poll({ payload: { id, pollToken } })),
+    agentConnections: (draftId: string, allocationId: string) => run(client.toolkit.connections({ payload: { draftId, allocationId } })),
+    disconnectAgent: (id: string) => run(client.toolkit.disconnect({ payload: { id } })),
     approval: (id: string) => run(client.approvals.get({ payload: { id } })),
     authenticateApproval: (id: string) => run(client.approvals.authenticate({ payload: { id } })),
     decideApproval: (id: string, decision: "approve" | "deny" | "cancel") => run(client.approvals.decide({ payload: { id, decision } })),
@@ -108,6 +115,7 @@ export async function createAccordClient(baseUrl: string, options?: { bearerToke
       address: `0x${string}`;
       signature: `0x${string}`;
       client: "browser" | "agent";
+      connectionId?: string;
     }) => Effect.runPromise(client.auth.verify({ payload })),
     session: () => run(client.auth.session()),
     listSpaces: () => run(client.spaces.list()),

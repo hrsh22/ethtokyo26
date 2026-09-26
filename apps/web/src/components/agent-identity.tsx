@@ -9,6 +9,7 @@ import { useAccord } from "@/lib/accord";
 import { shortDate } from "@/lib/format";
 import { Button } from "./ui/button";
 import { Sheet } from "./ui/sheet";
+import { AgentTools } from "./agent-tools";
 
 export function useAgentIdentities(draftId?: string) {
   const { client } = useAccord();
@@ -49,14 +50,15 @@ export function SpaceNamespace({draftId}:{draftId?:string}) {
     </Sheet>
   </>;
 }
-export function AgentIdentityCard({draftId,allocationId}:{draftId?:string;allocationId:string}) {
+export function AgentIdentityCard({draftId,allocationId,owner=false}:{draftId?:string;allocationId:string;owner?:boolean}) {
   const query=useAgentIdentities(draftId);
   const identity=query.data?.identities.find(i=>i.allocationId===allocationId);
   if(!identity)return null;
   return <section className="card p-6">
-    <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-[#eae2ff] text-[#6544ba]"><AtSign size={22}/></span>
+    <div className="flex flex-wrap items-center gap-3"><span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#eae2ff] text-[#6544ba]"><AtSign size={22}/></span>
       <div className="min-w-0 flex-1"><span className="text-sm font-medium text-muted">Agent identity <span className="ml-1 font-semibold text-[#6544ba]">ENSv2</span></span>
-        <h2 className="break-words font-display text-2xl font-extrabold">{identity.name.split(".")[0]}</h2></div></div>
+        <h2 className="break-words font-display text-2xl font-extrabold">{identity.name.split(".")[0]}</h2></div>
+      {draftId?<AgentTools draftId={draftId} allocationId={allocationId} name={identity.name} owner={owner}/>:null}</div>
     <p className="mt-3 break-all text-sm font-medium text-ink-soft">{identity.name}</p>
     <div className="mt-4 flex flex-wrap gap-2">
       <span className={`pill ${identity.active?"bg-good-soft text-good":"bg-bad-soft text-bad"}`}><ShieldCheck size={14}/>{identity.active?"Active":identity.revoked?"ENS identity revoked":identity.confirmed?"Identity unavailable":"Awaiting confirmation"}</span>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "motion/react";
-import { ArrowLeft, Bot, Code2, RotateCw, UserRound } from "lucide-react";
+import { ArrowLeft, Bot, RotateCw, UserRound } from "lucide-react";
 import { zeroAddress } from "viem";
 import { AgentIdentityCard } from "../agent-identity";
 import { useAccord } from "@/lib/accord";
@@ -53,7 +53,7 @@ export function AllocationScreen({ address, id }: { address: string; id: bigint 
 
   return <div>
     {back}
-    {isAgent ? <div className="mb-5"><AgentIdentityCard draftId={draftId ?? space.profile.data?.id} allocationId={id.toString()} /></div> : null}
+    {isAgent ? <div className="mb-5"><AgentIdentityCard draftId={draftId ?? space.profile.data?.id} allocationId={id.toString()} owner={owner} /></div> : null}
     <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
       <motion.section initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} aria-labelledby="allocation-title"
         className="relative overflow-hidden rounded-[2.5rem] p-7 shadow-float sm:p-9 lg:sticky lg:top-28"
@@ -94,7 +94,6 @@ export function AllocationScreen({ address, id }: { address: string; id: bigint 
             {access.canPay ? <PayPanel address={address} draftId={draftId} data={data} decimals={space.decimals} symbol={space.symbol} units={space.units} />
               : <div className="card p-6"><h2 className="font-display text-2xl font-extrabold">Payments are paused</h2><p className="mt-1 text-muted">{status === "needs-mandate" ? "The owner needs to grant or renew this agent’s mandate." : status === "closed" ? "This budget is closed." : !data.ensAuthorized ? "The agent’s ENS identity is revoked or expired." : "Today’s limit or the budget is used up."}</p></div>}
             {access.canPay && client ? <ResearchPurchase client={client} draftId={draftId} allocationId={id.toString()} decimals={space.decimals} symbol={space.symbol} account={account!} /> : null}
-            <SdkCard address={address} id={id.toString()} />
           </> : status === "active" || status === "used-up" ? <ClaimPanel address={address} draftId={draftId} data={data} decimals={space.decimals} symbol={space.symbol} units={space.units} palette={palette} />
             : <div className="card p-6"><h2 className="font-display text-2xl font-extrabold">{statusLabel[status]}</h2><p className="mt-1 text-muted">This allowance can’t be claimed any more.</p></div>
           : null}
@@ -106,18 +105,4 @@ export function AllocationScreen({ address, id }: { address: string; id: bigint 
       </div>
     </div>
   </div>;
-}
-
-function SdkCard({ address, id }: { address: string; id: string }) {
-  return <section className="card p-6" aria-labelledby="sdk-heading">
-    <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-lilac-soft text-[#6f4bea]"><Code2 size={20} /></span>
-      <h2 id="sdk-heading" className="font-display text-2xl font-extrabold">From your agent’s code</h2></div>
-    <p className="mt-2 text-sm text-muted">The Node agent in <span className="address">apps/agent-demo</span> pays through the same checks.</p>
-    <pre className="mt-4 overflow-x-auto rounded-2xl bg-ink p-4 text-[13px] leading-relaxed text-[#d9d3ff]"><code>{`const ok = await accord.authorizePayment({
-  draftId, allocationId: "${id}",
-  recipient, amount, requestKey,
-});
-// Space ${shortAddress(address)} checks the permit
-// and the ENS name again before paying.`}</code></pre>
-  </section>;
 }
