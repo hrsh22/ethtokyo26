@@ -13,6 +13,7 @@ import { SponsorLive } from "./sponsor";
 import { ApprovalsLive } from "./approvals";
 import { AgentsLive } from "./agents";
 import { ToolkitLive } from "./toolkit";
+import { DemoLive } from "./demo";
 import { adapterAddress, factoryAddress, permitSigner } from "./chain";
 import { getAddress, isAddress } from "viem";
 
@@ -65,6 +66,7 @@ const CatalogLive = HttpApiBuilder.group(AccordApi, "catalog", (handlers) =>
 );
 
 export const ApiLive = HttpApiBuilder.api(AccordApi).pipe(
+  Layer.provide(DemoLive),
   Layer.provide(ToolkitLive),
   Layer.provide(StatusLive),
   Layer.provide(ApprovalsLive),

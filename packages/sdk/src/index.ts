@@ -86,6 +86,7 @@ export async function createAccordClient(baseUrl: string, options?: { bearerToke
   );
 
   return {
+    demoEvidence: () => run(client.demo.evidence()),
     approvals: () => run(client.approvals.list()),
     resolveAgent: (name: string) => run(client.toolkit.resolve({ payload: { name } })),
     pairAgent: (name?: string) => run(client.toolkit.pair({ payload: { ...(name ? { name } : {}) } })),

@@ -123,3 +123,11 @@ Migration `0004` adds private owner identities, immutable review requests, OAuth
 The pre-migration database and `.env` are saved privately in `.data/before-ens-world-20260925T195101Z/`. On 25 September 2026 the old application rows were cleared after backup. Restoring those rows also requires the old environment and application revision; old Spaces use immutable adapters and cannot be upgraded by changing `.env`.
 
 For repeatable infrastructure deployment, compile contracts first and run `apps/api/scripts/deploy-ens-world.mts` with the root environment. Its default is a dry run; `--broadcast` resumes the public deployment manifest. The private ENS commitment secret is stored outside the repository. Do not remove the deployment manifest between retries.
+
+## Public demo evidence
+
+`/demo` reads the public `GET /v1/demo/evidence` endpoint through the existing web API proxy. No new environment variables or migration are required. Deploy the API before the frontend.
+
+Only the explicit runs in `apps/api/src/demo-manifest.ts` are published. The endpoint does not accept arbitrary quote IDs or automatically select new user activity. It selects safe report fields, never returns World identifiers, credentials or signed permits, and performs no writes or broadcasts. If the published records are removed, their checks fail rather than inventing replacement evidence.
+
+Checks share one in-flight request per process and cache for 45 seconds. Sepolia receipts, live identity state and request consumption use the configured RPC. Historical ENS and cached-permit checks need that RPC to support historical contract calls; if unavailable, the page labels those checks unavailable. To publish another demo, explicitly review its public data and update the manifest and corresponding verification checks.

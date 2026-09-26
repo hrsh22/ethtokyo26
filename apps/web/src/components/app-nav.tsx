@@ -11,12 +11,10 @@ import { Avatar, Logo } from "./avatar";
 import { Button } from "./ui/button";
 
 export function AppNav({ landing = false }: { landing?: boolean }) {
-  const { config } = useAccord();
-  const demoAddress = config.data?.demoSpaceAddress;
   const path = usePathname();
   const links = landing
-    ? [{ href: "#how", label: "How it works" }, { href: "#safety", label: "Safety" }, ...(demoAddress ? [{ href: `/spaces/${demoAddress}`, label: "Live demo" }] : [])]
-    : [{ href: "/spaces", label: "Spaces" }, ...(demoAddress ? [{ href: `/spaces/${demoAddress}`, label: "Demo" }] : [])];
+    ? [{ href: "#how", label: "How it works" }, { href: "#safety", label: "Safety" }, { href: "/demo", label: "Demo" }]
+    : [{ href: "/spaces", label: "Spaces" }, { href: "/demo", label: "Demo" }];
   return <>
     <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-white focus:px-4 focus:py-2">Skip to content</a>
     <header className="sticky top-3 z-30 mx-3 mt-3 sm:mx-6 sm:mt-4">
@@ -73,6 +71,7 @@ export function Footer() {
     <span>Built at ETHGlobal Tokyo 2026</span>
     <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-good" />Sepolia testnet</span>
     <Link href="/developers" className="font-medium hover:text-ink">Developers</Link>
+    <Link href="/demo" className="font-medium hover:text-ink">Demo</Link>
     <span className="sm:ml-auto">Named with ENS. Authorized by people.</span>
   </footer>;
 }

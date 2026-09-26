@@ -42,6 +42,19 @@ For a TypeScript assistant integrating Accord, these sources point to viem for E
 
 Live inspection caught a substring-matching weakness: the criterion `ENS` could match `license`. The merchant now matches whole words, with a regression assertion. Existing purchased artifacts remain immutable. README evidence is still explicitly described as keyword evidence requiring source inspection.
 
+## Public evidence overview
+
+[Open the demo](https://accord.hrsh.dev/demo) without connecting a wallet. It publishes only the three explicitly selected comparison requests above, using a read-only endpoint and safe report fields. The page distinguishes Accord's approval records, direct Sepolia reads and historical simulation. It explains that the recorded agent is currently revoked.
+
+On 26 September, all **13 evidence checks** passed against the live database and Sepolia, including:
+
+- Exact payment and token-transfer logs for the approved quote, matched to its saved report and same-owner approval record.
+- Active ENS authority at the denied quote's recorded block **11784159**, no payment submission, and an unconsumed request.
+- Confirmed ENS revocation at **11784183**, with the cached signed payment succeeding at **11784182** and failing at **11784183** with `InvalidEnsAuthority`, **114 seconds before its permit expired**. This is a historical RPC simulation; no payment is broadcast by the evidence page.
+- Current identity inactive, with **79 tUSDC** remaining.
+
+The endpoint shares and caches checks for 45 seconds. RPC failures display unavailable checks; mismatches display failed checks. It accepts no user-supplied quote IDs and publishes no World identifier, session credential or permit signature. Ten new regression tests cover public access, fixed publication, privacy, changed payment terms, identity mismatch, missing transfer logs, consumed denied requests, RPC failure, expired historical permits, archival RPC failure and shared caching. The API suite now passes **107 tests**; the **34 web tests**, web lint, API/web type checks and production builds also pass.
+
 ## Verification and remaining submission work
 
 - **97 API tests**, **13 agent SDK/MCP tests**, **34 web tests**, **32 chain-package tests**, and **22 Solidity tests** pass. Type checks, lint and production builds pass. The root test command initially needed the server's Foundry binary added to PATH; the actual Solidity run passed all 22 tests.

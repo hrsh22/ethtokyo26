@@ -1,7 +1,9 @@
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, HttpApiSchema } from "@effect/platform";
 import { Schema } from "effect";
 import { ToolkitGroup } from "./toolkit";
+import { DemoGroup } from "./demo";
 export * from "./toolkit";
+export * from "./demo";
 
 export const Health = Schema.Struct({
   status: Schema.Literal("ok"),
@@ -298,6 +300,7 @@ export const AgentIdentity = Schema.Struct({
 });
 
 export const AccordApi = HttpApi.make("AccordApi")
+  .add(DemoGroup)
   .add(ToolkitGroup)
   .add(HttpApiGroup.make("approvals")
     .add(HttpApiEndpoint.get("list")`/v1/approvals`.addSuccess(Schema.Struct({

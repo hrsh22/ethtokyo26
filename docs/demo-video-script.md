@@ -4,20 +4,17 @@
 
 **Story:** a person delegates a budget, an assistant buys useful research with their approval, and the person can stop it through either denial or identity revocation.
 
-## Website entry point (recommended next UI work)
+## Website entry point
 
-The current **Demo** link opens the public Tokyo Team Space. Inspection on 26 September found both recorded agents intentionally revoked, with successful payment receipts visible in Activity. That is useful historical evidence, but visitors need context for the inactive identities.
+The **Demo** link opens [the public evidence overview](https://accord.hrsh.dev/demo). No wallet is needed to inspect these three published runs:
 
-Add a compact `/demo` overview using the existing cards, typography and spacing:
+1. **Approved purchase:** the actual report terms, same-owner World sandbox approval record, 20 tUSDC payment receipt and saved research snapshot.
+2. **Denied purchase:** the owner's denial, historical ENS authority at the quote's block, no submitted payment and an unconsumed onchain request.
+3. **Revoked authority:** the real ENS revocation receipt and a read-only historical replay. The same signed payment passes at block 11784182 and fails with `InvalidEnsAuthority` at block 11784183, with 114 seconds still left on its permit. The replay broadcasts no transaction.
 
-1. **Approved purchase:** show the actual requested report, owner decision, paid amount, delivered result and explorer receipt from a published demo run.
-2. **Denied purchase:** show the real denied request and absence of a submitted payment. Explain that the agent still had an active identity when the owner denied it.
-3. **Revoked authority:** show the revocation receipt, current inactive identity and recorded blocked attempt, with its actual outcome. Label the cached-permit simulation as a simulation wherever it is used.
-4. Offer **Explore the Space** and **Connect your agent**, reusing the public Space and existing developer quickstart. Browsing the examples should require no wallet; acting as an owner still uses the real authenticated controls.
+The page displays the agent's current identity status separately from the recorded outcomes. Evidence checks refresh about once a minute and distinguish backend records, Sepolia reads and historical simulation. Missing or mismatched evidence never gets a successful check. Private sessions, World identifiers and signatures are not published.
 
-Clearly separate a completed run's historical state from the identity's current state. Read published demo records and receipts; do not manufacture success badges or expose private sessions/World identifiers. A hosted browser agent would require additional runtime work and is not available today. This overview is proposed UI work, not an implemented page or a claim that visitors can run an autonomous agent inside the browser.
-
-For the recording itself, perform the task through the real external assistant and existing approval/revocation controls. Use the overview for context and later judge inspection once it is implemented.
+**Explore the Space** opens the recorded Tokyo Team Space; **Connect your agent** opens the developer quickstart. The recorded agent was intentionally revoked. Create a fresh agent for the video, and perform the task through the real external assistant and existing approval/revocation controls. The overview provides context and evidence for judges; it does not run an autonomous agent in the browser.
 
 ## Prepare before recording
 
