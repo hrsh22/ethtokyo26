@@ -5,15 +5,32 @@ import { and, eq, isNull } from "drizzle-orm";
 import { Effect } from "effect";
 import { randomUUID } from "node:crypto";
 import { getAddress, isAddress, zeroAddress, type Hex } from "viem";
-import { currentSession, requireBrowserOrigin } from "./auth";
+import { assertAgentScope, currentSession, requireBrowserOrigin } from "./auth";
 import { publicClient } from "./chain";
 import { Database } from "./db";
 import { databaseOperation } from "./db/run";
-import { researchQuotes, spaceDrafts } from "./db/schema";
+import { agentRequests, researchQuotes, spaceDrafts } from "./db/schema";
+import { requestView } from "./approval-state";
 import { matchesResearchPayment } from "./research-receipt";
 
 const title = "Agent spending report";
 export const ResearchLive = HttpApiBuilder.group(AccordApi, "research", (handlers) => handlers
+  .handle("status", ({ payload }) => Effect.gen(function* () {
+    const session = yield* currentSession();
+    const db = yield* Database;
+    const [quote] = yield* databaseOperation(() => db.client.select().from(researchQuotes).where(and(
+      eq(researchQuotes.id, payload.quoteId), eq(researchQuotes.actor, session.address))).limit(1));
+    if (!quote) return yield* Effect.fail(new HttpApiError.Forbidden());
+    yield* assertAgentScope(session, quote);
+    const [request] = yield* databaseOperation(() => db.client.select().from(agentRequests).where(and(
+      eq(agentRequests.actor, session.address), eq(agentRequests.requestKey, quote.id),
+      eq(agentRequests.kind, "payment"), eq(agentRequests.draftId, quote.draftId),
+      eq(agentRequests.allocationId, quote.allocationId))).limit(1));
+    if (!request) return {};
+    const approval = yield* Effect.tryPromise({ try: () => requestView(db.client, request),
+      catch: () => new HttpApiError.ServiceUnavailable() });
+    return { approval };
+  }))
   .handle("quote", ({ payload }) => Effect.gen(function* () {
     yield* requireBrowserOrigin();
     const session = yield* currentSession();

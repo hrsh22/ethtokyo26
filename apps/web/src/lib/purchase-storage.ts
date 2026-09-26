@@ -10,16 +10,17 @@ export const transactionHash = /^0x[0-9a-f]{64}$/i;
 const integer = /^[1-9][0-9]{0,77}$/;
 
 // Public references only. Authority always comes from the API and onchain receipt.
-export function purchaseStorageKey(account: string, draftId: string) {
-  return `accord:report:v1:11155111:${account.toLowerCase()}:${draftId}`;
+export function purchaseStorageKey(account: string, draftId: string, allocationId?: string) {
+  return `accord:report:v1:11155111:${account.toLowerCase()}:${draftId}${allocationId ? `:${allocationId}` : ""}`;
 }
-export function readPurchase(store: Store, key: string, draftId: string): SavedPurchase | null {
+export function readPurchase(store: Store, key: string, draftId: string, allocationId?: string): SavedPurchase | null {
   try {
     const raw = store.getItem(key);
     if (!raw || raw.length > 4096) return null;
     const value = JSON.parse(raw) as SavedPurchase;
     const q = value?.quote;
     if (value.version !== 1 || typeof value.submitted !== "boolean" || !q || q.draftId !== draftId ||
+      (allocationId !== undefined && q.allocationId !== allocationId) ||
       !uuid.test(q.id) || typeof q.allocationId !== "string" || typeof q.amount !== "string" || !integer.test(q.allocationId) || !integer.test(q.amount) ||
       !address.test(q.spaceAddress) || !address.test(q.tokenAddress) || !address.test(q.recipient) ||
       typeof q.title !== "string" || q.title.length > 100 || typeof q.expiresAt !== "string" || !Number.isFinite(Date.parse(q.expiresAt)) ||
@@ -28,6 +29,16 @@ export function readPurchase(store: Store, key: string, draftId: string): SavedP
       spaceAddress: q.spaceAddress, tokenAddress: q.tokenAddress, recipient: q.recipient,
       amount: q.amount, expiresAt: q.expiresAt }, hash: value.hash, submitted: value.submitted };
   } catch { return null; }
+}
+/** Keep existing purchases recoverable while isolating multiple budgets for the same wallet. */
+export function readAllocationPurchase(store: Store, account: string, draftId: string, allocationId: string) {
+  const key = purchaseStorageKey(account, draftId, allocationId);
+  const current = readPurchase(store, key, draftId, allocationId);
+  if (current) return current;
+  const legacyKey = purchaseStorageKey(account, draftId);
+  const legacy = readPurchase(store, legacyKey, draftId, allocationId);
+  if (legacy && savePurchase(store, key, legacy)) savePurchase(store, legacyKey, null);
+  return legacy;
 }
 export function savePurchase(store: Store, key: string, purchase: SavedPurchase | null): boolean {
   try {

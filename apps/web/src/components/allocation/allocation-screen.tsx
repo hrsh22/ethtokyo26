@@ -91,9 +91,9 @@ export function AllocationScreen({ address, id }: { address: string; id: bigint 
         {auth.signedIn && access.yours ? !draftId ? space.draft.isPending ? <div className="h-64 animate-pulse rounded-tile bg-white/70" />
           : <div className="card p-6"><h2 className="font-display text-2xl font-extrabold">This Space isn’t linked to Accord here</h2><p className="mt-1 text-muted">It exists onchain, but this deployment can’t sign claims or payments for it.</p></div>
           : isAgent ? <>
-            {access.canPay ? <PayPanel address={address} draftId={draftId} data={data} decimals={space.decimals} symbol={space.symbol} units={space.units} />
+            {access.canPay ? <PayPanel key={`${account}:${address}:${id}`} address={address} draftId={draftId} data={data} decimals={space.decimals} symbol={space.symbol} units={space.units} />
               : <div className="card p-6"><h2 className="font-display text-2xl font-extrabold">Payments are paused</h2><p className="mt-1 text-muted">{status === "needs-mandate" ? "The owner needs to grant or renew this agent’s mandate." : status === "closed" ? "This budget is closed." : !data.ensAuthorized ? "The agent’s ENS identity is revoked or expired." : "Today’s limit or the budget is used up."}</p></div>}
-            {access.canPay && client ? <ResearchPurchase client={client} draftId={draftId} allocationId={id.toString()} decimals={space.decimals} symbol={space.symbol} account={account!} /> : null}
+            {access.canPay && client ? <ResearchPurchase key={`${account}:${address}:${id}`} client={client} draftId={draftId} allocationId={id.toString()} decimals={space.decimals} symbol={space.symbol} account={account!} /> : null}
           </> : status === "active" || status === "used-up" ? <ClaimPanel address={address} draftId={draftId} data={data} decimals={space.decimals} symbol={space.symbol} units={space.units} palette={palette} />
             : <div className="card p-6"><h2 className="font-display text-2xl font-extrabold">{statusLabel[status]}</h2><p className="mt-1 text-muted">This allowance can’t be claimed any more.</p></div>
           : null}

@@ -4,11 +4,12 @@ import { ApprovalInbox } from "../approval-inbox";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { ArrowUpRight, Hammer, Plus, RotateCw, UserRound } from "lucide-react";
+import { ArrowUpRight, Bot, Hammer, Plus, RotateCw, UserRound } from "lucide-react";
 import { useEffect } from "react";
 import { zeroAddress } from "viem";
 import type { AccordClient } from "@accord/sdk";
 import { useAccord } from "@/lib/accord";
+import { allocationAccess } from "@/lib/allocation-access";
 import { amount, shortAddress } from "@/lib/format";
 import { allocationPalette, keyPalette } from "@/lib/palette";
 import { allocationStatus, statusLabel, summarize } from "@/lib/space-summary";
@@ -72,9 +73,9 @@ export function SpacesHome() {
     <ApprovalInbox />
     <section className="mt-12" aria-labelledby="received-title">
       <h2 id="received-title" className="font-display text-3xl font-extrabold">Shared with you</h2>
-      {received.isPending ? <div className="card mt-4 p-6 text-muted">Looking for allowances…</div>
+      {received.isPending ? <div className="card mt-4 p-6 text-muted">Looking for allowances and agent budgets…</div>
       : received.isError ? <div role="alert" className="card mt-4 flex flex-wrap items-center gap-4 p-6">
-        <span className="flex-1"><b className="block font-display text-xl font-extrabold">We couldn’t load your allowances</b>
+        <span className="flex-1"><b className="block font-display text-xl font-extrabold">We couldn’t load what’s shared with you</b>
           <span className="text-sm text-muted">Check your connection and try again.</span></span>
         <Button variant="soft" onClick={() => void received.refetch()}><RotateCw />Try again</Button>
       </div>
@@ -88,7 +89,7 @@ export function SpacesHome() {
         <div className="relative shrink-0"><Avatar kind="person" palette={allocationPalette(BigInt(1), false)} size={60} /></div>
         <div className="relative">
           <h3 className="font-display text-2xl font-extrabold">Nothing shared yet</h3>
-          <p className="mt-1 text-ink-soft">When someone gives you an allowance, you’ll find it here.</p>
+          <p className="mt-1 text-ink-soft">Allowances and agent budgets shared with you will appear here.</p>
         </div>
       </div>}
     </section>
@@ -100,14 +101,15 @@ function ReceivedCard({ entry, account }: { entry: Received; account: string }) 
   const allocation = useAllocation(entry.spaceAddress, BigInt(entry.allocationId));
   const meta = useSpaceMeta(entry.spaceAddress);
   const data = allocation.data;
-  if (data && data.allocation[0].toLowerCase() !== account.toLowerCase()) return null;
+  if (data && !allocationAccess(data, account, data.blockTimestamp).yours) return null;
+  const isAgent = data ? data.allocation[0] === zeroAddress : entry.kind === "agent";
   const status = data ? allocationStatus(data, data.blockTimestamp) : null;
-  const palette = allocationPalette(BigInt(entry.allocationId), false);
+  const palette = allocationPalette(BigInt(entry.allocationId), isAgent);
   return <Link href={`/spaces/${entry.spaceAddress}/a/${entry.allocationId}`}
     className="group flex h-full min-h-[190px] flex-col rounded-tile p-6 shadow-float transition-transform hover:-translate-y-1"
     style={{ background: palette.tile, color: palette.ink }}>
     <div className="flex items-start justify-between gap-3">
-      <span className="flex items-center gap-2"><UserRound size={18} />Allowance #{entry.allocationId}</span>
+      <span className="flex items-center gap-2">{isAgent ? <Bot size={18} /> : <UserRound size={18} />}{isAgent ? "Agent budget" : "Allowance"} #{entry.allocationId}</span>
       <ArrowUpRight className="opacity-60 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
     </div>
     <h3 className="mt-5 font-display text-2xl font-extrabold leading-tight">{entry.spaceName || `Space ${shortAddress(entry.spaceAddress)}`}</h3>

@@ -157,6 +157,7 @@ export async function createAccordClient(baseUrl: string, options?: { bearerToke
     authorizePayment: (payload: PermitRequest) =>
       run(client.permits.authorizePayment({ payload })),
     researchQuote: (payload: { draftId: string; allocationId: string }) => run(client.research.quote({ payload })),
+    researchStatus: (quoteId: string) => run(client.research.status({ payload: { quoteId } })),
     researchRedeem: (payload: { quoteId: string; transactionHash: string }) => run(client.research.redeem({ payload })),
   };
 }

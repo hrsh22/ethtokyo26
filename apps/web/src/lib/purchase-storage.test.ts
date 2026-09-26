@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { purchaseStorageKey, readPurchase, savePurchase, type SavedPurchase } from "./purchase-storage";
+import { purchaseStorageKey, readAllocationPurchase, readPurchase, savePurchase, type SavedPurchase } from "./purchase-storage";
 
 const draftId = "12345678-1234-1234-1234-123456789abc";
 const wallet = `0x${"a".repeat(40)}`;
@@ -13,6 +13,30 @@ function storage() {
     setItem: (key: string, value: string) => { data.set(key, value); }, removeItem: (key: string) => { data.delete(key); } };
 }
 describe("purchase recovery", () => {
+  it("isolates multiple agent budgets for the same wallet and Space", () => {
+    const store = storage();
+    savePurchase(store, purchaseStorageKey(wallet, draftId, "2"), purchase);
+    expect(readAllocationPurchase(store, wallet, draftId, "2")).toEqual(purchase);
+    expect(readAllocationPurchase(store, wallet, draftId, "3")).toBeNull();
+    savePurchase(store, purchaseStorageKey(wallet, draftId, "3"), purchase);
+    expect(readAllocationPurchase(store, wallet, draftId, "3")).toBeNull();
+  });
+  it("migrates an existing purchase only into the matching allocation", () => {
+    const store = storage(), oldKey = purchaseStorageKey(wallet, draftId);
+    savePurchase(store, oldKey, purchase);
+    expect(readAllocationPurchase(store, wallet, draftId, "1")).toBeNull();
+    expect(readPurchase(store, oldKey, draftId)).toEqual(purchase);
+    expect(readAllocationPurchase(store, wallet, draftId, "2")).toEqual(purchase);
+    expect(readPurchase(store, oldKey, draftId)).toBeNull();
+    expect(readAllocationPurchase(store, wallet, draftId, "2")).toEqual(purchase);
+  });
+  it("retains the legacy recovery record if scoped storage cannot be written", () => {
+    const store = storage(), oldKey = purchaseStorageKey(wallet, draftId);
+    savePurchase(store, oldKey, purchase);
+    const unavailable = { ...store, setItem: () => { throw Error(); } };
+    expect(readAllocationPurchase(unavailable, wallet, draftId, "2")).toEqual(purchase);
+    expect(readPurchase(store, oldKey, draftId)).toEqual(purchase);
+  });
   it("restores an expired quote with a submitted receipt for delivery, not repayment", () => {
     const store = storage(); const key = purchaseStorageKey(wallet, draftId);
     expect(savePurchase(store, key, purchase)).toBe(true);

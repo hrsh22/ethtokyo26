@@ -89,10 +89,11 @@ export const SpaceDraft = Schema.Struct({
 });
 export const SpaceDraftList = Schema.Struct({ spaces: Schema.Array(SpaceDraft) });
 export const ReceivedAllowanceList = Schema.Struct({ allowances: Schema.Array(Schema.Struct({
+  kind: Schema.optional(Schema.Literal("person", "agent")),
   spaceAddress: WalletAddress,
   spaceName: Schema.String,
   allocationId: UnsignedInteger,
-  createdBlock: UnsignedInteger,
+  createdBlock: Schema.optional(UnsignedInteger),
 })) });
 export const CreateSpaceDraft = Schema.Struct({
   name: Schema.String.pipe(Schema.minLength(2), Schema.maxLength(80)),
@@ -336,6 +337,8 @@ export const AccordApi = HttpApi.make("AccordApi")
     .addError(HttpApiError.NotFound).addError(HttpApiError.BadRequest).addError(HttpApiError.ServiceUnavailable))
   .add(HttpApiGroup.make("research")
     .add(HttpApiEndpoint.post("quote")`/v1/research/quotes`.setPayload(ResearchQuoteRequest).addSuccess(ResearchQuote))
+    .add(HttpApiEndpoint.post("status")`/v1/research/status`.setPayload(Schema.Struct({ quoteId: Schema.UUID }))
+      .addSuccess(Schema.Struct({ approval: Schema.optional(AgentRequestView) })))
     .add(HttpApiEndpoint.post("redeem")`/v1/research/redeem`.setPayload(ResearchRedeem).addSuccess(ResearchReport))
     .addError(HttpApiError.Unauthorized).addError(HttpApiError.Forbidden)
     .addError(HttpApiError.BadRequest).addError(HttpApiError.ServiceUnavailable))

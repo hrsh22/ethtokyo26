@@ -3,6 +3,12 @@ import { allocationAccess } from "./allocation-access";
 import { agent, agentBudget, owner, personal, recipient, timestamp } from "../../test/space-fixtures";
 
 describe("allocation actions by wallet role", () => {
+  it("keeps personal and agent access separate when both are assigned to one wallet", () => {
+    const sharedAgent = { ...agentBudget, mandate: [...agentBudget.mandate] as [...typeof agentBudget.mandate] };
+    sharedAgent.mandate[0] = recipient;
+    expect(allocationAccess(personal, recipient, timestamp)).toMatchObject({ yours: true, canClaim: true, canPay: false });
+    expect(allocationAccess(sharedAgent, recipient, timestamp)).toMatchObject({ yours: true, canClaim: false, canPay: true });
+  });
   it("lets the beneficiary claim without giving the owner beneficiary access", () => {
     expect(allocationAccess(personal, recipient, timestamp)).toMatchObject({ yours: true, canClaim: true, canPay: false });
     expect(allocationAccess(personal, owner, timestamp)).toMatchObject({ yours: false, canClaim: false, canPay: false });

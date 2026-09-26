@@ -12,7 +12,7 @@ import {getAddress,zeroAddress,type Hex} from "viem";
 import {privateKeyToAccount} from "viem/accounts";
 import {ApiLive} from "./app";
 import {Database} from "./db";
-import {agentPolicies,agentRequests,ownerIdentities,permitIntents,sessions,spaceDrafts} from "./db/schema";
+import {agentPolicies,agentRequests,ownerIdentities,permitIntents,researchQuotes,sessions,spaceDrafts} from "./db/schema";
 import {publicClient} from "./chain";
 import * as world from "./world-agents";
 
@@ -60,6 +60,34 @@ async function authenticate(id:string){const start=await post("/v1/approvals/wor
 async function approve(id:string){expect((await authenticate(id)).headers.get("location")).toContain("world=verified");expect((await post("/v1/approvals/decide",{id,decision:"approve"})).status).toBe(200);}
 
 describe("joint ENS and World approval protocol",()=>{
+  it("restores a report's owner decision without requesting another permit",async()=>{
+    const quoteId=randomUUID();
+    await db.insert(researchQuotes).values({id:quoteId,actor:agent.toLowerCase(),draftId,allocationId:"1",
+      spaceAddress:space,tokenAddress:token,recipient:seller,amount:"20000000",expiresAt:new Date(Date.now()+600000)});
+    const status=()=>post("/v1/research/status",{quoteId},agentBearer);
+    expect(await (await status()).json()).toEqual({});
+    const initial=await post("/v1/permits/payments",payment(quoteId),agentBearer);
+    expect(initial.status).toBe(409);
+    const {request}=await initial.json();
+    expect((await (await status()).json()).approval).toMatchObject({id:request.id,status:"pending"});
+    await approve(request.id);
+    expect((await (await status()).json()).approval).toMatchObject({id:request.id,status:"approved"});
+    expect(await db.select().from(permitIntents)).toHaveLength(0);
+    expect(await db.select().from(agentRequests)).toHaveLength(1);
+    ensActive=false;
+    expect((await (await status()).json()).approval.status).toBe("invalidated");
+    expect((await post("/v1/research/status",{quoteId})).status).toBe(403);
+    expect((await post("/v1/research/status",{quoteId:randomUUID()},agentBearer)).status).toBe(403);
+  });
+  it("restores a rejected report request as stopped",async()=>{
+    const quoteId=randomUUID();
+    await db.insert(researchQuotes).values({id:quoteId,actor:agent.toLowerCase(),draftId,allocationId:"1",
+      spaceAddress:space,tokenAddress:token,recipient:seller,amount:"20000000",expiresAt:new Date(Date.now()+600000)});
+    const {request}=await (await post("/v1/permits/payments",payment(quoteId),agentBearer)).json();
+    await post("/v1/approvals/decide",{id:request.id,decision:"deny"});
+    expect((await (await post("/v1/research/status",{quoteId},agentBearer)).json()).approval.status).toBe("denied");
+    expect(await db.select().from(permitIntents)).toHaveLength(0);
+  });
   it("allows routine payments without inventing screening results",async()=>{
     const r=await post("/v1/permits/payments",payment(randomUUID(),"5000000"),agentBearer);expect(r.status).toBe(200);
     const body=await r.json();expect(body.signature).toMatch(/^0x/);expect(body.riskVerdict).toBeUndefined();expect(body.decision).toBeUndefined();

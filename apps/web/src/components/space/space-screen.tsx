@@ -87,7 +87,7 @@ export function SpaceScreen({ address }: { address: string }) {
           })}</div>
         </section> : null}
 
-        <section aria-labelledby="all-heading">
+        {space.isOwner || !mine.length || others.length ? <section aria-labelledby="all-heading">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 id="all-heading" className="font-display text-3xl font-extrabold">{space.isOwner ? "People and agents" : mine.length ? "Everyone else" : "People and agents"}</h2>
             {terms && terms.count > BigInt(20) ? <span className="text-sm text-muted">Latest 20 of {terms.count.toString()}</span> : null}
@@ -101,7 +101,7 @@ export function SpaceScreen({ address }: { address: string }) {
                 <span className="grid size-12 place-items-center rounded-full bg-white text-ink shadow-float"><Plus /></span>Give someone<br />a budget
               </Link> : null}
             </div>}
-        </section>
+        </section> : null}
       </div>
       <aside className="min-w-0 lg:sticky lg:top-28"><ActivityFeed spaceAddress={address} units={space.units} nameOf={nameOf} layout="section" /></aside>
     </div>

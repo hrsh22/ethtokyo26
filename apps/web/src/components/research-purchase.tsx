@@ -10,9 +10,10 @@ import { useAccount, usePublicClient } from "wagmi";
 import { amount as formatAmount, shortAddress } from "@/lib/format";
 import { explorerTx } from "@/lib/use-chain-actions";
 import { useSponsoredTransaction } from "@/lib/use-sponsored-transaction";
-import { purchaseStorageKey, readPurchase, savePurchase, transactionHash as validTransactionHash, type SavedPurchase } from "@/lib/purchase-storage";
+import { purchaseStorageKey, readAllocationPurchase, savePurchase, transactionHash as validTransactionHash, type SavedPurchase } from "@/lib/purchase-storage";
 import { describeError } from "@/lib/errors";
-import { PaymentReviewStatus } from "./payment-review-status";
+import { paymentReview } from "@/lib/payment-review";
+import { PaymentReviewState } from "./payment-review-status";
 import { PaymentDecision } from "./payment-decision";
 import { Button } from "./ui/button";
 
@@ -27,14 +28,13 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
   const connection = useAccount();
   const sponsor = useSponsoredTransaction();
   const queryClient = useQueryClient();
-  const storageKey = purchaseStorageKey(account, draftId);
+  const storageKey = purchaseStorageKey(account, draftId, allocationId);
   const purchaseKey = ["report-purchase", storageKey];
   const saved = useQuery({ queryKey: purchaseKey,
-    queryFn: () => { try { return readPurchase(window.localStorage, storageKey, draftId); } catch { return null; } },
+    queryFn: () => { try { return readAllocationPurchase(window.localStorage, account, draftId, allocationId); } catch { return null; } },
     staleTime: Infinity, retry: false });
   const quote = saved.data?.quote;
   const hash = saved.data?.hash;
-  const [approvalId,setApprovalId]=useState<string>();
   const [report, setReport] = useState<Report>();
   const [decision, setDecision] = useState<Decision>();
   const [busy, setBusy] = useState(false);
@@ -42,6 +42,18 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
   const [storageWarning, setStorageWarning] = useState(false);
   const [reverted, setReverted] = useState(false);
   const [stage, setStage] = useState("");
+  // Read status without re-authorizing: returning from the owner account must
+  // restore the same request and must never open a wallet or submit a payment.
+  const reviewKey = ["report-review", account.toLowerCase(), quote?.id];
+  const review = useQuery({ queryKey: reviewKey, enabled: !!quote && !report && !reverted,
+    queryFn: () => client.researchStatus(quote!.id), retry: 1, refetchOnWindowFocus: "always",
+    refetchInterval: (query) => {
+      const state = paymentReview(query.state.data?.approval?.status);
+      return state.stopped || state.completed ? false : 3_000;
+    } });
+  const approval = review.data?.approval;
+  const approvalId = approval?.id;
+  const reviewState = paymentReview(approval?.status);
   const units = (value: string) => formatAmount(BigInt(value), decimals, symbol);
 
   function remember(purchase: SavedPurchase | null) {
@@ -51,7 +63,7 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
   }
 
   async function requestQuote() {
-    setBusy(true); setMessage(undefined); setDecision(undefined); setApprovalId(undefined);
+    setBusy(true); setMessage(undefined); setDecision(undefined);
     try { remember({ version: 1, quote: await client.researchQuote({ draftId, allocationId }), submitted: false }); setReport(undefined); setReverted(false); }
     catch { setMessage("The report service isn't available for this Space. It needs tUSDC and a configured seller."); }
     finally { setBusy(false); }
@@ -99,7 +111,7 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
       setReport(await client.researchRedeem({ quoteId: quote.id, transactionHash: receipt.transactionHash }));
     } catch (error) {
       const approval=paymentApprovalRequired(error);
-      if(approval){setApprovalId(approval.id);return;}
+      if(approval){queryClient.setQueryData(reviewKey,{approval});void review.refetch();return;}
       const nextDecision = paymentDecision(error);
       if (error instanceof BaseError && error.walk((cause) => cause instanceof UserRejectedRequestError)) {
         remember({ version: 1, quote, submitted: false });
@@ -131,9 +143,15 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
     {quote ? <div className="mt-5 rounded-3xl bg-soft p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2"><b className="text-lg">{quote.title}</b><b className="font-display text-2xl font-extrabold">{units(quote.amount)}</b></div>
       <p className="mt-1 text-sm text-muted">Seller <span className="address">{shortAddress(quote.recipient)}</span>. Quote valid until {new Date(quote.expiresAt).toLocaleTimeString()}.</p>
-      {!report && !reverted ? <Button className="mt-4" loading={busy} onClick={() => void buy()}>{busy ? stage || "Working" : hash ? "Retrieve the report" : saved.data?.submitted ? "Retry the same payment" : `Pay ${units(quote.amount)} and get the report`}</Button> : null}
+      {!report && !reverted ? <Button className="mt-4" loading={busy}
+        disabled={!hash && (review.isPending || review.isError || reviewState.waiting || reviewState.stopped || reviewState.completed)}
+        onClick={() => void buy()}>{busy ? stage || "Working" : hash ? "Retrieve the report" : review.isPending ? "Checking purchase…"
+          : review.isError ? "Approval status unavailable" : reviewState.waiting ? "Waiting for owner approval" : reviewState.stopped ? "Payment not approved"
+          : reviewState.completed ? "Payment completed" : reviewState.ready ? `Owner approved · Pay ${units(quote.amount)}`
+          : saved.data?.submitted ? "Retry the same payment" : `Pay ${units(quote.amount)} and get the report`}</Button> : null}
     </div> : null}
-    {approvalId ? <div className="mt-4"><PaymentReviewStatus id={approvalId}/></div> : null}
+    {approvalId && !report ? <div className="mt-4"><PaymentReviewState id={approvalId} request={approval} error={review.isError}/></div> : null}
+    {quote && review.isError ? <p role="status" className="mt-3 text-sm text-muted">Couldn’t refresh this purchase. <button type="button" className="font-semibold underline" onClick={()=>void review.refetch()}>Try again</button></p> : null}
     {saved.data?.submitted && !report && !reverted ? <details className="mt-4 text-sm">
       <summary className="cursor-pointer font-semibold text-muted">Paid but the report didn’t arrive?</summary>
       <p className="mt-2 text-muted">Your purchase is saved in this browser. Paste the payment’s transaction hash to fetch the report without paying again.</p>
@@ -154,7 +172,7 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
       </dl>
       <p className="mt-3 text-sm text-muted">{report.mandateActive ? "Mandate active" : "Mandate inactive"}, ends {new Date(report.mandateExpiry).toLocaleString()}. This describes the payment block; permissions may have changed since.</p>
     </section> : null}
-    {quote && !saved.data?.submitted && !report ? <Button variant="ghost" className="mt-3" disabled={busy} onClick={()=>void (async()=>{try{if(approvalId){const current=await client.approval(approvalId);if(!["denied","cancelled","expired"].includes(current.status))await client.decideApproval(approvalId,"cancel");}remember(null);setApprovalId(undefined);}catch(error){setMessage(describeError(error,"This purchase is already authorized."));}})()}>Cancel purchase</Button> : null}
+    {quote && !hash && (!saved.data?.submitted || reviewState.stopped) && !report ? <Button variant="ghost" className="mt-3" disabled={busy || review.isPending || review.isError} onClick={()=>void (async()=>{try{const current=(await client.researchStatus(quote.id)).approval;if(current && !paymentReview(current.status).stopped)await client.decideApproval(current.id,"cancel");remember(null);setMessage(undefined);setDecision(undefined);}catch(error){setMessage(describeError(error,"This purchase is already authorized."));}})()}>{reviewState.stopped ? "Clear purchase" : "Cancel purchase"}</Button> : null}
     {report || reverted ? <Button variant="soft" className="mt-4" onClick={() => { remember(null); setReport(undefined); setReverted(false); setDecision(undefined); setMessage(undefined); }}><RotateCcw />Start another purchase</Button> : null}
   </section>;
 }

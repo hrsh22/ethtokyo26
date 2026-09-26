@@ -4,6 +4,8 @@ import { spaceAccountAbi } from "@accord/chain";
 import { paymentDecision, paymentApprovalRequired, type Decision, type PermitRequest } from "@accord/sdk";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PaymentReviewStatus } from "../payment-review-status";
+import { paymentReview } from "@/lib/payment-review";
+import { usePaymentReview } from "@/lib/use-payment-review";
 import { useMemo, useState } from "react";
 import { Send } from "lucide-react";
 import { encodeFunctionData, getAddress, isAddress, zeroAddress, type Address, type Hex } from "viem";
@@ -28,6 +30,9 @@ export function PayPanel({ address, draftId, data, decimals, symbol, units }: {
   const cache=useQueryClient(),storageKey=`accord:payment:${account}:${draftId}:${data.id}`;
   type Pending={payload:PermitRequest;approvalId?:string};
   const saved=useQuery({queryKey:[storageKey],queryFn:()=>{try{return JSON.parse(localStorage.getItem(storageKey)??"null") as Pending|null;}catch{return null;}},staleTime:Infinity});
+  const review=usePaymentReview(saved.data?.approvalId);
+  const reviewState=paymentReview(review.data?.status);
+  const waitingForApproval=!!saved.data?.approvalId && (review.isPending || review.isError || !reviewState.ready);
   function remember(next:Pending|null){cache.setQueryData([storageKey],next);try{if(next)localStorage.setItem(storageKey,JSON.stringify(next));else localStorage.removeItem(storageKey);}catch{/* current tab retains it */}}
 
   const [recipient, setRecipient] = useState("");
@@ -47,7 +52,7 @@ export function PayPanel({ address, draftId, data, decimals, symbol, units }: {
 
   async function pay(event: React.FormEvent) {
     event.preventDefault();
-    if (!client || busy || (!saved.data && (!parsed.ok || over))) return;
+    if (!client || busy || waitingForApproval || (!saved.data && (!parsed.ok || over))) return;
     setBusy(true); setError(null); setDecision(undefined); setSettled(false); tracker.reset();
     try {
       requireWallet();
@@ -98,8 +103,10 @@ export function PayPanel({ address, draftId, data, decimals, symbol, units }: {
       {tracker.steps.some((step) => step.state !== "waiting") ? <TxTracker steps={tracker.steps} /> : null}
       {decision ? <PaymentDecision decision={decision} settled={settled} /> : null}
       {error ? <p role="alert" className="rounded-2xl bg-bad-soft px-4 py-3 text-sm font-medium text-bad">{error}</p> : null}
-      <Button size="lg" type="submit" loading={busy} disabled={saved.isPending || (!saved.data && (!parsed.ok || over || !recipient.trim()))}>{!busy ? <Send /> : null}{saved.data ? "Continue payment" : parsed.ok && !over ? `Pay ${units(parsed.value)}` : "Pay"}</Button>
-      {saved.data ? <Button variant="ghost" disabled={busy} onClick={()=>void (async()=>{try{if(saved.data?.approvalId){const current=await client!.approval(saved.data.approvalId);if(!["denied","cancelled","expired","executed"].includes(current.status))await client!.decideApproval(saved.data.approvalId,"cancel");}remember(null);setError(null);tracker.reset();}catch(error){setError(describeError(error,"This payment is already authorized. Continue it before starting another."));}})()}>Cancel request</Button> : null}
+      <Button size="lg" type="submit" loading={busy} disabled={saved.isPending || waitingForApproval || (!saved.data && (!parsed.ok || over || !recipient.trim()))}>{!busy ? <Send /> : null}{saved.data?.approvalId
+        ? review.isPending ? "Checking owner approval…" : review.isError ? "Approval status unavailable" : reviewState.ready ? "Owner approved · Continue payment" : reviewState.completed ? "Payment completed" : reviewState.stopped ? "Payment not approved" : "Waiting for owner approval"
+        : saved.data ? "Continue payment" : parsed.ok && !over ? `Pay ${units(parsed.value)}` : "Pay"}</Button>
+      {saved.data ? <Button variant="ghost" disabled={busy} onClick={()=>void (async()=>{try{if(saved.data?.approvalId){const current=await client!.approval(saved.data.approvalId);if(!paymentReview(current.status).stopped && current.status!=="executed")await client!.decideApproval(saved.data.approvalId,"cancel");}remember(null);setError(null);tracker.reset();}catch(error){setError(describeError(error,"This payment is already authorized. Continue it before starting another."));}})()}>{reviewState.stopped || reviewState.completed ? "Clear request" : "Cancel request"}</Button> : null}
     </form>
   </section>;
 }
