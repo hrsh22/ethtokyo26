@@ -135,8 +135,8 @@ export function ResearchPurchase({ client, draftId, allocationId, decimals, symb
   return <section className="card p-6" aria-labelledby="task-heading">
     <div className="flex items-start gap-4">
       <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-sky-soft text-[#2B7CC4]"><FileSearch size={22} /></span>
-      <div><h2 id="task-heading" className="font-display text-2xl font-extrabold">Give your agent a task</h2>
-        <p className="mt-1 text-sm text-muted">Buy an onchain spending report from the demo research service. The seller checks the exact payment before releasing it.</p></div>
+      <div><h2 id="task-heading" className="font-display text-2xl font-extrabold">Try a test purchase</h2>
+        <p className="mt-1 text-sm text-muted">Buy a spending report from the demo seller in this browser. The seller checks the exact payment before releasing it. Assistants buy repository research through the MCP tools instead.</p></div>
     </div>
     {saved.isPending ? <p role="status" className="mt-4 text-sm text-muted">Checking for a saved purchase…</p> : null}
     {!saved.isPending && !quote ? <Button variant="soft" className="mt-5" loading={busy} onClick={() => void requestQuote()}>Get a quote</Button> : null}

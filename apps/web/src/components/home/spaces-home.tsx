@@ -4,7 +4,7 @@ import { ApprovalInbox } from "../approval-inbox";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { ArrowUpRight, Bot, Hammer, Plus, RotateCw, UserRound } from "lucide-react";
+import { ArrowUpRight, Bot, Hammer, Plug, Plus, RotateCw, UserRound } from "lucide-react";
 import { useEffect } from "react";
 import { zeroAddress } from "viem";
 import type { AccordClient } from "@accord/sdk";
@@ -25,8 +25,7 @@ import { Button } from "../ui/button";
 type Draft = Awaited<ReturnType<AccordClient["listSpaces"]>>["spaces"][number];
 type Received = Awaited<ReturnType<AccordClient["listReceivedAllowances"]>>["allowances"][number];
 export function SpacesHome() {
-  const { client, config, auth, account, checkSession } = useAccord();
-  const demoAddress = config.data?.demoSpaceAddress;
+  const { client, auth, account, checkSession } = useAccord();
   const spaces = useQuery({ queryKey: ["spaces", account?.toLowerCase()], queryFn: () => client!.listSpaces(), enabled: !!client && auth.signedIn, retry: false });
   const received = useQuery({ queryKey: ["received-allowances", account?.toLowerCase()], queryFn: () => client!.listReceivedAllowances(),
     enabled: !!client && auth.signedIn, retry: false, refetchInterval: 30_000 });
@@ -43,14 +42,22 @@ export function SpacesHome() {
       {auth.signedIn ? <Button asChild size="lg"><Link href="/spaces/new"><Plus />New Space</Link></Button> : null}
     </header>
 
-    {!auth.signedIn ? <div className={`mt-8 grid gap-4 ${demoAddress ? "lg:grid-cols-[1.4fr_1fr]" : ""}`}>
+    {!auth.signedIn ? <div className="mt-8 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
       <SignInCard title="Sign in to see your Spaces" body="Connect a wallet to see your Spaces and shared allowances." />
-      {demoAddress ? <Link href="/demo" className="card group flex items-center gap-4 p-6 transition-transform hover:-translate-y-0.5">
-        <Avatar kind="agent" palette={allocationPalette(BigInt(1), true)} size={52} />
-        <span className="flex-1"><b className="block font-display text-xl font-extrabold">See Accord in action</b><span className="text-sm text-muted">Real agent purchases, owner decisions and ENS revocation. No wallet needed.</span></span>
-        <ArrowUpRight className="text-muted transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-      </Link> : null}
+      <div className="grid content-start gap-4">
+        <Link href="/demo" className="card group flex items-center gap-4 p-6 transition-transform hover:-translate-y-0.5">
+          <Avatar kind="agent" palette={allocationPalette(BigInt(1), true)} size={52} />
+          <span className="flex-1"><b className="block font-display text-xl font-extrabold">See Accord in action</b><span className="text-sm text-muted">Real agent purchases, owner decisions and ENS revocation. No wallet needed.</span></span>
+          <ArrowUpRight className="shrink-0 text-muted transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+        </Link>
+        <Link href="/developers" className="card group flex items-center gap-4 p-6 transition-transform hover:-translate-y-0.5">
+          <span className="grid size-[52px] shrink-0 place-items-center rounded-2xl bg-lilac-soft text-[#6544ba]"><Plug size={24} /></span>
+          <span className="flex-1"><b className="block font-display text-xl font-extrabold">Connect your agent</b><span className="text-sm text-muted">Give an assistant a budget through MCP or the TypeScript SDK.</span></span>
+          <ArrowUpRight className="shrink-0 text-muted transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+        </Link>
+      </div>
     </div> : <>
+    <ApprovalInbox />
     {spaces.isPending ? <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="h-[260px] animate-pulse rounded-tile bg-white/70" />)}</div>
     : spaces.isError ? <div role="alert" className="card mt-8 flex flex-wrap items-center gap-4 p-7">
       <span className="flex-1"><b className="block font-display text-2xl font-extrabold">We couldn’t load your Spaces</b><span className="text-muted">Your Spaces are safe. Check your connection and try again.</span></span>
@@ -70,7 +77,6 @@ export function SpacesHome() {
       </motion.ul>
       <div className="mt-8 grid gap-4 lg:grid-cols-2"><DemoTokenFaucet /><WorldIdCard /></div>
     </>}
-    <ApprovalInbox />
     <section className="mt-12" aria-labelledby="received-title">
       <h2 id="received-title" className="font-display text-3xl font-extrabold">Shared with you</h2>
       {received.isPending ? <div className="card mt-4 p-6 text-muted">Looking for allowances and agent budgets…</div>

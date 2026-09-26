@@ -14,19 +14,17 @@ import { Button } from "./ui/button";
 export function AppNav({ landing = false }: { landing?: boolean }) {
   const path = usePathname();
   const links = landing
-    ? [{ href: "#how", label: "How it works" }, { href: "#safety", label: "Safety" }, { href: "/demo", label: "Demo" }]
-    : [{ href: "/spaces", label: "Spaces" }, { href: "/demo", label: "Demo" }];
+    ? [{ href: "#how", label: "How it works" }, { href: "#safety", label: "Safety" }, { href: "/demo", label: "Demo" }, { href: "/developers", label: "Developers" }]
+    : [{ href: "/spaces", label: "Spaces" }, { href: "/demo", label: "Demo" }, { href: "/developers", label: "Developers" }];
+  const isActive = (href: string) => !landing && (href === "/spaces" ? path === "/spaces" || path === "/spaces/new" : path.startsWith(href));
   return <>
     <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-white focus:px-4 focus:py-2">Skip to content</a>
     <header className="sticky top-3 z-30 mx-3 mt-3 sm:mx-6 sm:mt-4">
       <nav aria-label="Primary" className="mx-auto flex max-w-[1240px] items-center gap-2 rounded-full bg-white/85 py-2 pl-5 pr-2 shadow-[0_14px_34px_-24px_rgb(22_18_43/0.45),inset_0_0_0_1px_rgb(255_255_255/0.9)] backdrop-blur-xl sm:gap-5">
         <Link href="/" aria-label="Accord home" className="mr-1 shrink-0"><Logo /></Link>
         <div className="hidden items-center gap-1 md:flex">
-          {links.map((link) => {
-            const active = !landing && (link.href === "/spaces" ? path === "/spaces" || path === "/spaces/new" : path.startsWith(link.href));
-            return <Link key={link.href} href={link.href} aria-current={active ? "page" : undefined}
-              className={`rounded-full px-4 py-2 font-medium transition-colors ${active ? "bg-ink text-white" : "text-muted hover:text-ink"}`}>{link.label}</Link>;
-          })}
+          {links.map((link) => <Link key={link.href} href={link.href} aria-current={isActive(link.href) ? "page" : undefined}
+            className={`rounded-full px-4 py-2 font-medium transition-colors ${isActive(link.href) ? "bg-ink text-white" : "text-muted hover:text-ink"}`}>{link.label}</Link>)}
         </div>
         <div className="ml-auto flex min-w-0 items-center gap-2">
           {landing ? <Button asChild variant="light" size="sm" className="hidden sm:inline-flex"><Link href="/spaces">Open app</Link></Button> : null}
@@ -34,6 +32,11 @@ export function AppNav({ landing = false }: { landing?: boolean }) {
         </div>
       </nav>
     </header>
+    <nav aria-label="Sections" className="relative z-10 mx-auto mt-3 flex w-fit max-w-full gap-1 overflow-x-auto px-4 md:hidden">
+      {(landing ? [{ href: "/spaces", label: "Open app" }, ...links.filter(link => link.href.startsWith("/"))] : links).map((link) =>
+        <Link key={link.href} href={link.href} aria-current={isActive(link.href) ? "page" : undefined}
+          className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${isActive(link.href) ? "bg-ink text-white" : "bg-white/70 text-ink-soft hover:text-ink"}`}>{link.label}</Link>)}
+    </nav>
     <NetworkBanner />
   </>;
 }

@@ -12,6 +12,7 @@ import { summarize } from "@/lib/space-summary";
 import { explorerAddress } from "@/lib/use-chain-actions";
 import { useSpace } from "@/lib/use-space";
 import { SpaceNamespace } from "../agent-identity";
+import { ApprovalInbox } from "../approval-inbox";
 import { Avatar } from "../avatar";
 import { DemoTokenFaucet } from "../demo-token-faucet";
 import { ShareButton } from "../share";
@@ -71,11 +72,12 @@ export function SpaceScreen({ address }: { address: string }) {
 
     {!auth.signedIn ? <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-6 flex flex-wrap items-center gap-4 rounded-[1.75rem] bg-white/80 p-4 pl-5 shadow-float backdrop-blur">
       <span className="grid size-11 place-items-center rounded-2xl bg-tang-soft text-[#e2561c]"><Wallet size={20} /></span>
-      <span className="min-w-[200px] flex-1"><b className="block">Was one of these sent to you?</b><span className="text-sm text-muted">Connect the wallet it was sent to, and you can claim or pay right here.</span></span>
+      <span className="min-w-[200px] flex-1"><b className="block">Was one of these sent to you?</b><span className="text-sm text-muted">Connect the wallet it was sent to and claim right here. Owners sign in to manage people and agents.</span></span>
       <Button onClick={start}>Connect wallet</Button>
     </motion.div> : role === "visitor" && terms && entries.length > 0 ? <p className="mt-6 rounded-[1.5rem] bg-white/70 px-5 py-4 text-sm text-ink-soft">
       Nothing here is assigned to <span className="address">{shortAddress(viewer)}</span>. If someone sent you a link, check you connected the wallet they used.
     </p> : null}
+    {space.isOwner ? <ApprovalInbox spaceAddress={address} /> : null}
 
     <div className="mt-8 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="grid min-w-0 gap-8">

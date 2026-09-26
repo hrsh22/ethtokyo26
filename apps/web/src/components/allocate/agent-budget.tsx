@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AccordClient } from "@accord/sdk";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { AtSign, Bot, Fingerprint, Loader2, UserRound } from "lucide-react";
+import { AtSign, Bot, Fingerprint, Loader2, Plug, UserRound } from "lucide-react";
 import { useState } from "react";
 import { getAddress, parseUnits, zeroAddress, type Hex } from "viem";
 import { useAccord } from "@/lib/accord";
@@ -27,7 +27,7 @@ export function AgentBudget({address,draftId,allocationId,defaults,initialAgent,
   const [label,setLabel]=useState(defaults?.label??"research"),[agent,setAgent]=useState(defaults?.agent??initialAgent??"");
   const [manual,setManual]=useState(!!defaults?.agent || !!initialAgent);
   const [total,setTotal]=useState("100"),[daily,setDaily]=useState(defaults?.daily??"100");
-  const [per,setPer]=useState(defaults?.per??"50"),[threshold,setThreshold]=useState(defaults?.threshold??"10");
+  const [per,setPer]=useState(defaults?.per??"25"),[threshold,setThreshold]=useState(defaults?.threshold??"10");
   const [ends,setEnds]=useState(()=>defaults?.ends??new Date(Date.now()+14*86400_000).toISOString().slice(0,10));
   const [busy,setBusy]=useState(false),[message,setMessage]=useState("");
   const [confirmedWallet,setConfirmedWallet]=useState<string|null>(null);
@@ -64,7 +64,10 @@ export function AgentBudget({address,draftId,allocationId,defaults,initialAgent,
       }
       const dailyCap=parseUnits(daily,6),maxPerPayment=parseUnits(per,6),approvalThreshold=parseUnits(threshold,6);
       const expiry=Math.floor(Date.parse(`${ends}T23:59:59Z`)/1000);
-      if(dailyCap<=BigInt(0)||maxPerPayment<=BigInt(0)||maxPerPayment>dailyCap||approvalThreshold<BigInt(0)||approvalThreshold>maxPerPayment||!Number.isFinite(expiry)||expiry*1000<=Date.now())throw new Error("Check the limits and expiry date.");
+      if(dailyCap<=BigInt(0)||maxPerPayment<=BigInt(0))throw new Error("Set a daily cap and a per-payment limit above zero.");
+      if(maxPerPayment>dailyCap)throw new Error("The per-payment limit can’t be more than the daily cap.");
+      if(approvalThreshold<BigInt(0)||approvalThreshold>maxPerPayment)throw new Error("The approval threshold can’t be more than the per-payment limit.");
+      if(!Number.isFinite(expiry)||expiry*1000<=Date.now())throw new Error("Pick an end date after today.");
       const agentAddress=await checkWallet();
       let id=allocationId;
       if(!id) {
@@ -103,6 +106,7 @@ export function AgentBudget({address,draftId,allocationId,defaults,initialAgent,
       <p className="mt-3 text-ink-soft">Give your agent a name, set its limits, and choose when it needs your approval.</p>
     </div>
     <form className="grid gap-5 p-7 sm:p-9" onSubmit={event=>void submit(event)}>
+      {pairingId?<p className="flex items-start gap-3 rounded-2xl bg-lilac-soft p-4 text-sm text-ink-soft"><Plug size={18} className="mt-0.5 shrink-0 text-[#6544ba]"/>You’re setting up the signer from your terminal. After you authorize it with World ID, you’ll return to finish connecting your assistant.</p>:null}
       {!allocationId && !initialAgent?<div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-soft p-4"><AgentSetupButton/><button type="button" disabled={busy} className="text-sm font-semibold text-muted hover:text-ink" onClick={()=>{setManual(!manual);if(manual){setAgent("");setConfirmedWallet(null);setMessage("");}}}>{manual?"Hide manual entry":"Enter a wallet manually"}</button></div>:null}
       <div className={`grid gap-4 ${manual?"sm:grid-cols-[1fr_1.5fr]":""}`}><div><label className="font-semibold" htmlFor="agent-label">Agent name</label><input id="agent-label" className="field mt-2" value={label} onChange={e=>setLabel(e.target.value.toLowerCase())} required pattern="[a-z0-9][a-z0-9-]{0,31}" disabled={busy}/></div>
         {manual?<div className="min-w-0"><label className="font-semibold" htmlFor="agent-wallet">{initialAgent?"Signer from your terminal":"Agent wallet"}</label><input id="agent-wallet" className="field mt-2" value={agent} onChange={e=>{setAgent(e.target.value);setConfirmedWallet(null);setMessage("");}} placeholder="0x… or name.eth" required readOnly={!!initialAgent} disabled={busy} autoComplete="off" spellCheck={false} aria-invalid={!!walletError} aria-describedby="agent-wallet-status"/>

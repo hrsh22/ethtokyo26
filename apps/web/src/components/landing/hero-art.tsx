@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, type Variants } from "motion/react";
-import { Ban, Fingerprint, Globe, ShieldCheck } from "lucide-react";
+import { AtSign, Ban, Fingerprint, Globe } from "lucide-react";
 import { allocationPalette } from "@/lib/palette";
 import { Avatar } from "../avatar";
 import { Ring } from "../ring";
@@ -37,7 +37,7 @@ export function HeroArt() {
       </div>
       <div className="absolute inset-x-4 bottom-6 flex items-center justify-center gap-2 rounded-full bg-ink py-4 font-semibold text-white"><Globe size={18} />Claim with World ID</div>
     </motion.div>
-    <motion.span variants={rise} custom={{ delay: 0.55, rotate: 6 }} className="sticker absolute right-[-8px] top-24 z-20 bg-sky"><ShieldCheck size={16} strokeWidth={2.4} />Screened</motion.span>
+    <motion.span variants={rise} custom={{ delay: 0.55, rotate: 6 }} className="sticker absolute right-[-8px] top-24 z-20 bg-sky"><AtSign size={16} strokeWidth={2.4} />ENS identity</motion.span>
     <motion.span variants={rise} custom={{ delay: 0.65, rotate: -8 }} className="sticker absolute left-4 top-[470px] z-20 bg-lime"><Fingerprint size={16} strokeWidth={2.4} />World ID verified</motion.span>
     <motion.span variants={rise} custom={{ delay: 0.75, rotate: 4 }} className="sticker absolute right-[-16px] top-[380px] z-20 bg-pink"><Ban size={16} strokeWidth={2.4} />Revoke any time</motion.span>
   </motion.div>;

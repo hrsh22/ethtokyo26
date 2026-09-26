@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ConnectAgent } from "@/components/connect-agent";
+
+export const metadata: Metadata = { title: "Connect your agent · Accord" };
 
 export default async function ConnectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

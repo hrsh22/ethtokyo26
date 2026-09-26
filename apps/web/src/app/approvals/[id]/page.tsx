@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { ApprovalReview } from "@/components/approval-review";
+
+export const metadata: Metadata = { title: "Review request · Accord" };
 
 export default async function ApprovalPage({params}:{params:Promise<{id:string}>}) {
   const {id}=await params;

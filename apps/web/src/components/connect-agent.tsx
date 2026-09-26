@@ -7,6 +7,7 @@ import { useState } from "react";
 import { useAccord } from "@/lib/accord";
 import { describeError } from "@/lib/errors";
 import { shortAddress } from "@/lib/format";
+import { Commands } from "./agent-tools";
 import { Button } from "./ui/button";
 import { SignInCard } from "./sign-in-card";
 
@@ -44,7 +45,11 @@ export function ConnectAgent({ id }: { id: string }) {
       <h1 className="mt-5 font-display text-4xl font-extrabold">{pair?.connectionId ? "Your agent is connected" : "Connect your agent"}</h1>
       <p className="mt-3 text-ink-soft">{pair?.connectionId ? "Return to your terminal to finish setting up the assistant." : "Choose the Space and budget this agent can use."}</p></div>
       <div className="grid gap-5 p-7 sm:p-9">
-        {pair?.connectionId ? <><div className="flex items-start gap-3 rounded-2xl bg-good-soft p-4 text-good"><Check className="mt-0.5 shrink-0"/><p className="break-all font-semibold">{pair.name}</p></div><Button asChild variant="soft"><Link href="/developers">Set up MCP</Link></Button></>
+        {pair?.connectionId ? <><div className="flex items-start gap-3 rounded-2xl bg-good-soft p-4 text-good"><Check className="mt-0.5 shrink-0"/><p className="break-all font-semibold">{pair.name}</p></div>
+          <div><p className="font-semibold">Next, in your terminal</p><p className="mt-1 text-sm text-muted">Generate the MCP entry and add it to your assistant’s settings. Its tools can then read this budget and request purchases.</p>
+            <div className="mt-3"><Commands text="npx accord mcp config"/></div></div>
+          <div className="flex flex-wrap gap-2">{selected && identity ? <Button asChild><Link href={`/spaces/${selected.spaceAddress}/a/${identity.allocationId}`}>Open the agent</Link></Button> : null}
+            <Button asChild variant="soft"><Link href="/developers">MCP tools and SDK</Link></Button></div></>
           : !secret.data && !secret.isPending ? <p role="alert" className="text-bad">Open the full connection link from your terminal. Its private review code is missing.</p>
           : pairing.isError ? <p role="alert" className="text-bad">{describeError(pairing.error, "This connection link is unavailable.")}</p>
           : !pair ? <p className="text-muted">Loading connection…</p> : <>

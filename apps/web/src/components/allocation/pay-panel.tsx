@@ -90,7 +90,7 @@ export function PayPanel({ address, draftId, data, decimals, symbol, units }: {
 
   return <section className="card p-6 sm:p-7" aria-labelledby="pay-heading">
     <h2 id="pay-heading" className="font-display text-3xl font-extrabold">Pay from this budget</h2>
-    <p className="mt-1 text-muted">You’re signed in as the agent. Up to {units(maxEach)} per payment.</p>
+    <p className="mt-1 text-muted">You’re signed in as the agent. Up to {units(maxEach)} per payment. Assistants usually pay through Accord’s MCP tools or SDK; this form runs the same checks.</p>
     <form className="mt-5 grid gap-4" onSubmit={(event) => void pay(event)}>
       {!saved.data ? <div>
         <label htmlFor="pay-to" className="font-semibold">Recipient</label>

@@ -67,7 +67,7 @@ export function AgentIdentityCard({draftId,allocationId,owner=false}:{draftId?:s
     </div>
     <p className="mt-3 text-sm text-muted">{identity.active?`Owner approval above ${formatUnits(BigInt(identity.approvalThreshold),6)} tUSDC.`:"Payments are unavailable while this identity is inactive."}</p>
     <details className="mt-3 text-sm text-muted"><summary className="cursor-pointer font-semibold">Identity details</summary>
-      <p className="mt-2 break-all">Agent wallet: {identity.agent}</p>
+      <p className="mt-2 break-all">Agent signer: {identity.agent}</p>
       <a className="mt-1 inline-flex items-center gap-1 font-semibold text-[#6544ba]" href={`https://sepolia.etherscan.io/address/${identity.registry}`} target="_blank" rel="noreferrer">View ENS registry<ArrowUpRight size={14}/></a>
     </details>
   </section>;

@@ -1,18 +1,20 @@
 "use client";
 
-import { Ban, Plus, RotateCcw, AtSign } from "lucide-react";
+import { Ban, Plug, Plus, RotateCcw, AtSign } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { AgentBudget } from "../allocate/agent-budget";
 import { useAgentIdentities } from "../agent-identity";
+import { AgentConnections, Commands } from "../agent-tools";
 import { toast } from "sonner";
 import { getAddress, zeroAddress, type Hex } from "viem";
 import { useAccord } from "@/lib/accord";
 import { parseAmount } from "@/lib/amounts";
 import { describeError } from "@/lib/errors";
 import { formatUnits } from "viem";
-import { useChainActions } from "@/lib/use-chain-actions";
+import { explorerTx, useChainActions } from "@/lib/use-chain-actions";
 import { useSponsoredTransaction } from "@/lib/use-sponsored-transaction";
 import type { AllocationData } from "@/lib/use-allocation";
 import { AmountField } from "../amount-field";
@@ -50,10 +52,12 @@ export function OwnerPanel({ address, draftId, data, label, decimals, symbol, un
     try {
       requireWallet();
       const request = { draftId, requestKey: crypto.randomUUID(), allocationId: data.id.toString() };
-      if (kind === "revoke") await client.revokeAgentIdentity(draftId, data.id.toString());
-      else await submit(await client.recoverAllocation(request));
+      const revoked = kind === "revoke" ? await client.revokeAgentIdentity(draftId, data.id.toString()) : undefined;
+      if (kind === "close") await submit(await client.recoverAllocation(request));
+      const receipt = revoked ? explorerTx(revoked.transactionHash) : undefined;
       await cache.invalidateQueries();
-      toast.success(kind === "revoke" ? "ENS identity revoked. The agent can no longer pay." : `Closed. ${units(data.allocation[1])} is back in your wallet.`);
+      toast.success(kind === "revoke" ? "ENS identity revoked. The agent can no longer pay." : `Closed. ${units(data.allocation[1])} is back in your wallet.`,
+        receipt ? { description: "Confirmed on Sepolia.", action: { label: "Receipt", onClick: () => window.open(receipt, "_blank", "noopener") } } : undefined);
       setConfirm(null);
     } catch (cause) {
       checkSession(cause);
@@ -67,11 +71,11 @@ export function OwnerPanel({ address, draftId, data, label, decimals, symbol, un
   </section>;
 
   return <div className="grid grid-cols-1 gap-4">
-    <section className="card p-6 sm:p-7" aria-labelledby="share-heading">
-      <h2 id="share-heading" className="font-display text-3xl font-extrabold">{isAgent ? "Share with whoever runs the agent" : "Share a direct link"}</h2>
-      <p className="mb-5 mt-1 text-muted">{isAgent ? "It shows the agent its limits and lets it pay from this budget." : `${label} will see this under Shared with you after signing in with their wallet. You can also send the link.`}</p>
+    {!isAgent ? <section className="card p-6 sm:p-7" aria-labelledby="share-heading">
+      <h2 id="share-heading" className="font-display text-3xl font-extrabold">Share a direct link</h2>
+      <p className="mb-5 mt-1 text-muted">{label} will see this under Shared with you after signing in with their wallet. You can also send the link.</p>
       <SharePanel path={`/spaces/${address}/a/${data.id}`} />
-    </section>
+    </section> : null}
     <section className="card grid gap-3 p-6 sm:p-7" aria-labelledby="manage-heading">
       <h2 id="manage-heading" className="font-display text-2xl font-extrabold">Manage</h2>
       {isAgent ? <div className="flex flex-wrap items-center gap-3 rounded-3xl bg-soft p-4">
@@ -87,6 +91,18 @@ export function OwnerPanel({ address, draftId, data, label, decimals, symbol, un
         <Button variant="danger" onClick={() => setConfirm("close")}>Close</Button>
       </div>
     </section>
+    {isAgent ? <section className="card p-6 sm:p-7" aria-labelledby="assistant-heading">
+      <div className="flex items-start gap-4">
+        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-lilac-soft text-[#6544ba]"><Plug size={21} /></span>
+        <div className="min-w-0"><h2 id="assistant-heading" className="font-display text-2xl font-extrabold">Connected assistant</h2>
+          <p className="mt-1 text-sm text-muted">Assistants connect through MCP or the SDK with a local signer. They can read this budget, buy research and ask for your approval.</p></div>
+      </div>
+      <div className="mt-4"><AgentConnections draftId={draftId} allocationId={data.id.toString()} /></div>
+      {identity?.active ? <details className="mt-4 text-sm"><summary className="cursor-pointer font-semibold text-muted">Connect an assistant</summary>
+        <div className="mt-3"><Commands text={`npx accord connect --agent ${identity.name}\nnpx accord mcp config`} /></div>
+        <p className="mt-2 text-muted">Run these with the local signer authorized for this agent. <Link href="/developers" className="font-semibold text-[#6544ba] hover:underline">Toolkit quickstart</Link></p>
+      </details> : null}
+    </section> : null}
 
     <Sheet open={confirm !== null} onOpenChange={(open) => { if (!open) setConfirm(null); }} busy={busy}
       title={confirm === "revoke" ? "Revoke this ENS identity?" : `Close ${label}?`}

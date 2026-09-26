@@ -21,6 +21,12 @@ const stories = {
   denied: { title: "A decision respected", body: "The owner declined another purchase. The agent's budget stayed untouched.", icon: CircleSlash, color: "bg-tang-soft text-[#ac5127]", label: "Owner control" },
   revoked: { title: "Authority switched off", body: "Revoking the ENS name stopped a payment that was already approved.", icon: AtSign, color: "bg-lilac-soft text-[#6544ba]", label: "ENSv2 revocation" },
 } as const;
+const flow = [
+  { title: "Quote", tool: "accord_quote", body: "The assistant asks for an exact research price. Nothing is spent." },
+  { title: "Pause", tool: "accord_purchase", body: "Above the owner’s approval threshold, Accord returns a review link instead of paying." },
+  { title: "Decide", tool: "World ID", body: "The owner verifies with World, then approves or denies the exact amount and recipient." },
+  { title: "Resume", tool: "accord_resume", body: "The assistant continues the same quote. The Space checks ENS authority and limits again." },
+];
 function status(run: Run) {
   if (run.checks.some(c => c.status === "failed")) return { text: "Needs review", color: "text-bad", Icon: TriangleAlert };
   if (!run.checks.length || run.checks.some(c => c.status === "unavailable")) return { text: "Check unavailable", color: "text-muted", Icon: Clock3 };
@@ -73,7 +79,18 @@ export function DemoOverview() {
         </div>
       </section>
 
-      <div className="mb-4 mt-8 flex flex-wrap items-center justify-between gap-3">
+      <section aria-labelledby="demo-flow" className="mt-8">
+        <h2 id="demo-flow" className="font-display text-2xl font-extrabold sm:text-3xl">How each run works</h2>
+        <p className="mt-2 text-ink-soft">An external assistant used Accord’s MCP tools. Accord and the Space contract decided what it could spend.</p>
+        <ol className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">{flow.map((step, index) => <li key={step.title} className="card p-5">
+          <span className="text-sm font-semibold text-muted">0{index + 1}</span>
+          <h3 className="mt-1 font-display text-xl font-extrabold">{step.title}</h3>
+          <code className="mt-2 inline-block rounded-lg bg-lilac-soft px-2 py-1 text-xs font-semibold text-[#6544ba]">{step.tool}</code>
+          <p className="mt-2 text-sm leading-relaxed text-muted">{step.body}</p>
+        </li>)}</ol>
+      </section>
+
+      <div className="mb-4 mt-10 flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-2xl font-extrabold sm:text-3xl">Three outcomes. Real evidence.</h2>
         <Button size="sm" variant="ghost" loading={evidence.isFetching} onClick={() => void evidence.refetch()} title="Checks refresh about once a minute.">{!evidence.isFetching ? <RefreshCw/> : null}Refresh checks</Button>
       </div>

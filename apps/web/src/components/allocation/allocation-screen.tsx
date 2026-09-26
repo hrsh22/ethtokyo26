@@ -5,6 +5,8 @@ import { motion } from "motion/react";
 import { ArrowLeft, Bot, RotateCw, UserRound } from "lucide-react";
 import { zeroAddress } from "viem";
 import { AgentIdentityCard } from "../agent-identity";
+import { AgentPurchases } from "../agent-purchases";
+import { ApprovalInbox } from "../approval-inbox";
 import { useAccord } from "@/lib/accord";
 import { allocationAccess } from "@/lib/allocation-access";
 import { periodUnit, ruleSentence, shortAddress, shortDate } from "@/lib/format";
@@ -81,13 +83,15 @@ export function AllocationScreen({ address, id }: { address: string; id: bigint 
           {isAgent && data.mandate[9] ? <span className="pill">Ends {shortDate(data.mandate[8])}</span> : null}
           <WindowTimer data={data} />
         </div>
-        <p className="relative mt-5 text-center text-sm opacity-70">{isAgent ? data.mandate[0] !== zeroAddress ? <>Agent wallet <span className="address">{shortAddress(data.mandate[0])}</span></> : "No agent wallet yet"
+        <p className="relative mt-5 text-center text-sm opacity-70">{isAgent ? data.mandate[0] !== zeroAddress ? <>Agent signer <span className="address">{shortAddress(data.mandate[0])}</span></> : "No agent signer yet"
           : <>Only <span className="address">{shortAddress(data.allocation[0])}</span> can claim</>}</p>
       </motion.section>
 
       <div className="grid min-w-0 grid-cols-1 gap-4">
-        {!auth.signedIn ? <SignInCard compact title={isAgent ? "Is this your agent?" : "Is this for you?"}
-          body={`Connect ${isAgent ? "the agent’s wallet" : shortAddress(data.allocation[0])} to ${isAgent ? "pay" : "claim"}. Anyone can view these rules.`} /> : null}
+        {!auth.signedIn ? <SignInCard compact title={isAgent ? "Own this Space?" : "Is this for you?"}
+          body={isAgent ? "Sign in as the owner to approve purchases and manage this agent’s ENS authority. The agent itself spends through Accord’s MCP tools or SDK with its own signer."
+            : `Connect ${shortAddress(data.allocation[0])} to claim. Anyone can view these rules.`} /> : null}
+        {auth.signedIn && owner && isAgent && draftId ? <ApprovalInbox spaceAddress={address} allocationId={id.toString()} className="" /> : null}
         {auth.signedIn && access.yours ? !draftId ? space.draft.isPending ? <div className="h-64 animate-pulse rounded-tile bg-white/70" />
           : <div className="card p-6"><h2 className="font-display text-2xl font-extrabold">This Space isn’t linked to Accord here</h2><p className="mt-1 text-muted">It exists onchain, but this deployment can’t sign claims or payments for it.</p></div>
           : isAgent ? <>
@@ -99,8 +103,10 @@ export function AllocationScreen({ address, id }: { address: string; id: bigint 
           : null}
         {auth.signedIn && owner && !draftId && !space.draft.isPending && !access.yours ? <div className="card p-6"><h2 className="font-display text-2xl font-extrabold">This Space isn’t linked to Accord here</h2><p className="mt-1 text-muted">You own it onchain, but this Accord deployment has no record of it, so it can’t sign changes.</p></div> : null}
         {auth.signedIn && owner && draftId ? <OwnerPanel address={address} draftId={draftId} data={data} label={label} decimals={space.decimals} symbol={space.symbol} units={space.units} /> : null}
-        {auth.signedIn && !owner && !access.yours ? <div className="card p-6"><h2 className="font-display text-2xl font-extrabold">This isn’t assigned to your wallet</h2>
-          <p className="mt-1 text-muted">Only {isAgent ? "the agent’s wallet" : <span className="address">{shortAddress(data.allocation[0])}</span>} can {isAgent ? "pay" : "claim"}. If someone sent you this link, switch to the wallet they used.</p></div> : null}
+        {auth.signedIn && owner && isAgent && draftId ? <AgentPurchases draftId={draftId} allocationId={id.toString()} /> : null}
+        {auth.signedIn && !owner && !access.yours ? <div className="card p-6"><h2 className="font-display text-2xl font-extrabold">{isAgent ? "Only the owner manages this agent" : "This isn’t assigned to your wallet"}</h2>
+          <p className="mt-1 text-muted">{isAgent ? "The agent spends through Accord’s MCP tools or SDK with its own signer. Sign in with the Space owner’s wallet to approve purchases or revoke it."
+            : <>Only <span className="address">{shortAddress(data.allocation[0])}</span> can claim. If someone sent you this link, switch to the wallet they used.</>}</p></div> : null}
         <ActivityFeed spaceAddress={address} units={space.units} nameOf={() => label} allocationId={id.toString()} title="History" />
       </div>
     </div>

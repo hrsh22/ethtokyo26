@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AtSign, Ban, Bot, Check, Fingerprint, ScanLine, UserRound } from "lucide-react";
+import { ArrowUpRight, AtSign, Ban, Bot, Check, Fingerprint, ScanLine, UserRound } from "lucide-react";
 import { AppNav, Footer } from "@/components/app-nav";
 import { Avatar } from "@/components/avatar";
 import { HeroArt } from "@/components/landing/hero-art";
@@ -15,7 +15,7 @@ const agent = allocationPalette(BigInt(1), true);
 const steps = [
   { title: "Fill a Space", body: "Deploy it from your wallet and add tokens. Only you can change the rules.", bg: "#FFE7D8" },
   { title: "Pick who and how much", body: "A person with a daily allowance, or an agent with a card-style cap.", bg: "#ECE5FF" },
-  { title: "They tap to claim", body: "People claim with World ID. Named agents spend within their approved limits.", bg: "#EEFBD6" },
+  { title: "They claim or spend", body: "People claim with World ID. Agents spend through MCP or the SDK and ask you before larger purchases.", bg: "#EEFBD6" },
 ];
 const safety = [
   { icon: Fingerprint, title: "World ID", body: "Fresh verification for claims, agent authority, and sensitive payments.", bg: "#FFEBDD", fg: "#E2561C" },
@@ -34,7 +34,7 @@ export default function Landing() {
       <section className="mx-auto grid max-w-[1240px] items-center gap-12 px-6 pb-8 pt-14 sm:px-10 lg:grid-cols-[1.05fr_1fr] lg:pt-20">
         <div>
           <h1 className="font-display text-[56px] font-extrabold leading-[0.93] tracking-[-0.03em] sm:text-[80px] lg:text-[88px]">Allowances for humans and their AI agents.</h1>
-          <p className="mt-7 max-w-[44ch] text-lg text-ink-soft">Set a budget for a person or agent, and let the rules do the rest. People find their allowances after signing in and claim with World ID. Agents spend within limits you can revoke in one tap.</p>
+          <p className="mt-7 max-w-[44ch] text-lg text-ink-soft">Set a budget for a person or agent, and let the rules do the rest. People find their allowances after signing in and claim with World ID. Agents connect through MCP and spend within limits you can revoke in one tap.</p>
           <div className="mt-9 flex flex-wrap gap-3">
             <Button asChild size="lg"><Link href="/spaces/new">Start a Space</Link></Button>
             <DemoCta />
@@ -64,12 +64,13 @@ export default function Landing() {
         {[{ palette: person, kind: "person" as const, tag: "For people", icon: UserRound, title: "Allowances that verify the human.",
           body: "A stipend, a grant or family support. Each claim needs a fresh World ID check, so a stolen phone can't drain it.", name: "kenji.eth", sub: "10 tUSDC a day, 62 left" },
         { palette: agent, kind: "agent" as const, tag: "For agents", icon: Bot, title: "Pocket money for your AI.",
-          body: "Your agent pays for data and APIs from its own capped budget, tied to its ENS name. It never holds your keys.", name: "Research agent", sub: "5 a payment, 20 a day" }].map((mode) =>
+          body: "Connect your assistant through MCP or the SDK. It pays for data and APIs from a capped budget tied to its ENS name, and asks you before bigger purchases.", name: "Research agent", sub: "5 a payment, 20 a day", link: { href: "/developers", label: "Connect your agent" } }].map((mode) =>
           <article key={mode.tag} className="relative min-h-[330px] overflow-hidden rounded-[2.25rem] p-8 sm:p-9" style={{ background: mode.palette.tile, color: mode.palette.ink }}>
             <span className="pill"><mode.icon size={14} strokeWidth={2.4} />{mode.tag}</span>
             <h3 className="mt-5 max-w-[12em] font-display text-[42px] font-extrabold leading-none tracking-[-0.03em]">{mode.title}</h3>
             <p className="mt-3 max-w-[40ch] text-base opacity-85">{mode.body}</p>
-            <div className="mt-7 flex items-center gap-3"><Avatar kind={mode.kind} palette={mode.palette} size={48} /><span><b className="block text-lg">{mode.name}</b><small className="opacity-75">{mode.sub}</small></span></div>
+            <div className="mt-7 flex flex-wrap items-center gap-3"><Avatar kind={mode.kind} palette={mode.palette} size={48} /><span><b className="block text-lg">{mode.name}</b><small className="opacity-75">{mode.sub}</small></span>
+              {mode.link ? <Button asChild variant="onColor" size="sm" className="ml-auto"><Link href={mode.link.href}>{mode.link.label}<ArrowUpRight /></Link></Button> : null}</div>
           </article>)}
       </section>
 
