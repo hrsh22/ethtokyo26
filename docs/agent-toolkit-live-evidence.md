@@ -14,7 +14,7 @@ Verified on **26 September 2026** against the production API, the official World
 
 ## Purchases through stdio MCP
 
-The installed CLI was launched as a separate stdio process by the official TypeScript MCP client **2.1.0**. Each tool invocation restarted the connector, exercising persisted profile/operation recovery. The coding assistant chose and invoked discovery, quotes, purchases, resume and result tools through this protocol harness. This is a live MCP integration check; a narrated end-user assistant recording remains a separate submission deliverable.
+The installed CLI was launched as a separate stdio process by the official TypeScript MCP client **2.1.0**. Each tool invocation restarted the connector, exercising persisted profile/operation recovery. The coding assistant chose and invoked discovery, quotes, purchases, resume and result tools through this protocol harness. This is a live MCP integration check, separate from the product walkthrough on the [submitted showcase](https://ethglobal.com/showcase/accord-9rop6).
 
 | Check | Observed result | Evidence |
 | --- | --- | --- |
@@ -57,10 +57,10 @@ The endpoint shares and caches checks for 45 seconds. RPC failures display unava
 
 The deployed overview was inspected at **1280 × 900** and **390 × 844**. All three result views, expandable checks, source/receipt links and the wallet-free API proxy were verified. Mobile inspection led to a direct jump from each case button to its evidence, respecting reduced-motion preferences.
 
-## Verification and remaining submission work
+## Verification and follow-ups
 
 - **97 API tests**, **13 agent SDK/MCP tests**, **34 web tests**, **32 chain-package tests**, and **22 Solidity tests** pass. Type checks, lint and production builds pass. The root test command initially needed the server's Foundry binary added to PATH; the actual Solidity run passed all 22 tests.
 - Automated tests cover scopes, pairing replay, wrong signer/network, changed registrations, cross-allocation attempts, owner calldata at the relay boundary, concurrent relay deduplication, lost responses, denied/expired operations, exact permits and unpaid result protection. These mocked tests are separate from the real transactions above.
 - The production UI was inspected at desktop and mobile sizes: quickstart, exact-purchase approval, pairing review and developer sheet. Mobile checks found and fixed a wide code-card grid and a developer button squeezing the agent name. Authenticated visual inspection used a legitimate signed demo-owner session and a read-only injected provider; transaction signing/World verification occurred separately through real API/OIDC requests.
 - The database was backed up before the additive migration. Existing Spaces, allowances and World identity records were preserved. Old unscoped sessions were expired, requiring one fresh sign-in. API health and the public artifact were verified after deployment.
-- Remaining: record the concise narrated journey in an end-user assistant, with the same-owner approval and denial visible; include the controlled cached-permit evidence as an appendix. A second assistant client, hosted demo agent, merchant allowlist and expanded developer dashboard remain follow-ups, not claims made by this release.
+- The [submitted showcase](https://ethglobal.com/showcase/accord-9rop6) has the product walkthrough. A separate end-user assistant recording, second assistant client, hosted demo agent, merchant allowlist and expanded developer dashboard remain optional follow-ups, not claims made by this release. The recorded same-owner approval, denial and cached-permit results remain linked above.

@@ -1,6 +1,6 @@
 # Verified people delegating revocable budgets to ENS-named agents
 
-**Status:** implemented and deployed. Live World sandbox authentication, approved payment, denial, ENS revocation and cached-permit rejection are verified. See [live evidence](ens-world-live-evidence.md) and [deployment details](deployment.md#ensv2-and-world-agents). A narrated submission video remains to be recorded.
+**Status:** implemented, deployed and submitted. Live World sandbox authentication, approved payment, denial, ENS revocation and cached-permit rejection are verified. See [live evidence](ens-world-live-evidence.md), [deployment details](deployment.md#ensv2-and-world-agents), the [submitted video](https://ethglobal.com/showcase/accord-9rop6), and the [current integration debrief](integration-feedback.md).
 
 **Updated:** 25 September 2026. This is the current implementation plan and supersedes [the earlier payment-approval proposal](world-agents-approval-plan.md).
 

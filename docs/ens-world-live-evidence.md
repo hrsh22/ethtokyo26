@@ -34,4 +34,4 @@ The deliberate reverted transaction used the test agent's Sepolia ETH to produce
 - Desktop and mobile views were inspected against the deployed API. Browser layout inspection used the legitimate signed-in test-owner session and a read-only injected wallet provider; it did not substitute for the real signatures used by the live API driver.
 - The backend is the trusted World verifier, permit authorizer and ENS registrar. The Space independently enforces permit binding, replay prevention, caps and live ENS authority. It does not verify the OIDC token onchain.
 - Provider identity mismatch, cancellation, stale authentication and callback replay also have isolated protocol tests. Those fixture tests are distinct from the live sandbox results above.
-- Record a narrated walkthrough before prize submission. These transactions and implementation checks are not a finished submission video.
+- The [ETHGlobal showcase](https://ethglobal.com/showcase/accord-9rop6) now includes the submitted product walkthrough. The transaction evidence above and the [integration debrief](integration-feedback.md) provide the detailed success/failure results alongside it.

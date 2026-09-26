@@ -11,7 +11,7 @@ Target: **Best AI Agent Project**. Requirements checked on **26 September 2026**
 | GitHub repository with contracts, tests and documentation | [Public repository](https://github.com/hrsh22/ethtokyo26), [contracts](../contracts/src), [contract tests](../contracts/test), [API tests](../apps/api/src/toolkit.test.ts), [SDK/MCP tests](../packages/agent-kit/src/runtime.test.ts). Anonymous GitHub access was checked on 26 September. |
 | One-sentence project summary | Opening sentence of the [README](../README.md). |
 | Brief team introduction and social handles | [README team section](../README.md#team): Harsh Gupta, GitHub @hrsh22. |
-| Clear setup and testing instructions | [Local app setup](../README.md#run-locally), [test instructions](../README.md#tests-and-demo-tools), [standalone SDK/MCP quickstart](../packages/agent-kit/README.md). |
+| Clear setup and testing instructions | [Local app setup and full test command](../README.md#run-locally), [standalone SDK/MCP quickstart](../packages/agent-kit/README.md). |
 | MultiBaas usage and feedback, if used | Not applicable; MultiBaas is not used. |
 
 This documents the repository requirements and current implementation. Prize selection, submission-form answers and final judging remain separate.
@@ -38,6 +38,6 @@ The API is trusted to validate World authentication and consent before signing a
 1. Open the [live app](https://accord.hrsh.dev) or [developer quickstart](https://accord.hrsh.dev/developers). Follow the [assistant purchase demo](demo-guide.md#assistant-purchase-demo) using a fresh named agent and dedicated local signer.
 2. Show identity/budget discovery, the quoted report, an approval pause, the owner's exact consent, and a confirmed receipt with the purchased evidence. Also show a denied request and ENS revocation stopping further spending.
 3. Inspect the [public demo overview](https://accord.hrsh.dev/demo) for the saved report, receipts and fresh evidence checks without a wallet. Review [live toolkit evidence](agent-toolkit-live-evidence.md): real 1/20 tUSDC purchases, same-owner World approval, denial, result retrieval after restart, and a live simulation rejecting a still-valid cached permit after actual ENS revocation. The recorded test agent is intentionally revoked; its profile cannot be reused as an active demo.
-4. Run the [documented test commands](../README.md#tests-and-demo-tools). Isolated tests use fixtures and do not count as live integration evidence.
+4. Run the [documented test commands](../README.md#run-locally). Isolated tests use fixtures and do not count as live integration evidence.
 
-**Recording status:** the narrated journey in an end-user assistant is still pending. The existing protocol-level evidence is linked above; it is not presented as that video. This recording will strengthen the demonstration, although Curvegrid's published requirements do not separately mandate an MCP recording.
+**Submission:** the [ETHGlobal showcase](https://ethglobal.com/showcase/accord-9rop6) includes the submitted 3-minute-44-second product walkthrough. The SDK/MCP purchase, approval and denial evidence is documented separately above; the walkthrough is not claimed to be a separate end-user assistant recording. The published AI Agent prize requirements do not require a separate MCP video or external feedback form.

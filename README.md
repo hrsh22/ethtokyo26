@@ -4,7 +4,7 @@
 
 Accord lets you give a person or an AI agent a budget while keeping control over how it is spent. Funds live in a **Space**, a smart contract that enforces spending rules. People claim allowances with World ID. Agents pay for services within their limits and ask you to approve larger purchases.
 
-[Open the app](https://accord.hrsh.dev) · [Explore the demo](https://accord.hrsh.dev/demo) · [Connect an agent](packages/agent-kit/README.md)
+[Open the app](https://accord.hrsh.dev) · [Explore the demo](https://accord.hrsh.dev/demo) · [Watch the submitted video](https://ethglobal.com/showcase/accord-9rop6) · [Connect an agent](packages/agent-kit/README.md)
 
 The demo runs on **Ethereum Sepolia** with free **tUSDC test tokens**. Accord sponsors transaction fees, so users do not need Sepolia ETH. The agent approval flow uses the World sandbox with test identities.
 
@@ -103,8 +103,12 @@ pnpm check
 - [Demo walkthrough](docs/demo-guide.md) — try claims, purchases, approvals, denial and revocation.
 - [Agent toolkit](packages/agent-kit/README.md) — installation, MCP setup, SDK usage and purchase recovery.
 - [Live integration evidence](docs/agent-toolkit-live-evidence.md) — recorded purchase, denial and ENS revocation checks.
+- [Partner integration feedback](docs/integration-feedback.md) — IDKit and World Agents success/failure results, time to first success, friction and suggested improvements.
+- [Submission requirements](docs/submission-checklist.md) — partner requirements, evidence links and judging steps.
 - [ENS and World integration](docs/ens-world-integration-plan.md) — identity model, permission boundaries and prize mapping.
 - [Curvegrid AI Agent submission](docs/curvegrid-ai-agent.md) — implementation and supporting evidence.
 - [Deployment](docs/deployment.md) and [transaction batching](docs/transaction-batching.md) — hosting, configuration and sponsored transactions.
 
-Built by **[Harsh Gupta](https://github.com/hrsh22)** for ETHGlobal Tokyo 2026.
+## Team
+
+Built by **Harsh Gupta**, the developer behind Accord, for ETHGlobal Tokyo 2026. GitHub: **[@hrsh22](https://github.com/hrsh22)**.
