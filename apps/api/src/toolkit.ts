@@ -1,7 +1,7 @@
 import { AccordApi, ToolkitError } from "@accord/api-contract";
 import { spaceAccountAbi } from "@accord/chain";
 import { HttpApiBuilder, HttpApiError } from "@effect/platform";
-import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNotNull, isNull } from "drizzle-orm";
 import { Effect } from "effect";
 import { randomBytes, randomUUID } from "node:crypto";
 import { getAddress, keccak256, toBytes, type Hex } from "viem";
@@ -168,6 +168,19 @@ export const ToolkitLive = HttpApiBuilder.group(AccordApi, "toolkit", handlers =
       const rows = await db.client.select().from(agentConnections).where(and(eq(agentConnections.owner, session.address),
         eq(agentConnections.draftId, payload.draftId), eq(agentConnections.allocationId, payload.allocationId))).orderBy(desc(agentConnections.createdAt));
       return { connections: rows.map(connectionView) };
+    });
+  }))
+  .handle("ownerOperations", ({ payload }) => Effect.gen(function* () {
+    const session = yield* currentSession(), db = yield* Database;
+    return yield* attempt(async () => {
+      const [draft] = await db.client.select().from(spaceDrafts).where(and(eq(spaceDrafts.id, payload.draftId), eq(spaceDrafts.owner, session.address)));
+      if (!draft) throw toolkitError("wrong_owner", "Only the Space owner can view this agent's purchases.");
+      const rows = await db.client.select().from(researchQuotes).where(and(eq(researchQuotes.draftId, draft.id),
+        eq(researchQuotes.allocationId, payload.allocationId), eq(researchQuotes.service, "repository-research"), isNotNull(researchQuotes.connectionId)))
+        .orderBy(desc(researchQuotes.createdAt)).limit(12);
+      // Read-only: one unexpected receipt must not hide the rest of the history.
+      return { operations: await Promise.all(rows.map(row => operationView(db.client, row).catch(() => ({ quote: quoteView(row),
+        status: "needs_review", transactionHash: row.transactionHash, approvalId: null, reviewUrl: null })))) };
     });
   }))
   .handle("disconnect", ({ payload }) => Effect.gen(function* () {

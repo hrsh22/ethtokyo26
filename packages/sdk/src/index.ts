@@ -95,6 +95,7 @@ export async function createAccordClient(baseUrl: string, options?: { bearerToke
     pollAgentPairing: (id: string, pollToken: string) => run(client.toolkit.poll({ payload: { id, pollToken } })),
     agentConnections: (draftId: string, allocationId: string) => run(client.toolkit.connections({ payload: { draftId, allocationId } })),
     disconnectAgent: (id: string) => run(client.toolkit.disconnect({ payload: { id } })),
+    agentOperations: (draftId: string, allocationId: string) => run(client.toolkit.ownerOperations({ payload: { draftId, allocationId } })),
     approval: (id: string) => run(client.approvals.get({ payload: { id } })),
     authenticateApproval: (id: string) => run(client.approvals.authenticate({ payload: { id } })),
     decideApproval: (id: string, decision: "approve" | "deny" | "cancel") => run(client.approvals.decide({ payload: { id, decision } })),

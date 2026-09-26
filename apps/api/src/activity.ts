@@ -8,14 +8,15 @@ import { historyClient } from "./chain";
 import { Database } from "./db";
 import { databaseOperation } from "./db/run";
 import { spaceDrafts } from "./db/schema";
+import { publicSpaceRead } from "./demo-space";
 
 // Only public contract events are exposed; drafts, World sessions and risk requests stay private.
 export const ActivityLive = HttpApiBuilder.group(AccordApi, "activity", (handlers) => handlers
   .handle("list", ({ payload }) => Effect.gen(function* () {
     const db = yield* Database;
     const address = getAddress(payload.spaceAddress);
-    const [draft] = yield* databaseOperation(() => db.client.select().from(spaceDrafts)
-      .where(eq(spaceDrafts.spaceAddress, address)).limit(1));
+    const { rows: [draft], archived } = yield* databaseOperation(() => publicSpaceRead(db, address, (client) => client.select().from(spaceDrafts)
+      .where(eq(spaceDrafts.spaceAddress, address)).limit(1)));
     if (!draft?.deploymentTx || !draft.activatedAt) return yield* Effect.fail(new HttpApiError.NotFound());
     const head = yield* Effect.tryPromise({ try: () => historyClient.getBlockNumber({ cacheTime: 0 }), catch: () => new HttpApiError.ServiceUnavailable() });
     // Older rows predate the saved block. Look it up once, then keep it: public
@@ -24,7 +25,8 @@ export const ActivityLive = HttpApiBuilder.group(AccordApi, "activity", (handler
       try: () => historyClient.getTransactionReceipt({ hash: draft.deploymentTx as Hex }).then((receipt) => receipt.blockNumber),
       catch: () => new HttpApiError.ServiceUnavailable(),
     });
-    if (!draft.deploymentBlock) yield* databaseOperation(() => db.client.update(spaceDrafts)
+    // The demo archive is read-only.
+    if (!draft.deploymentBlock && !archived) yield* databaseOperation(() => db.client.update(spaceDrafts)
       .set({ deploymentBlock: deployedAt.toString() }).where(eq(spaceDrafts.id, draft.id)));
     const deployed = { blockNumber: deployedAt };
     return yield* Effect.tryPromise({ try: async () => {

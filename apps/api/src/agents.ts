@@ -11,6 +11,7 @@ import { Database } from "./db";
 import { agentPolicies, agentRequests, allocationNames, spaceDrafts, spaceNamespaces } from "./db/schema";
 import { actionError, createRequest, livePolicy, liveSpace, readRequest, requestStatus, requestView, validateRequest, type Terms } from "./approval-state";
 import { agentTry } from "./approvals";
+import { publicDraftRead } from "./demo-space";
 import { confirmed, namespaceName, provisionAgent, registrarWallet, registryState } from "./namespaces";
 import { ensRegistryAbi } from "./ens-v2";
 import { serial } from "./serial";
@@ -121,10 +122,10 @@ export const AgentsLive=HttpApiBuilder.group(AccordApi,"agents",handlers=>handle
   .handle("identities",({payload})=>Effect.gen(function*(){
     const db=yield* Database;
     return yield* agentTry(async()=>{
-      const [draft]=await db.client.select().from(spaceDrafts).where(eq(spaceDrafts.id,payload.draftId));
+      const {client,rows:[draft]}=await publicDraftRead(db,client=>client.select().from(spaceDrafts).where(eq(spaceDrafts.id,payload.draftId)));
       if(!draft?.spaceAddress)throw actionError("Space not found.");
-      const [namespace]=await db.client.select().from(spaceNamespaces).where(eq(spaceNamespaces.spaceAddress,getAddress(draft.spaceAddress)));
-      const policies=await db.client.select().from(agentPolicies).where(eq(agentPolicies.spaceAddress,getAddress(draft.spaceAddress))).orderBy(desc(agentPolicies.createdAt));
+      const [namespace]=await client.select().from(spaceNamespaces).where(eq(spaceNamespaces.spaceAddress,getAddress(draft.spaceAddress)));
+      const policies=await client.select().from(agentPolicies).where(eq(agentPolicies.spaceAddress,getAddress(draft.spaceAddress))).orderBy(desc(agentPolicies.createdAt));
       const ids=[...new Set(policies.map(p=>p.allocationId))];
       const identities=await Promise.all(ids.map(async allocationId=>{
         const candidates=policies.filter(p=>p.allocationId===allocationId);
@@ -132,7 +133,7 @@ export const AgentsLive=HttpApiBuilder.group(AccordApi,"agents",handlers=>handle
         const p=candidates.find(p=>p.registry.toLowerCase()===mandate[1].toLowerCase() && BigInt(p.nameId)===mandate[2] && BigInt(p.resource)===mandate[3]
           && BigInt(p.dailyCap)===mandate[4] && BigInt(p.maxPerPayment)===mandate[5] && BigInt(p.expiry)===mandate[8])??candidates[0]!;
         const confirmed=await publicClient.readContract({address:getAddress(p.spaceAddress),abi:spaceAccountAbi,functionName:"consumedRequests",args:[p.permitRequestId as Hex]});
-        let active=false;try{const current=await livePolicy(db.client,p.spaceAddress,p.allocationId);active=current.policy.requestId===p.requestId;}catch{/* inactive */}
+        let active=false;try{const current=await livePolicy(client,p.spaceAddress,p.allocationId);active=current.policy.requestId===p.requestId;}catch{/* inactive */}
         return {name:p.name,agent:getAddress(p.agent),allocationId:p.allocationId,registry:getAddress(p.registry),nameId:p.nameId,resource:p.resource,
           approvalThreshold:p.approvalThreshold,expiry:p.expiry,active,confirmed,revoked:!!p.revokedAt};
       }));

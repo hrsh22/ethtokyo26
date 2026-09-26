@@ -55,8 +55,8 @@ and approval records even though their Sepolia transactions still exist.
 
 Set `DEMO_EVIDENCE_DATABASE_FILE=../../.data/demo-evidence.sqlite` to an existing
 private SQLite archive of the original published records. The API opens this
-archive with writes disabled and uses it only for the demo endpoint. All normal
-app routes continue using `DATABASE_FILE`. Without the optional setting, the
+archive with writes disabled and uses it only for the demo endpoint and the demo
+Space's public pages. All other app routes continue using `DATABASE_FILE`. Without the optional setting, the
 demo reads from the app database as before. A missing configured archive fails
 startup instead of silently creating an empty database.
 
@@ -70,14 +70,31 @@ app cleanup or migrations against it. Back it up separately from the app databas
 Sepolia receipts, consumed requests, authority and historical simulations are
 still checked against the chain whenever the evidence cache refreshes.
 
+The demo Space's public pages read the same archive when the app database has
+no record of that Space: its name, agent ENS labels and identities, and
+activity. Only the manifest's Space is served this way; other Spaces never read
+the archive, and nothing is written to it. Copy that Space's original public rows
+(draft, namespace, allocation names and agent policies) from the pre-reset
+backup into the archive once. The script inserts missing rows only:
+
+```bash
+cp .data/demo-evidence.sqlite ".data/demo-evidence.sqlite.bak-$(date -u +%Y%m%dT%H%M%SZ)"
+sqlite3 .data/demo-evidence.sqlite \
+  -cmd "ATTACH '.data/before-reset-20260926T154920Z/accord.sqlite' AS source" \
+  < apps/api/scripts/archive-demo-space.sql
+```
+
 After a reset or deployment, verify the production `/api/v1/demo/evidence`
-response contains all three cases with passing checks, and inspect `/demo`.
+response contains all three cases with passing checks, and inspect `/demo` and
+its **Explore the Space** link.
 
 ## Web on Vercel
 
 ### Agent toolkit rollout
 
 Migration `0005` adds scoped connections, one-time signer pairing and durable research operations. It expires pre-migration sessions because older agent credentials were not distinguishable from browser credentials. Users sign in once again; Spaces, allowances, World identities and onchain budgets are preserved. Back up SQLite before applying this additive migration. No contract replacement or Vercel environment change is required.
+
+Owners see each agent's toolkit purchases on its page through `POST /v1/toolkit/owner-operations`. It needs a browser session for the Space owner; agent credentials are denied, and paid results are not returned. No migration is required.
 
 `GITHUB_RESEARCH_TOKEN` in the backend `.env` is optional for a higher GitHub public API rate limit. Without it, source rate limits stop new quotes before payment. `RESEARCH_SELLER_ADDRESS` remains the merchant recipient. The old `RESEARCH_PRICE_BASE_UNITS` controls the legacy Space report; toolkit offers have fixed test prices of 1 and 20 tUSDC.
 

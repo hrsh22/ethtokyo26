@@ -167,6 +167,18 @@ describe("scoped agent connections", () => {
     expect((await post("/v1/toolkit/quotes", { ...payload, tier: "comparison" }, scopedToken)).status).toBe(400);
     expect(await db.select().from(researchQuotes)).toHaveLength(1);
   });
+  it("shows the owner the agent's purchases without the paid result, and nobody else", async () => {
+    await paired(); const q = await (await post("/v1/toolkit/quotes", input(), scopedToken)).json();
+    const owned = await post("/v1/toolkit/owner-operations", { draftId, allocationId: "1" });
+    expect(owned.status).toBe(200);
+    const { operations } = await owned.json();
+    expect(operations).toHaveLength(1);
+    expect(operations[0]).toMatchObject({ status: "quoted", transactionHash: null, quote: { id: q.id, repositories: ["ensdomains/ens-contracts"] } });
+    expect(operations[0].result).toBeUndefined();
+    expect((await post("/v1/toolkit/owner-operations", { draftId, allocationId: "1" }, scopedToken)).status).toBe(403);
+    await db.update(spaceDrafts).set({ owner: seller.toLowerCase() });
+    expect((await post("/v1/toolkit/owner-operations", { draftId, allocationId: "1" })).status).toBe(400);
+  });
   it("rejects new work after ENS revocation and keeps unpaid research private", async () => {
     await paired(); const q = await (await post("/v1/toolkit/quotes", input(), scopedToken)).json();
     const status = await post("/v1/toolkit/operation", { id: q.id }, scopedToken);

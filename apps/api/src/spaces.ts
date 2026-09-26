@@ -10,6 +10,7 @@ import { deployedSpaceFromReceipt } from "./chain";
 import { Database, type DatabaseClient } from "./db";
 import { databaseOperation } from "./db/run";
 import { spaceDrafts } from "./db/schema";
+import { publicSpaceRead } from "./demo-space";
 import { listReceivedAllocations } from "./received-allocations";
 import { provisionSpaceNamespace } from "./namespaces";
 
@@ -134,9 +135,9 @@ export const SpacesLive = HttpApiBuilder.group(AccordApi, "spaces", (handlers) =
     }))
     .handle("profile", ({ payload }) => Effect.gen(function* () {
       const db = yield* Database;
-      const rows = yield* databaseOperation(() => db.client.select({ id: spaceDrafts.id, name: spaceDrafts.name, spaceAddress: spaceDrafts.spaceAddress })
-        .from(spaceDrafts).where(and(eq(spaceDrafts.spaceAddress, getAddress(payload.spaceAddress)), isNotNull(spaceDrafts.activatedAt))).limit(1));
-      const row = rows[0];
+      const { rows: [row] } = yield* databaseOperation(() => publicSpaceRead(db, payload.spaceAddress, (client) => client
+        .select({ id: spaceDrafts.id, name: spaceDrafts.name, spaceAddress: spaceDrafts.spaceAddress })
+        .from(spaceDrafts).where(and(eq(spaceDrafts.spaceAddress, getAddress(payload.spaceAddress)), isNotNull(spaceDrafts.activatedAt))).limit(1)));
       if (!row?.spaceAddress) return yield* Effect.fail(new HttpApiError.NotFound());
       return { id: row.id, name: row.name, spaceAddress: getAddress(row.spaceAddress) };
     }))

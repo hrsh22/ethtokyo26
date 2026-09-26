@@ -56,6 +56,8 @@ export const ToolkitGroup = HttpApiGroup.make("toolkit")
   .add(HttpApiEndpoint.get("identity")`/v1/toolkit/identity`.addSuccess(ToolkitIdentity))
   .add(HttpApiEndpoint.post("connections")`/v1/toolkit/connections`.setPayload(Schema.Struct({draftId: Schema.UUID, allocationId: Uint}))
     .addSuccess(Schema.Struct({connections: Schema.Array(ConnectionView)})))
+  .add(HttpApiEndpoint.post("ownerOperations")`/v1/toolkit/owner-operations`.setPayload(Schema.Struct({draftId: Schema.UUID, allocationId: Uint}))
+    .addSuccess(Schema.Struct({operations: Schema.Array(ToolkitOperation)})))
   .add(HttpApiEndpoint.post("disconnect")`/v1/toolkit/disconnect`.setPayload(Schema.Struct({id: Schema.UUID})).addSuccess(Schema.Struct({disconnected: Schema.Boolean})))
   .add(HttpApiEndpoint.get("services")`/v1/toolkit/services`.addSuccess(Schema.Struct({services: Schema.Array(Schema.Struct({
     id: Schema.String, title: Schema.String, description: Schema.String, tier: Schema.Literal("snapshot", "comparison"), amount: Uint,

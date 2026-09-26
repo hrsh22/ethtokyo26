@@ -9,6 +9,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { Database } from "./db";
 import { databaseOperation } from "./db/run";
 import { allocationNames } from "./db/schema";
+import { publicSpaceRead } from "./demo-space";
 import { confirmedRecipientLabel, normalizeRecipientName, resolveRecipientName } from "./ens-recipient";
 
 const registryAbi = [{
@@ -71,10 +72,10 @@ export const EnsLive = HttpApiBuilder.group(AccordApi, "ens", (handlers) =>
   .handle("allocationNames", ({ payload }) => Effect.gen(function* () {
     if (payload.allocationIds.length === 0) return { names: [] };
     const db = yield* Database;
-    const rows = yield* databaseOperation(() => db.client.select().from(allocationNames)
+    const { rows } = yield* databaseOperation(() => publicSpaceRead(db, payload.spaceAddress, (client) => client.select().from(allocationNames)
       .where(and(eq(allocationNames.spaceAddress, getAddress(payload.spaceAddress)),
         inArray(allocationNames.allocationId, [...payload.allocationIds])))
-      .orderBy(desc(allocationNames.createdAt)).limit(100));
+      .orderBy(desc(allocationNames.createdAt)).limit(100)));
     if (rows.length === 0) return { names: [] };
     return yield* Effect.tryPromise({ try: async () => {
       const block = await publicClient.getBlockNumber({ cacheTime: 0 });
