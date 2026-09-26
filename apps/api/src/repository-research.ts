@@ -64,7 +64,9 @@ async function collect(repository: string, detailed: boolean, criteria: readonly
   const lines = text.split(/\r?\n/);
   const capabilityEvidence = criteria.map(criterion => {
     const words = criterion.toLowerCase().match(/[a-z0-9]{3,}/g) ?? [];
-    const excerpts = lines.filter(line => words.some(word => line.toLowerCase().includes(word))).slice(0, 2).map(line => line.slice(0, 180));
+    // Whole words keep short criteria such as ENS from matching "license".
+    const patterns = words.map(word => new RegExp(`\\b${word}\\b`, "i"));
+    const excerpts = lines.filter(line => patterns.some(pattern => pattern.test(line))).slice(0, 2).map(line => line.slice(0, 180));
     return { criterion, excerpts, source: readme.data?.html_url ?? `https://github.com/${repository}`,
       coverage: !raw ? "README unavailable" : raw.length > text.length ? "First 60,000 README characters searched" : "README searched",
       interpretation: excerpts.length ? "Keyword evidence only; inspect the linked documentation before concluding support." : "No matching README evidence found; this does not establish lack of support." };

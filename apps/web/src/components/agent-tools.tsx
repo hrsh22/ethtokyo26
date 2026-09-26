@@ -42,7 +42,7 @@ export function AgentTools({ draftId, allocationId, name, owner }: { draftId: st
     catch (error) { checkSession(error); toast.error(describeError(error, "Could not disconnect this tool.")); }
     finally { setDisconnecting(null); }
   }
-  return <><Button type="button" size="sm" variant="soft" onClick={() => setOpen(true)}><Code2/>Developer tools</Button>
+  return <><Button type="button" size="sm" variant="soft" aria-label="Developer tools" title="Developer tools" className="max-sm:size-10 max-sm:p-0" onClick={() => setOpen(true)}><Code2/><span className="hidden sm:inline">Developer tools</span></Button>
     <Sheet open={open} onOpenChange={setOpen} title="Connect by ENS name" description={name}>
       <Commands text={`npx accord connect --agent ${name}\nnpx accord mcp config`}/>
       <p className="mt-3 text-sm text-muted">Use the local signer authorized for this agent. Copy the generated configuration into your assistant’s MCP settings.</p>
