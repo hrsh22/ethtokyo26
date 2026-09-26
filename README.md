@@ -1,98 +1,110 @@
 # Accord
 
-A verified person delegates a revocable budget to an ENS-named agent. **Spaces** hold six-decimal test tUSDC on Ethereum Sepolia. The owner authorizes an agent after fresh World ID verification; the Space issues its real ENSv2 subname. Routine payments run within the budget, while sensitive payments wait for the owner to verify and approve the exact amount and recipient.
+**Allowances for humans and their AI agents.**
 
-Both controls remain necessary: an approval cannot rescue a revoked ENS identity, and a valid name cannot skip required human consent. The Space contract checks the signed permit, live ENS hierarchy, budgets and replay protection. The API authorizer is trusted to validate World authentication and consent. Transactions use the existing ERC-2771 sponsor; users sign requests and do not need Sepolia ETH. Intercepta is excluded from this version.
+Accord lets you give a person or an AI agent a budget while keeping control over how it is spent. Funds live in a **Space**, a smart contract that enforces spending rules. People claim allowances with World ID. Agents pay for services within their limits and ask you to approve larger purchases.
 
-- [Live app](https://accord.hrsh.dev)
-- [Public demo - inspect approved, denied and revoked purchases](https://accord.hrsh.dev/demo)
-- [Four-point implementation plan and prize mapping](docs/ens-world-integration-plan.md)
-- [Agent developer toolkit plan - SDK, CLI and MCP](docs/agent-developer-toolkit-plan.md)
-- [Install and connect an agent - SDK/MCP quickstart](packages/agent-kit/README.md)
-- [Developer setup in the app](https://accord.hrsh.dev/developers)
-- [Live SDK/MCP purchase, denial and ENS revocation evidence](docs/agent-toolkit-live-evidence.md)
-- [Curvegrid AI Agent: requirements, implementation and evidence](docs/curvegrid-ai-agent.md)
-- [Demo walkthrough](docs/demo-guide.md)
-- [Four-minute video script and recording setup](docs/demo-video-script.md)
-- [Single-signature transactions and compatibility](docs/transaction-batching.md)
-- [PM2 / Vercel deployment](docs/deployment.md)
-- [Public contract manifest](deployments/ens-world-sepolia.json)
-- [Integration feedback and evidence](docs/integration-feedback.md)
+[Open the app](https://accord.hrsh.dev) · [Explore the demo](https://accord.hrsh.dev/demo) · [Connect an agent](packages/agent-kit/README.md)
+
+The demo runs on **Ethereum Sepolia** with free **tUSDC test tokens**. Accord sponsors transaction fees, so users do not need Sepolia ETH. The agent approval flow uses the World sandbox with test identities.
+
+## What can you do?
+
+| For people | For AI agents |
+| --- | --- |
+| Set up a stipend, grant or recurring allowance. | Give an assistant a budget for paid tools and services. |
+| Recipients find allowances under **Shared with you** and verify with World ID for each claim. | Connect through the SDK or MCP (Model Context Protocol), using a dedicated signer and an ENS name. |
+| Choose how much can be claimed per period and when the allowance ends. | Set a total budget, daily cap, per-payment cap, expiry and threshold for owner approval. |
+
+## How it works
+
+1. **Create a Space.** Connect your wallet and use **Get 1,000 tUSDC** to collect free test tokens.
+2. **Give someone a budget.** Choose a person or pair an agent, set its rules, and fund the allocation.
+3. **Authorize an agent.** Verify with World ID and approve the exact budget terms. Accord issues the agent an ENS subname under its Space. Increasing its authority requires fresh verification by the same owner.
+4. **Claim or spend.** People verify each claim. Agents make routine payments within their limits; payments above the approval threshold wait in your **Needs your approval** inbox.
+
+An agent payment follows this path:
+
+```mermaid
+flowchart TD
+    Request[Agent requests payment] --> Threshold{Above threshold?}
+    Threshold -->|No| Checks[Space checks permit,<br/>limits and ENS authority]
+    Threshold -->|Yes| Owner[Owner reviews payment]
+    Owner -->|Verify with World and approve| Checks
+    Owner -->|Deny| Stop[No payment]
+    Checks -->|Pass| Paid[Payment confirmed]
+    Checks -->|Fail| Stop
+```
+
+**Example:** give a research agent 100 tUSDC, a 25 tUSDC per-payment cap, and require approval above 10 tUSDC. It can buy a **1 tUSDC repository snapshot** from the included research service within its limits. A **20 tUSDC comparison** waits for you to verify and approve the exact amount and recipient. The agent then resumes the same purchase to retrieve its report and receipt.
+
+You can deny a request, **Revoke ENS** to stop future spending, or **Close** the allocation to recover the remainder. Revoking the ENS name blocks even a previously approved payment that has not executed.
+
+## Under the hood
 
 ```mermaid
 flowchart LR
-  Owner[Verified owner] --> World[World ID for Agents]
-  World --> API[Accord API: exact consent and permits]
-  Agent[Named agent] --> API
-  API --> Sponsor[Transaction sponsor]
-  Sponsor --> Space[Space: budget and payment limits]
-  Space --> ENS[Live ENSv2 hierarchy and agent name]
+    Web[Web app] --> API[Accord API]
+    Agent[Agent SDK / MCP] --> API
+    API <-->|Verification| World[World ID]
+    API <--> DB[(SQLite)]
+    API --> Sponsor[Transaction sponsor]
+    Sponsor --> Space[Space contract]
+    Space -->|Live authority| ENS[ENSv2]
 ```
 
-## The main journey
+The **API** validates World verification and owner consent, stores approval and purchase state, and signs payment permits. The **Space contract** checks those permits, enforces budgets and expiry, rejects reused requests, and checks the agent's live ENS authority before moving tokens. The sponsor submits signed transactions and pays the network fees.
 
-1. **Create a Space** and claim free tUSDC using the repeatable **Get 1,000 tUSDC** faucet.
-2. **Give someone a budget → An agent → Connect your agent**. Create a local toolkit signer and open its pairing link, then choose the name, budget, caps, expiry and approval threshold. Advanced users can still enter a signer address manually.
-3. Fund the inert allocation, review the terms, complete fresh World authentication, then explicitly **Authorize agent**. This provisions the ENSv2 subname and signs the exact mandate. Increasing funding, raising caps, extending expiry, changing identity or lowering the approval threshold needs fresh verification by the same person. Reductions and revocation remain available without a World check.
-4. The agent pays from its allocation. Above-threshold payments appear in the owner's **Needs your approval** inbox. The owner verifies freshly, then **Approve payment** or **Deny**. The agent resumes the same request and permit.
-5. **Revoke ENS** unregisters the name through its namespace. The next payment fails even if an approval/signature was issued earlier. **Close** recovers the remaining funds.
+The API is a trusted authorizer and operates the ENS namespace. World verification and human consent are checked by the API; they are not independently verified by the contract. Person claims use IDKit, while agent owner approvals use the separate World ID for Agents flow.
 
-The Namespace operator holds ENS root roles; agent name tokens receive no transfer, renewal, resolver or administrator permissions. The backend stores registration resources and binds the full hierarchy in the onchain adapter. Re-registering a label does not restore old permits.
-
-Person allowances remain supported. Their fixed beneficiary enrolls with IDKit and verifies freshly for each claim. Assigned allowances appear under **Shared with you**. IDKit enrollment and the World Agents owner identity are separate credentials; neither is silently substituted for the other. The small unlink icon resets IDKit enrollment for demo recording, without erasing history or changing agent approval identity bindings.
-
-## Curvegrid: Best AI Agent Project
-
-Accord gives an external assistant tools to inspect its budget, quote and purchase repository research, request human approval, and retrieve the paid result and receipt. The Space enforces financial limits and live ENS authority; the API validates the same owner's World authentication and exact consent. The SDK and MCP connector preserve the purchase across approval and restart without charging again.
-
-This matches the payment-agent and policy-aware-agent use cases in [Curvegrid's prize brief](https://ethglobal.com/events/tokyo2026/prizes/curvegrid). **MultiBaas is not used**; the brief makes its integration optional. There is no MultiBaas integration feedback to report. See the [implementation and evidence guide](docs/curvegrid-ai-agent.md) and the [assistant demo walkthrough](docs/demo-guide.md#assistant-purchase-demo).
-
-## Team
-
-**Harsh Gupta** - creator and developer of Accord. GitHub: [@hrsh22](https://github.com/hrsh22).
+| Directory | Purpose |
+| --- | --- |
+| [`apps/web`](apps/web) | Next.js interface for Spaces, allowances and approvals. |
+| [`apps/api`](apps/api) | Effect API, World verification, ENS registration, transaction sponsorship and SQLite storage. |
+| [`contracts`](contracts) | Solidity contracts for Spaces, spending rules, ENS authority and sponsored transactions. |
+| [`packages/agent-kit`](packages/agent-kit) | Agent SDK, CLI and local MCP server. |
+| [`apps/agent-demo`](apps/agent-demo) | Runnable SDK example for the research purchase flow. |
+| [`packages/sdk`](packages/sdk), [`packages/api-contract`](packages/api-contract), [`packages/chain`](packages/chain) | Shared API client, schemas and contract bindings. |
 
 ## Run locally
 
-Requires Node 24+, pnpm 11 and Foundry for contract work.
+Requires **Node.js 24+** and **pnpm 11**. Install **Foundry** for contract work and the full test suite.
 
-To try the agent tools against the hosted app, use the [standalone quickstart](packages/agent-kit/README.md); no backend credentials or local database are needed. For a self-hosted app, copy the environment template below, then configure your own backend credentials and the current deployment addresses from the [manifest](deployments/ens-world-sepolia.json) before starting the services.
+To connect an agent to the hosted app without running the backend, follow the [agent toolkit quickstart](packages/agent-kit/README.md).
 
-```bash
+For the full application, run these commands from the repository root:
+
+```sh
 pnpm install --frozen-lockfile
 cp -n .env.example .env
+```
+
+Before starting, configure `.env` using the [environment template](.env.example) and [deployment guide](docs/deployment.md):
+
+- Set your Reown project ID, Sepolia RPC URLs and deployment addresses. Backend signing keys must match the configured contracts and ENS namespace.
+- Configure your World credentials and registered callback for verification flows, plus a sponsor wallet funded with Sepolia ETH.
+- For local sign-in, use `WEB_ORIGIN=http://localhost:3000` and `API_URL=http://localhost:4000`. Keep private keys and credentials in the backend environment.
+
+```sh
 pnpm --filter @accord/api db:migrate
 pnpm dev
 ```
 
-The frontend runs at `http://localhost:3000` and rewrites `/api` to the backend. Configure `API_URL`, `NEXT_PUBLIC_SEPOLIA_RPC_URL` and `NEXT_PUBLIC_REOWN_PROJECT_ID`. Keep backend signing keys, RPC credentials and the World client key in the root `.env` / private server files. Only public browser configuration belongs in Vercel.
+Open **http://localhost:3000**. The web app proxies `/api` to the backend on port **4000**; SQLite data is stored in `.data/accord.sqlite` by default.
 
-The API uses persistent SQLite at `.data/accord.sqlite` and exactly one PM2 process. The configured production origin is `https://accord.hrsh.dev`; localhost sign-in is rejected while using that production origin. See the deployment guide for updates, migrations, backups and the separate OIDC callback hostname.
-
-World Agents uses the registered official sandbox client with `private_key_jwt`, S256 PKCE and fresh authentication. The callback validates signature, issuer, audience, nonce, `auth_time`, Orb ACR and proof-of-possession AMR. The event environment uses mocked identities; a successful sandbox run is not production biometric assurance.
-
-## Tests and demo tools
-
-`pnpm check` runs type checks, lint, unit tests, Foundry tests and production builds. API tests use isolated in-memory databases and explicitly mocked identity/chain responses. They cover consent, exact terms, wrong sessions/subjects, stale callbacks, denial, expiry, ENS changes and cached permits. Contract tests independently enforce budgets, hierarchy invalidation, signed agent funding and replay prevention.
-
-After installing dependencies, run the complete verification from the repository root. Ensure `forge` is on your PATH:
+To run type checks, lint, unit tests, Foundry tests and production builds:
 
 ```sh
 pnpm check
 ```
 
-For focused review of the agent permission boundary, source collection, retry handling and onchain limits:
+## More details
 
-```sh
-pnpm --filter @accord/api... --filter @accord/agent... build
-pnpm --filter @accord/agent test
-pnpm --filter @accord/api exec vitest run src/toolkit.test.ts src/repository-research.test.ts
-forge test --root contracts
-```
+- [Demo walkthrough](docs/demo-guide.md) — try claims, purchases, approvals, denial and revocation.
+- [Agent toolkit](packages/agent-kit/README.md) — installation, MCP setup, SDK usage and purchase recovery.
+- [Live integration evidence](docs/agent-toolkit-live-evidence.md) — recorded purchase, denial and ENS revocation checks.
+- [ENS and World integration](docs/ens-world-integration-plan.md) — identity model, permission boundaries and prize mapping.
+- [Curvegrid AI Agent submission](docs/curvegrid-ai-agent.md) — implementation and supporting evidence.
+- [Deployment](docs/deployment.md) and [transaction batching](docs/transaction-batching.md) — hosting, configuration and sponsored transactions.
 
-These isolated tests do not require a live World login or funded wallet. Actual provider and Sepolia evidence is documented separately in the [live toolkit results](docs/agent-toolkit-live-evidence.md).
-
-`apps/api/scripts/deploy-ens-world.mts` previews/resumes the current ENS namespace, adapter and factory deployment; `--broadcast` sends transactions. `demo-ens-world.mts` uses the real API and World callback with test wallets; it never inserts a verified identity or policy. `verify-agent-ens.mts` checks real resolver records and rejected agent permission changes. The older local browser/onchain fixtures predate the new agent model and are not proof of this integration.
-
-`packages/agent-kit` provides the installable `@accord/agent` SDK, CLI and local stdio MCP server. It connects through an ENS name and owner-approved signer pairing. Scoped credentials cannot call owner routes or cross allocation boundaries. `apps/agent-demo` is a deterministic example using the same runtime and a paired local profile. It prints pending approval/submission states and resumes the same quote ID on a later invocation. Real public GitHub research costs 1 tUSDC for a snapshot or 20 for comparison evidence; delivery requires the exact confirmed payment. See the package README for setup, idempotency and recovery.
-
-Current contracts and infrastructure transaction hashes are recorded in the [deployment manifest](deployments/ens-world-sepolia.json). Old demo data was backed up before cleanup; old immutable contracts remain on Sepolia but are no longer the app's active deployment.
+Built by **[Harsh Gupta](https://github.com/hrsh22)** for ETHGlobal Tokyo 2026.
