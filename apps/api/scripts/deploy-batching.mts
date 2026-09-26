@@ -5,11 +5,11 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { readFile, writeFile, mkdir, copyFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
-import { createPublicClient, createWalletClient, decodeEventLog, defineChain, encodeFunctionData, erc20Abi, getAddress, http, keccak256, toBytes, zeroAddress, type Abi, type Address, type Hex } from "viem";
+import { createPublicClient, createWalletClient, decodeEventLog, defineChain, encodeFunctionData, erc20Abi, getAddress, http, keccak256, multicall3Abi, toBytes, zeroAddress, type Abi, type Address, type Hex } from "viem";
 import { generatePrivateKey, nonceManager, privateKeyToAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
 import { labelhash, namehash } from "viem/ens";
-import { accordForwarderAbi, accordTestUSDCAbi, namedSpaceFactoryAbi, spaceNamespaceAbi, spaceAccountAbi, hierarchicalEnsPermissionAdapterAbi, forwardBatchTypes, agentRegistrationTypes, hashMandateTerms, signSpacePermit, hashAllocationTerms, type SpacePermit } from "@accord/chain";
+import { accordForwarderAbi, accordTestUSDCAbi, namedSpaceFactoryAbi, spaceNamespaceAbi, spaceAccountAbi, hierarchicalEnsPermissionAdapterAbi, forwardBatchTypes, forwardRequestTypes, agentRegistrationTypes, hashMandateTerms, signSpacePermit, hashAllocationTerms, type SpacePermit } from "@accord/chain";
 import { ensFactoryAbiAddress, ensRegistryAbi, ensRegistryAbiAddress, ensResolverAbi, ensResolverAbiAddress, ENS_ROOT_REGISTRY, ENS_ROOT_ROLES } from "../src/ens-v2";
 
 const fork = process.argv.includes("--fork-test"), broadcast = process.argv.includes("--broadcast"), activate = process.argv.includes("--activate");
@@ -156,6 +156,28 @@ async function forkChecks(forwarder: Address, token: Address, namespace: Address
   await assert.rejects(client.simulateContract({ ...provision, account }));
   assert.equal(await client.readContract({ address: adapter, abi: hierarchicalEnsPermissionAdapterAbi, functionName: "isAuthorized", args: [registry, BigInt(labelhash("research")), state.resource, agent] }), false);
   console.log(`PASS Agent resolver + registration + mandate: one signature, one transaction (${provisioned.gasUsed} gas); unauthorized caller, retry and revocation checked`);
+
+  phase = "fork: legacy atomic execution";
+  async function legacyBatch(amount: bigint, id: bigint) {
+    const planned = await funding(amount, id), firstNonce = await nonce();
+    const calls = [];
+    for (const [index, call] of planned.args[1].entries()) {
+      const message = { from: user.address, ...call, value: 0n, nonce: firstNonce + BigInt(index), deadline: planned.args[2] };
+      const signature = await user.signTypedData({ domain: { name: "AccordForwarder", version: "1", chainId: chain.id, verifyingContract: forwarder },
+        types: forwardRequestTypes, primaryType: "ForwardRequest", message });
+      calls.push({ target: forwarder, allowFailure: false, callData: encodeFunctionData({ abi: accordForwarderAbi, functionName: "execute", args: [{ ...message, signature }] }) });
+    }
+    return { address: sepolia.contracts.multicall3.address, abi: multicall3Abi, functionName: "aggregate3", args: [calls] } as const;
+  }
+  await receipt(await wallet.writeContract(await legacyBatch(20_000_000n, 2n)));
+  const before = await nonce();
+  const legacyFailed = await client.waitForTransactionReceipt({ hash: await wallet.writeContract({ ...await legacyBatch(1_001_000_000n, 3n), gas: 3_000_000n }) });
+  assert.equal(legacyFailed.status, "reverted");
+  assert.equal(await nonce(), before);
+  assert.equal(await client.readContract({ address: token, abi: erc20Abi, functionName: "balanceOf", args: [space] }), 120_000_000n);
+  assert.equal(await client.readContract({ address: token, abi: erc20Abi, functionName: "allowance", args: [user.address, space] }), 0n);
+  console.log("PASS Legacy individual signatures through canonical Multicall3: one atomic transaction, rollback checked");
+
 }
 
 async function main() {

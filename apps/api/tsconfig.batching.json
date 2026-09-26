@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["scripts/deploy-batching.mts", "scripts/smoke-batching.mts"]
+}

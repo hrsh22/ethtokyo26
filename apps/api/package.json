@@ -24,7 +24,7 @@
     "smoke:onchain": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/smoke-onchain.mts",
     "smoke:gasless": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/smoke-sponsored.mts",
     "e2e:browser": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/browser-e2e.mts",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.browser-e2e.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.browser-e2e.json && tsc --noEmit -p tsconfig.batching.json",
     "test": "vitest run --passWithNoTests",
     "ready:live": "node --env-file-if-exists=../../.env ./node_modules/tsx/dist/cli.mjs scripts/live-readiness.mts"
   },

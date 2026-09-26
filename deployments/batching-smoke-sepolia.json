@@ -1,0 +1,9 @@
+{
+  "space": "0xE1a50878093E09183D43F9De5E035A7287FD3028",
+  "namespace": "batching-verificat-e1a50878.accordspaces26.eth",
+  "createTx": "0x9dab13718049e78bedcecd6b84f716e88afb6fd0e692165bd46842a93068b49b",
+  "fundTx": "0xe6ecd93a0ad5aabf80574d6e69b407192cad1442ff32839b2f8d74e6fe70c259",
+  "creationMs": 24060,
+  "fundingMs": 34321,
+  "verifiedAt": "2026-09-26T15:44:25.121Z"
+}

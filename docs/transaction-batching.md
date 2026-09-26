@@ -44,3 +44,5 @@ node --env-file=.env apps/api/node_modules/tsx/dist/cli.mjs apps/api/scripts/dep
 ```
 
 `--activate` backs up the private environment under `.data/before-batching-*/`, adds the previous addresses to their legacy allowlists, and selects the new contracts. It does not modify the database. Restart the API with its updated environment. Deployment addresses and transaction hashes are recorded in `deployments/batching-sepolia.json`. Keep both deployment manifests; do not clear existing application data.
+
+After activation, `apps/api/scripts/smoke-batching.mts --broadcast` signs in with its own test wallet, creates and activates a named Space, and funds an allowance through the live sponsor. It writes only public receipt evidence to `deployments/batching-smoke-sepolia.json`; the private test wallet and resumable state remain under `.data/batching-smoke/`. The checked-in evidence records successful live creation and funding on 26 September 2026. Agent authorization, including rollback of ENS registration when mandate installation fails, was verified against the actual ENS contracts on a local Sepolia fork.
