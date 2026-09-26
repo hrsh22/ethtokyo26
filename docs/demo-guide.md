@@ -2,6 +2,8 @@
 
 **Pitch:** A verified person delegates a revocable budget to a named agent.
 
+For the submission recording, use the [four-minute video script](demo-video-script.md): a 3:50 cut with setup prepared beforehand, one useful approved purchase, denial and ENS revocation. The walkthrough below is the complete rehearsal guide.
+
 ## Assistant purchase demo
 
 Use an external assistant that supports local stdio MCP servers. The [toolkit quickstart](../packages/agent-kit/README.md) covers installation, scoped credentials and recovery. Use a fresh agent: the names in the recorded revocation tests are intentionally inactive.
