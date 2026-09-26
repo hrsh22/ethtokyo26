@@ -1,5 +1,7 @@
 # Deployment
 
+For the current transaction-batching rollout, see [the batching guide](transaction-batching.md) and `deployments/batching-sepolia.json`. Its explicit legacy allowlists preserve the earlier deployment documented below. Do not reset old Spaces or overwrite the new addresses with historical values.
+
 The API runs on this machine as the `accord-api` user. Nginx sends
 `https://accord-api.hrsh.dev/*` to `127.0.0.1:4000/*`, and Cloudflare proxies
 the API hostname. The Vercel web app sends `/api/*` to that HTTPS hostname using

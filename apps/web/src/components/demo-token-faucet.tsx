@@ -12,12 +12,12 @@ import { amount } from "@/lib/format";
 import { Button } from "./ui/button";
 
 /** The sponsor sends 1,000 valueless tUSDC to the signed-in wallet per request. */
-export function DemoTokenFaucet({ inline = false }: { inline?: boolean }) {
+export function DemoTokenFaucet({ inline = false, tokenAddress }: { inline?: boolean; tokenAddress?: string }) {
   const { account, auth, client, config } = useAccord();
   const chain = usePublicClient({ chainId: SEPOLIA_CHAIN_ID });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const token = config.data?.demoTokenAddress;
+  const token = tokenAddress ?? config.data?.demoTokenAddress;
   const balance = useQuery({
     queryKey: ["demo-token-balance", token, account?.toLowerCase()],
     enabled: !!token && !!account && !!chain && auth.signedIn,
@@ -32,7 +32,7 @@ export function DemoTokenFaucet({ inline = false }: { inline?: boolean }) {
     setError(null);
     setPending(true);
     try {
-      const { transactionHash: hash } = await client.claimTestUSDC();
+      const { transactionHash: hash } = await client.claimTestUSDC(tokenAddress);
       const receipt = await chain.waitForTransactionReceipt({ hash: hash as Hex, timeout: 120_000 });
       if (receipt.status !== "success") throw new Error("The faucet transaction reverted on Sepolia.");
       await balance.refetch();

@@ -1,6 +1,6 @@
 "use client";
 
-import { spaceFactoryAbi } from "@accord/chain";
+import { spaceFactoryAbi, namedSpaceFactoryAbi } from "@accord/chain";
 import type { AccordClient } from "@accord/sdk";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -27,9 +27,9 @@ type Draft = Awaited<ReturnType<AccordClient["listSpaces"]>>["spaces"][number];
 const suggestions = ["Family support", "Research budget", "Team stipends", "Community grants"];
 const deploySteps = [
   { id: "save", label: "Save your Space" },
-  { id: "wallet", label: "Approve the deployment" },
-  { id: "chain", label: "Deploy on Sepolia" },
-  { id: "link", label: "Register your Space’s ENS name" },
+  { id: "wallet", label: "Confirm in your wallet" },
+  { id: "chain", label: "Create your Space and ENS name" },
+  { id: "link", label: "Finish setup" },
 ];
 
 export function CreateSpace() {
@@ -55,7 +55,7 @@ export function CreateSpace() {
     </div></Frame>;
   }
   return <Frame><Wizard key={existing?.id ?? "new"} existing={existing?.spaceAddress ? undefined : existing} deployment={{
-    factory: getAddress(deployment.factoryAddress), adapter: getAddress(deployment.adapterAddress),
+    named: deployment.namedSpaces ?? false, factory: getAddress(deployment.factoryAddress), adapter: getAddress(deployment.adapterAddress),
     authorizer: getAddress(deployment.authorizerAddress), demoToken: deployment.demoTokenAddress ? getAddress(deployment.demoTokenAddress) : undefined,
   }} /></Frame>;
 }
@@ -67,7 +67,7 @@ function Frame({ children }: { children: React.ReactNode }) {
   </div>;
 }
 
-function Wizard({ existing, deployment }: { existing?: Draft; deployment: { factory: Address; adapter: Address; authorizer: Address; demoToken?: Address } }) {
+function Wizard({ existing, deployment }: { existing?: Draft; deployment: { named: boolean; factory: Address; adapter: Address; authorizer: Address; demoToken?: Address } }) {
   const { client, account, checkSession } = useAccord();
   const router = useRouter();
   const cache = useQueryClient();
@@ -112,7 +112,7 @@ function Wizard({ existing, deployment }: { existing?: Draft; deployment: { fact
       const receipt = await requireWallet().waitForTransactionReceipt({ hash, timeout: 90_000 });
       if (receipt.status !== "success") { remember(null); throw Object.assign(new Error("The deployment reverted. You can try again."), { reverted: true }); }
     });
-    const activated = await tracker.run("link", "Registering your Space’s ENS name", () => client!.activateSpace({ draftId: current.id, deploymentTx: hash }));
+    const activated = await tracker.run("link", deployment.named ? "Saving your Space" : "Registering your Space’s ENS name", () => client!.activateSpace({ draftId: current.id, deploymentTx: hash }));
     remember(null);
     await cache.invalidateQueries({ queryKey: ["spaces"] });
     toast.success(`${activated.name} is live`, { description: "Now give a person an allowance or an agent a budget." });
@@ -143,7 +143,8 @@ function Wizard({ existing, deployment }: { existing?: Draft; deployment: { fact
         await cache.invalidateQueries({ queryKey: ["spaces"] });
       } else tracker.update("save", { state: "done" });
       const hash = await tracker.run("wallet", "Sign to create Space", () => sponsor.send(deployment.factory,
-        encodeFunctionData({ abi: spaceFactoryAbi, functionName: "createSpace",
+        deployment.named ? encodeFunctionData({ abi: namedSpaceFactoryAbi, functionName: "createNamedSpace",
+          args: [deployment.authorizer, token, current.name] }) : encodeFunctionData({ abi: spaceFactoryAbi, functionName: "createSpace",
           args: [deployment.authorizer, token, deployment.adapter] }), BigInt(7_500_000)));
       submitted = true;
       const key = activationStorageKey(account!, current.id);

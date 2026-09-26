@@ -12,7 +12,7 @@ if (result.status !== 0) {
   process.exit(result.status ?? 1);
 }
 
-const contracts = ["SpaceAccount", "SpaceFactory", "EnsPermissionAdapter", "HierarchicalEnsPermissionAdapter", "AccordForwarder", "AccordTestUSDC"];
+const contracts = ["SpaceAccount", "SpaceFactory", "NamedSpaceFactory", "SpaceNamespace", "EnsPermissionAdapter", "HierarchicalEnsPermissionAdapter", "AccordForwarder", "AccordTestUSDC"];
 const entries = contracts.map((name) => {
   const artifact = JSON.parse(
     readFileSync(join(root, "contracts", "out", `${name}.sol`, `${name}.json`), "utf8"),

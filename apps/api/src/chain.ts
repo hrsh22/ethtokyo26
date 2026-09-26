@@ -20,6 +20,20 @@ export function permitSigner() {
   return privateKeyToAccount(privateKey as Hex);
 }
 
+/** Explicit deployment allowlists preserve immutable Spaces across infrastructure upgrades. */
+export function configuredAddresses(name: string): Address[] {
+  return [process.env[name], ...(process.env[`LEGACY_${name}`] ?? "").split(",")]
+    .filter((value): value is string => !!value && isAddress(value.trim())).map(value => getAddress(value.trim()));
+}
+export function isConfiguredAddress(name: string, value: string) {
+  return configuredAddresses(name).some(address => address.toLowerCase() === value.toLowerCase());
+}
+export async function spaceAdapter(space: Address, blockNumber?: bigint) {
+  const adapter = await publicClient.readContract({ address: space, abi: spaceAccountAbi, functionName: "ensAdapter", ...(blockNumber === undefined ? {} : { blockNumber }) });
+  if (!isConfiguredAddress("ENS_ADAPTER_ADDRESS", adapter)) throw new Error("Untrusted Space adapter");
+  return adapter;
+}
+
 export function factoryAddress() {
   const value = process.env.SPACE_FACTORY_ADDRESS;
   if (!value || !isAddress(value)) throw new Error("Space factory is not configured");
@@ -33,10 +47,9 @@ export function adapterAddress() {
 }
 
 export async function deployedSpaceFromReceipt(txHash: Hex, expectedOwner: Address) {
-  const factory = factoryAddress();
+  const factories = configuredAddresses("SPACE_FACTORY_ADDRESS");
   const configuredToken = process.env.DEMO_TOKEN_ADDRESS;
   if (!configuredToken || !isAddress(configuredToken)) throw new Error("tUSDC token is not configured");
-  const adapter = adapterAddress();
   const signer = permitSigner();
   const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") throw new Error("Space deployment transaction reverted");
@@ -44,7 +57,7 @@ export async function deployedSpaceFromReceipt(txHash: Hex, expectedOwner: Addre
   // canonical factory's event binds the Space to its owner; the transaction's
   // top-level from/to do not. Verify the immutable configuration below as well.
   const created = receipt.logs.flatMap((log) => {
-    if (log.address.toLowerCase() !== factory.toLowerCase()) return [];
+    if (!factories.some(factory => log.address.toLowerCase() === factory.toLowerCase())) return [];
     try {
       const decoded = decodeEventLog({ abi: spaceFactoryAbi, eventName: "SpaceCreated", data: log.data, topics: log.topics });
       return [decoded.args];
@@ -63,7 +76,7 @@ export async function deployedSpaceFromReceipt(txHash: Hex, expectedOwner: Addre
   if (!code || owner.toLowerCase() !== expectedOwner.toLowerCase() ||
     authorizer.toLowerCase() !== signer.address.toLowerCase() ||
     token.toLowerCase() !== created[0]!.token.toLowerCase() ||
-    token.toLowerCase() !== configuredToken.toLowerCase() ||
-    ensAdapter.toLowerCase() !== adapter.toLowerCase()) throw new Error("Deployed Space configuration mismatch");
+    !isConfiguredAddress("DEMO_TOKEN_ADDRESS", token) ||
+    !isConfiguredAddress("ENS_ADAPTER_ADDRESS", ensAdapter)) throw new Error("Deployed Space configuration mismatch");
   return { space, token: getAddress(token), blockNumber: receipt.blockNumber };
 }

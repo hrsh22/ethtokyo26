@@ -6,7 +6,7 @@ import { Effect } from "effect";
 import { encodeFunctionData, getAddress, zeroAddress, zeroHash, type Hex } from "viem";
 import { currentSession, requireBrowserOrigin } from "./auth";
 import { envelope, makePermit, ownerSpace } from "./admin";
-import { adapterAddress, publicClient } from "./chain";
+import { spaceAdapter, publicClient } from "./chain";
 import { Database } from "./db";
 import { agentPolicies, agentRequests, allocationNames, spaceDrafts, spaceNamespaces } from "./db/schema";
 import { actionError, createRequest, livePolicy, liveSpace, readRequest, requestStatus, requestView, validateRequest, type Terms } from "./approval-state";
@@ -26,7 +26,8 @@ export const AgentsLive=HttpApiBuilder.group(AccordApi,"agents",handlers=>handle
       const agent=getAddress(payload.agent),daily=BigInt(payload.dailyCap),per=BigInt(payload.maxPerPayment),expiry=BigInt(payload.expiry),threshold=BigInt(payload.approvalThreshold);
       if(agent===zeroAddress || daily<=0n || per<=0n || per>daily || threshold>per || daily>=1n<<256n
         || expiry<=context.block.timestamp+60n || expiry>context.block.timestamp+180n*86400n)throw actionError("Check the limits and choose an expiry within 180 days.");
-      const name=`${payload.label}.${namespaceName(draft).name}`;
+      const [savedNamespace]=await db.client.select().from(spaceNamespaces).where(eq(spaceNamespaces.spaceAddress,context.space));
+      const name=`${payload.label}.${savedNamespace?.name??namespaceName(draft).name}`;
       const terms:Terms={agent,agentName:name,label:payload.label,amount:allocation[1].toString(),remaining:allocation[1].toString(),
         dailyCap:daily.toString(),maxPerPayment:per.toString(),approvalThreshold:threshold.toString(),expiry:expiry.toString()};
       let restrictive=false;
@@ -78,7 +79,7 @@ export const AgentsLive=HttpApiBuilder.group(AccordApi,"agents",handlers=>handle
         const signature=await signSpacePermit(context.signer,context.space,permit);
         output=envelope(context,permit,signature,"fundAgentAllocation",encodeFunctionData({abi:spaceAccountAbi,functionName:"fundAgentAllocation",args:[allocationId,amount,permit,signature]}),amount);
       } else {
-        const identity=await provisionAgent(db.client,draft,current.id,{label:terms.label!,agent:terms.agent,expiry:terms.expiry!});
+        const identity=await provisionAgent(db.client,draft,current.id,{label:terms.label!,agent:terms.agent,expiry:terms.expiry!,deadline:Math.floor(current.expiresAt.getTime()/1000)});
         // Provisioning can take several blocks. Recheck policy and request lifetime.
         await validateRequest(db.client,current);
         if(current.expiresAt<=new Date())throw actionError("Approval expired while creating the ENS identity. Start a new approval.");
@@ -89,8 +90,9 @@ export const AgentsLive=HttpApiBuilder.group(AccordApi,"agents",handlers=>handle
         const permit=await makePermit({...context,block:await publicClient.getBlock()},current.requestKey,PermitAction.SetMandate,allocationId,config.agent,0n,hashMandateTerms(config));
         permit.expiry=BigInt(Math.min(Number(permit.expiry),Number(config.expiry),Math.floor(current.expiresAt.getTime()/1000)));
         const signature=await signSpacePermit(context.signer,context.space,permit);
-        await publicClient.simulateContract({address:context.space,abi:spaceAccountAbi,functionName:"setMandate",args:[allocationId,config,permit,signature],account:context.actor});
+        if (!identity.preCalls) await publicClient.simulateContract({address:context.space,abi:spaceAccountAbi,functionName:"setMandate",args:[allocationId,config,permit,signature],account:context.actor});
         output=envelope(context,permit,signature,"setMandate",encodeFunctionData({abi:spaceAccountAbi,functionName:"setMandate",args:[allocationId,config,permit,signature]}),0n);
+        output.preCalls = identity.preCalls;
         await db.client.insert(agentPolicies).values({requestId:current.id,spaceAddress:context.space,allocationId:current.allocationId,
           name:identity.name,agent:config.agent,registry:identity.registry,nameId:identity.nameId.toString(),resource:identity.resource.toString(),
           dailyCap:terms.dailyCap!,maxPerPayment:terms.maxPerPayment!,approvalThreshold:terms.approvalThreshold!,expiry:terms.expiry!,permitRequestId:permit.requestId,createdAt:new Date()}).onConflictDoNothing();
@@ -134,7 +136,7 @@ export const AgentsLive=HttpApiBuilder.group(AccordApi,"agents",handlers=>handle
         return {name:p.name,agent:getAddress(p.agent),allocationId:p.allocationId,registry:getAddress(p.registry),nameId:p.nameId,resource:p.resource,
           approvalThreshold:p.approvalThreshold,expiry:p.expiry,active,confirmed,revoked:!!p.revokedAt};
       }));
-      const active=namespace?await publicClient.readContract({address:adapterAddress(),abi:hierarchicalEnsPermissionAdapterAbi,functionName:"namespaceActive",args:[getAddress(namespace.registry)]}):false;
+      const active=namespace?await publicClient.readContract({address:await spaceAdapter(getAddress(draft.spaceAddress)),abi:hierarchicalEnsPermissionAdapterAbi,functionName:"namespaceActive",args:[getAddress(namespace.registry)]}):false;
       return {namespace:namespace?.name??namespaceName(draft).name,...(namespace?{registry:getAddress(namespace.registry)}:{}),active,identities};
     });
   })));

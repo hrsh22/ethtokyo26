@@ -23,7 +23,8 @@ export function useSpaceMeta(address: string) {
         chain!.readContract({ address: space, abi: spaceAccountAbi, functionName: "token" }),
         chain!.readContract({ address: space, abi: spaceAccountAbi, functionName: "owner" }),
       ]);
-      if (!config.data?.demoTokenAddress || token.toLowerCase() !== config.data.demoTokenAddress.toLowerCase()) {
+      const supported = config.data?.supportedTokenAddresses ?? (config.data?.demoTokenAddress ? [config.data.demoTokenAddress] : []);
+      if (!supported.some(address => address.toLowerCase() === token.toLowerCase())) {
         throw new Error("Only tUSDC Spaces are supported by this app.");
       }
       const [decimals, symbol] = await Promise.all([

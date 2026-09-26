@@ -9,7 +9,7 @@ import confetti from "canvas-confetti";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, AtSign, Ban, Bot, Check, Lock, ScanLine, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { encodeFunctionData, formatUnits, getAddress, isAddress, zeroAddress, type Address, type Hex } from "viem";
+import { formatUnits, getAddress, isAddress, zeroAddress, type Address, type Hex } from "viem";
 import { useAccord } from "@/lib/accord";
 import { parseAmount } from "@/lib/amounts";
 import { describeError, tagOf } from "@/lib/errors";
@@ -33,8 +33,6 @@ type EnsName = Awaited<ReturnType<AccordClient["resolveEnsName"]>>;
 type Draft = Awaited<ReturnType<AccordClient["lookupSpace"]>>;
 type Person = { address: Address; ensName?: string };
 
-const erc20ApproveAbi = [{ type: "function", name: "approve", stateMutability: "nonpayable",
-  inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ name: "", type: "bool" }] }] as const;
 const frequencies = [["once", "All at once"], ["day", "Every day"], ["month", "Every month"], ["minute", "Every minute"]] as const;
 const chip = (selected: boolean) => `rounded-full px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-40 ${selected ? "bg-ink text-white" : "bg-soft hover:bg-[#ebe9f3]"}`;
 const dayInput = (date: Date) => date.toISOString().slice(0, 10);
@@ -290,18 +288,17 @@ function Signer({ address, draft, kind, person, agent, units, total, terms, cap,
   onDone: (result: { id: string; mandate: boolean }) => void;
 }) {
   const { client, config } = useAccord();
-  const { requireWallet, waitForSuccess, sendPermitTransaction } = useChainActions(address);
+  const { requireWallet, sendPermitTransaction } = useChainActions(address);
   const sponsor = useSponsoredTransaction();
   const initial = useMemo(() => [
-    { id: "approve", label: `Let Accord move ${units(total)}` },
     { id: "fund", label: kind === "person" ? "Fund the allowance" : "Fund the budget" },
     ...(kind === "agent" ? [{ id: "mandate", label: "Grant the agent its mandate" }] : []),
-  ], [kind, total, units]);
+  ], [kind]);
   const tracker = useSteps(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fundedId, setFundedId] = useState<string | null>(null);
-  const prompts = kind === "agent" ? 3 : 2;
+  const [prepared, setPrepared] = useState<Awaited<ReturnType<AccordClient["createAllocation"]>> | null>(null);
 
   async function grantMandate(allocationId: string) {
     const registry = config.data?.ensRegistryAddress;
@@ -323,24 +320,16 @@ function Signer({ address, draft, kind, person, agent, units, total, terms, cap,
     try {
       requireWallet();
       if (!funded) {
-        const envelope = await tracker.run("approve", "Preparing", async () => {
-          const next = await client.createAllocation({
-            draftId: draft.id, requestKey: crypto.randomUUID(),
-            beneficiary: kind === "agent" ? zeroAddress : person!.address,
-            ...(kind === "person" && person?.ensName ? { beneficiaryEnsName: person.ensName } : {}),
-            amount: total.toString(), periodCap: (terms.period === 0 ? total : cap).toString(), period: terms.period,
-            ...(terms.schedule ? { schedule: terms.schedule } : {}),
-          });
-          tracker.update("approve", { detail: "Confirm in your wallet" });
-          const hash = await sponsor.send(getAddress(next.tokenAddress), encodeFunctionData({ abi: erc20ApproveAbi,
-            functionName: "approve", args: [getAddress(next.spaceAddress), BigInt(next.approvalAmount)] }), BigInt(150_000));
-          tracker.update("approve", { detail: "Confirming on Sepolia" });
-          await waitForSuccess(hash);
-          tracker.update("approve", { hash });
-          return next;
+        const envelope = prepared ?? await client.createAllocation({
+          draftId: draft.id, requestKey: crypto.randomUUID(),
+          beneficiary: kind === "agent" ? zeroAddress : person!.address,
+          ...(kind === "person" && person?.ensName ? { beneficiaryEnsName: person.ensName } : {}),
+          amount: total.toString(), periodCap: (terms.period === 0 ? total : cap).toString(), period: terms.period,
+          ...(terms.schedule ? { schedule: terms.schedule } : {}),
         });
-        await tracker.run("fund", "Confirm in your wallet", () => sendPermitTransaction(envelope.permit.requestId as Hex,
-          () => sponsor.send(getAddress(envelope.spaceAddress), envelope.calldata as Hex)));
+        setPrepared(envelope);
+        await tracker.run("fund", "Preparing approval and funding", () => sendPermitTransaction(envelope.permit.requestId as Hex,
+          () => sponsor.sendWithApproval(envelope, detail => tracker.update("fund", { detail }))));
         funded = envelope.permit.allocationId.toString();
         setFundedId(funded);
       }
@@ -375,7 +364,7 @@ function Signer({ address, draft, kind, person, agent, units, total, terms, cap,
         <Button size="lg" loading={busy} onClick={() => void run()}>{fundedId ? "Grant mandate" : `Fund ${units(total)}`}</Button>
       </div>
     </div>
-    <p className="mt-3 text-right text-sm text-muted">{fundedId ? "1 wallet prompt" : `${prompts} wallet prompts`}</p>
+    <p className="mt-3 text-right text-sm text-muted">{fundedId ? "Confirm in your wallet" : "Approval and funding execute together. Gas is covered."}</p>
   </div>;
 }
 

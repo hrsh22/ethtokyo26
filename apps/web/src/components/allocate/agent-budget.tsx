@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AtSign, Bot, Fingerprint, Loader2, UserRound } from "lucide-react";
 import { useState } from "react";
-import { encodeFunctionData, erc20Abi, getAddress, parseUnits, zeroAddress, type Hex } from "viem";
+import { getAddress, parseUnits, zeroAddress, type Hex } from "viem";
 import { useAccord } from "@/lib/accord";
 import { parseAgentWallet, resolveAgentWallet, type AgentWalletInput } from "@/lib/agent-wallet";
 import { describeError } from "@/lib/errors";
@@ -23,7 +23,7 @@ type Defaults={label:string;agent:string;daily:string;per:string;threshold:strin
 export function AgentBudget({address,draftId,allocationId,defaults,initialAgent,pairingId}:{address:string;draftId:string;allocationId?:string;defaults?:Defaults;initialAgent?:string;pairingId?:string}) {
   const {client,account,checkSession}=useAccord(),router=useRouter(),cache=useQueryClient();
   const identities=useAgentIdentities(draftId),sponsor=useSponsoredTransaction();
-  const {requireWallet,sendPermitTransaction,waitForSuccess,chain}=useChainActions(address);
+  const {requireWallet,sendPermitTransaction,chain}=useChainActions(address);
   const [label,setLabel]=useState(defaults?.label??"research"),[agent,setAgent]=useState(defaults?.agent??initialAgent??"");
   const [manual,setManual]=useState(!!defaults?.agent || !!initialAgent);
   const [total,setTotal]=useState("100"),[daily,setDaily]=useState(defaults?.daily??"100");
@@ -78,11 +78,8 @@ export function AgentBudget({address,draftId,allocationId,defaults,initialAgent,
           funding=await client.createAllocation({draftId,requestKey:crypto.randomUUID(),beneficiary:zeroAddress,amount:amount.toString(),periodCap:amount.toString(),period:0});
           remember(funding);
         }
-        setMessage("Confirm the budget funding in your wallet.");
-        const tx=await sponsor.send(getAddress(funding.tokenAddress),encodeFunctionData({abi:erc20Abi,functionName:"approve",args:[getAddress(funding.spaceAddress),BigInt(funding.approvalAmount)]}));
-        await waitForSuccess(tx);
         const prepared=funding;
-        await sendPermitTransaction(prepared.permit.requestId as Hex,()=>sponsor.send(getAddress(prepared.spaceAddress),prepared.calldata as Hex));
+        await sendPermitTransaction(prepared.permit.requestId as Hex,()=>sponsor.sendWithApproval(prepared,setMessage));
         id=funding.permit.allocationId;
       }
       // Funding may take several blocks. Keep authorization bound to the wallet the owner reviewed.

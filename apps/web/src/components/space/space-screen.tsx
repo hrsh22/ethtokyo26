@@ -13,13 +13,14 @@ import { explorerAddress } from "@/lib/use-chain-actions";
 import { useSpace } from "@/lib/use-space";
 import { SpaceNamespace } from "../agent-identity";
 import { Avatar } from "../avatar";
+import { DemoTokenFaucet } from "../demo-token-faucet";
 import { ShareButton } from "../share";
 import { Button } from "../ui/button";
 import { ActivityFeed } from "./activity-feed";
 import { AllocationTile } from "./allocation-tile";
 
 export function SpaceScreen({ address }: { address: string }) {
-  const { auth, account, start } = useAccord();
+  const { auth, account, start, config } = useAccord();
   const space = useSpace(address);
   const terms = space.terms.data;
   const viewer = account ?? zeroAddress;
@@ -103,7 +104,11 @@ export function SpaceScreen({ address }: { address: string }) {
             </div>}
         </section> : null}
       </div>
-      <aside className="min-w-0 lg:sticky lg:top-28"><ActivityFeed spaceAddress={address} units={space.units} nameOf={nameOf} layout="section" /></aside>
+      <aside className="grid min-w-0 gap-5 lg:sticky lg:top-28">
+        {space.isOwner && space.meta.data && config.data?.demoTokenAddress?.toLowerCase() !== space.meta.data.token.toLowerCase()
+          ? <DemoTokenFaucet inline tokenAddress={space.meta.data.token} /> : null}
+        <ActivityFeed spaceAddress={address} units={space.units} nameOf={nameOf} layout="section" />
+      </aside>
     </div>
   </div>;
 }

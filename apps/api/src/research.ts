@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { getAddress, isAddress, zeroAddress, type Hex } from "viem";
 import { assertAgentScope, currentSession, requireBrowserOrigin } from "./auth";
 import { publicClient } from "./chain";
+import { isConfiguredAddress } from "./chain";
 import { Database } from "./db";
 import { databaseOperation } from "./db/run";
 import { agentRequests, researchQuotes, spaceDrafts } from "./db/schema";
@@ -41,9 +42,9 @@ export const ResearchLive = HttpApiBuilder.group(AccordApi, "research", (handler
     if (!seller || !isAddress(seller) || seller === zeroAddress || !token || !isAddress(token) ||
       !/^[1-9][0-9]*$/.test(price) || BigInt(price) >= 1n << 256n) return yield* Effect.fail(new HttpApiError.ServiceUnavailable());
     const [draft] = yield* databaseOperation(() => db.client.select().from(spaceDrafts).where(eq(spaceDrafts.id, payload.draftId)).limit(1));
-    if (!draft?.activatedAt || !draft.spaceAddress || draft.tokenAddress?.toLowerCase() !== token.toLowerCase()) return yield* Effect.fail(new HttpApiError.BadRequest());
+    if (!draft?.activatedAt || !draft.spaceAddress || !draft.tokenAddress || !isConfiguredAddress("DEMO_TOKEN_ADDRESS", draft.tokenAddress)) return yield* Effect.fail(new HttpApiError.BadRequest());
     const quote = { id: randomUUID(), actor: session.address, draftId: draft.id, allocationId: payload.allocationId,
-      spaceAddress: getAddress(draft.spaceAddress), tokenAddress: getAddress(token), recipient: getAddress(seller),
+      spaceAddress: getAddress(draft.spaceAddress), tokenAddress: getAddress(draft.tokenAddress), recipient: getAddress(seller),
       amount: price, expiresAt: new Date(Date.now() + 10 * 60_000) };
     yield* databaseOperation(() => db.client.insert(researchQuotes).values(quote));
     return { ...quote, title, expiresAt: quote.expiresAt.toISOString() };

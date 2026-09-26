@@ -1,0 +1,20 @@
+{
+  "chainId": "11155111",
+  "operator": "0xA4f6d0abDD38F1C622403e985Ba4E3e3b604b624",
+  "AccordForwarderTx": "0x69f9dadc4cf99e697517e03fff9567e6cf45699e63048af08a06b667521f7ae2",
+  "AccordForwarderBytecodeHash": "0xaf5d091c8617f8a468b2b0f239838d0f24d65153cfac3f1d5521fbe4a79a7efe",
+  "AccordForwarder": "0x11602605Ac4bbb599822692dA53AaA6502F52c41",
+  "AccordTestUSDCTx": "0xdbc300daf257897e0d1befefa7bd8f0bc71cd61ed2f4515cbf6216eeef5a99d4",
+  "AccordTestUSDCBytecodeHash": "0x9d28f4f90b251929661798a709cf584cc89a5af2aa80d61414e7e19bf6406d8b",
+  "AccordTestUSDC": "0x4687a12D1F787b218F53Ff91215FdC7c8FBbE6dD",
+  "SpaceNamespaceTx": "0xd164afaad998e72814c5ee1ea7bdc2efded911c1890f26469725c281e61b7586",
+  "SpaceNamespaceBytecodeHash": "0x68d7f741507c69e4a02f7e1555ecceae0e6a43c0653839d12a9a8820bd43c888",
+  "SpaceNamespace": "0x4D56b07ab694b76259C3edA41EFa52Dbf8c160d1",
+  "HierarchicalEnsPermissionAdapter": "0x9D56a7ED9949A14f4C370566FE74bE8dA25bb09d",
+  "NamedSpaceFactoryTx": "0x63d5ababba5f09392bfc01d6932ecccf012bef5313ae3c169e8a27fc2be0f4be",
+  "NamedSpaceFactoryBytecodeHash": "0x575f50f8567b13815c4563222c5772843f7cf2ea51c4cf8ccbb6490b149dc4c1",
+  "NamedSpaceFactory": "0xcDFB2C56AffB2DcaeC8593E14B2f76Ad3151f1f7",
+  "setFactoryTx": "0x0f538b4fc4c4091d7ea624d47639d856c488cc63c73c943f9c9a4903ed98acb3",
+  "grantRolesTx": "0xde293823d257a6be1f22ecffc76b360452993775ce61d4cbdc444971bbee6039",
+  "completedAt": "2026-09-26T15:38:14.495Z"
+}

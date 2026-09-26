@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, AtSign, Check, Fingerprint } from "lucide-react";
 import { useState } from "react";
-import { encodeFunctionData, erc20Abi, formatUnits, getAddress, type Hex } from "viem";
+import { formatUnits, type Hex } from "viem";
 import { useAccord } from "@/lib/accord";
 import { describeError } from "@/lib/errors";
 import { useChainActions } from "@/lib/use-chain-actions";
@@ -19,7 +19,7 @@ export function ApprovalReview({id}:{id:string}) {
   const [busy,setBusy]=useState(false),[message,setMessage]=useState("");
   const query=useQuery({queryKey:["approval",id,account],queryFn:()=>client!.approval(id),enabled:!!client && auth.signedIn,refetchInterval:5000});
   const row=query.data,sponsor=useSponsoredTransaction();
-  const {sendPermitTransaction,waitForSuccess}=useChainActions(row?.spaceAddress??"0x0000000000000000000000000000000000000000");
+  const {sendPermitTransaction}=useChainActions(row?.spaceAddress??"0x0000000000000000000000000000000000000000");
   if(!auth.signedIn)return <SignInCard title="Sign in to review" body="Use the wallet that owns this Space."/>;
   if(!row)return <div className="card p-8">{query.isError?"This request could not be loaded. Check that you're using the right wallet.":"Loading request…"}</div>;
   const owner=account?.toLowerCase()===row.owner.toLowerCase();
@@ -35,12 +35,7 @@ export function ApprovalReview({id}:{id:string}) {
         if(row.kind!=="payment") {
           setMessage(row.kind==="grant"?"Preparing the ENS identity…":"Preparing the budget increase…");
           const permit=await client.issueAgentRequest(id);
-          if(BigInt(permit.approvalAmount)>BigInt(0)) {
-            const tx=await sponsor.send(getAddress(permit.tokenAddress),encodeFunctionData({abi:erc20Abi,functionName:"approve",args:[getAddress(permit.spaceAddress),BigInt(permit.approvalAmount)]}));
-            await waitForSuccess(tx);
-          }
-          setMessage("Confirm the authorization in your wallet.");
-          await sendPermitTransaction(permit.permit.requestId as Hex,()=>sponsor.send(getAddress(permit.spaceAddress),permit.calldata as Hex));
+          await sendPermitTransaction(permit.permit.requestId as Hex,()=>sponsor.sendWithApproval(permit,setMessage));
           await cache.invalidateQueries();
           const pairing=sessionStorage.getItem(`accord:pairing-return:${id}`);
           if(pairing && /^[0-9a-f-]{36}$/i.test(pairing)) {

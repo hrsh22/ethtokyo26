@@ -7,7 +7,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { getAddress, isAddress, keccak256, toBytes, zeroHash, type Address, type Hex } from "viem";
 import { assertAgentScope, currentSession, requireBrowserOrigin } from "./auth";
 import { connectionIdentity } from "./agent-connection";
-import { adapterAddress, permitSigner, publicClient } from "./chain";
+import { isConfiguredAddress, spaceAdapter, permitSigner, publicClient } from "./chain";
 import { Database } from "./db";
 import { databaseOperation } from "./db/run";
 import { permitIntents, researchQuotes, spaceDrafts } from "./db/schema";
@@ -59,7 +59,6 @@ function response(row: IntentRow) {
 
 async function trustedSpace(space: Address, token: Address, owner: Address) {
   const signer = permitSigner();
-  const adapter = adapterAddress();
   const [onchainOwner, authorizer, onchainToken, onchainAdapter, policyVersion, code] = await Promise.all([
     publicClient.readContract({ address: space, abi: spaceAccountAbi, functionName: "owner" }),
     publicClient.readContract({ address: space, abi: spaceAccountAbi, functionName: "authorizer" }),
@@ -71,7 +70,7 @@ async function trustedSpace(space: Address, token: Address, owner: Address) {
   if (!code || onchainOwner.toLowerCase() !== owner.toLowerCase() ||
     authorizer.toLowerCase() !== signer.address.toLowerCase() ||
     onchainToken.toLowerCase() !== token.toLowerCase() ||
-    onchainAdapter.toLowerCase() !== adapter.toLowerCase()) throw new Error("Untrusted Space");
+    !isConfiguredAddress("ENS_ADAPTER_ADDRESS", onchainAdapter)) throw new Error("Untrusted Space");
   return policyVersion;
 }
 
@@ -113,7 +112,7 @@ async function liveActionState(kind: Kind, space: Address, allocationId: bigint,
     const spent = mandate[7] === block.timestamp / 86400n ? mandate[6] : 0n;
     if (spent + amount > mandate[4]) throw denied("daily_cap", "This payment would exceed the agent's daily spending limit. Try a smaller amount or wait until the next UTC day.");
     const allowed = await publicClient.readContract({
-      address: adapterAddress(), abi: ensPermissionAdapterAbi, functionName: "isAuthorized",
+      address: await spaceAdapter(space, block.number), abi: ensPermissionAdapterAbi, functionName: "isAuthorized",
       args: [mandate[1], mandate[2], mandate[3], actor], blockNumber: block.number,
     });
     if (!allowed) throw denied("ens_authority_changed", "The agent no longer holds the required ENSv2 authority. The name may have expired, transferred, or changed registration.");

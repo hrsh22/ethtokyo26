@@ -14,6 +14,7 @@ Both controls remain necessary: an approval cannot rescue a revoked ENS identity
 - [Curvegrid AI Agent: requirements, implementation and evidence](docs/curvegrid-ai-agent.md)
 - [Demo walkthrough](docs/demo-guide.md)
 - [Four-minute video script and recording setup](docs/demo-video-script.md)
+- [Single-signature transactions and compatibility](docs/transaction-batching.md)
 - [PM2 / Vercel deployment](docs/deployment.md)
 - [Public contract manifest](deployments/ens-world-sepolia.json)
 - [Integration feedback and evidence](docs/integration-feedback.md)

@@ -3,7 +3,7 @@ import { ensPermissionAdapterAbi, spaceAccountAbi } from "@accord/chain";
 import { and, desc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { getAddress, zeroAddress } from "viem";
-import { adapterAddress, permitSigner, publicClient } from "./chain";
+import { isConfiguredAddress, spaceAdapter, permitSigner, publicClient } from "./chain";
 import type { DatabaseClient } from "./db";
 import { agentPolicies, agentRequests, ownerIdentities, permitIntents, spaceDrafts } from "./db/schema";
 
@@ -57,7 +57,7 @@ export async function liveSpace(db:DatabaseClient,draftId:string) {
     publicClient.readContract({...at,functionName:"policyVersion"}),
   ]);
   if (owner.toLowerCase()!==draft.owner || authorizer.toLowerCase()!==permitSigner().address.toLowerCase()
-    || token.toLowerCase()!==draft.tokenAddress.toLowerCase() || adapter.toLowerCase()!==adapterAddress().toLowerCase()) throw actionError("This Space needs the current agent contract. Create a new Space.");
+    || token.toLowerCase()!==draft.tokenAddress.toLowerCase() || !isConfiguredAddress("ENS_ADAPTER_ADDRESS",adapter)) throw actionError("This Space needs the current agent contract. Create a new Space.");
   return {draft,address,owner,version};
 }
 export async function livePolicy(db:DatabaseClient,space:string,allocationId:string) {
@@ -74,7 +74,7 @@ export async function livePolicy(db:DatabaseClient,space:string,allocationId:str
       || BigInt(p.maxPerPayment)!==mandate[5] || BigInt(p.expiry)!==mandate[8]) continue;
     const [consumed,authorized]=await Promise.all([
       publicClient.readContract({address,abi:spaceAccountAbi,functionName:"consumedRequests",args:[p.permitRequestId as `0x${string}`]}),
-      publicClient.readContract({address:adapterAddress(),abi:ensPermissionAdapterAbi,functionName:"isAuthorized",args:[mandate[1],mandate[2],mandate[3],mandate[0]]}),
+      publicClient.readContract({address:await spaceAdapter(address),abi:ensPermissionAdapterAbi,functionName:"isAuthorized",args:[mandate[1],mandate[2],mandate[3],mandate[0]]}),
     ]);
     if(consumed && authorized)return {policy:p,allocation,mandate};
   }

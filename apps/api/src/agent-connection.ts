@@ -3,7 +3,7 @@ import { ensPermissionAdapterAbi, spaceAccountAbi } from "@accord/chain";
 import { desc, eq } from "drizzle-orm";
 import { getAddress, isAddress, zeroAddress, type Hex } from "viem";
 import { labelhash, namehash, normalize } from "viem/ens";
-import { adapterAddress, permitSigner, publicClient } from "./chain";
+import { isConfiguredAddress, spaceAdapter, permitSigner, publicClient } from "./chain";
 import type { DatabaseClient } from "./db";
 import { agentConnections, agentPolicies, spaceDrafts } from "./db/schema";
 import { ensRegistryAbi, ensResolverAbi } from "./ens-v2";
@@ -70,13 +70,13 @@ export async function resolveAgent(db: DatabaseClient, input: string) {
       publicClient.readContract({ ...at, functionName: "ensAdapter" }),
       publicClient.readContract({ ...at, functionName: "trustedForwarder" }),
       publicClient.readContract({ ...at, functionName: "consumedRequests", args: [p.permitRequestId as Hex] }),
-      publicClient.readContract({ address: adapterAddress(), abi: ensPermissionAdapterAbi, functionName: "isAuthorized",
+      publicClient.readContract({ address: await spaceAdapter(address, blockNumber), abi: ensPermissionAdapterAbi, functionName: "isAuthorized",
         args: [registry, id, state.resource, resolved], blockNumber }),
     ]);
     if (mandate[0].toLowerCase() !== resolved.toLowerCase() || mandate[1].toLowerCase() !== registry.toLowerCase() || mandate[2] !== id || mandate[3] !== state.resource ||
       mandate[4].toString() !== p.dailyCap || mandate[5].toString() !== p.maxPerPayment || mandate[8].toString() !== p.expiry || !consumed) continue;
     if (owner.toLowerCase() !== draft.owner.toLowerCase() || authorizer.toLowerCase() !== permitSigner().address.toLowerCase() ||
-      actualToken.toLowerCase() !== token.toLowerCase() || adapter.toLowerCase() !== adapterAddress().toLowerCase() || actualForwarder.toLowerCase() !== forwarder.toLowerCase()) continue;
+      !isConfiguredAddress("DEMO_TOKEN_ADDRESS", actualToken) || !isConfiguredAddress("ENS_ADAPTER_ADDRESS", adapter) || !isConfiguredAddress("FORWARDER_ADDRESS", actualForwarder)) continue;
     const spent = mandate[7] === block.timestamp / 86400n ? mandate[6] : 0n;
     seen.add(key);
     found.push({ name, chainId: 11155111 as const, agent: getAddress(resolved), owner: getAddress(owner), draftId: draft.id,

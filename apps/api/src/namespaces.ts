@@ -1,10 +1,10 @@
-import { hierarchicalEnsPermissionAdapterAbi } from "@accord/chain";
+import { hierarchicalEnsPermissionAdapterAbi, spaceNamespaceAbi, agentRegistrationTypes } from "@accord/chain";
 import { eq } from "drizzle-orm";
 import { createWalletClient, encodeFunctionData, getAddress, http, isAddress, keccak256, toBytes, zeroAddress, type Address, type Hex } from "viem";
 import { nonceManager, privateKeyToAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
 import { labelhash, namehash } from "viem/ens";
-import { adapterAddress, publicClient } from "./chain";
+import { spaceAdapter, publicClient } from "./chain";
 import type { DatabaseClient } from "./db";
 import { namespaceDeployments, spaceNamespaces, type spaceDrafts } from "./db/schema";
 import { ensFactoryAbi, ensFactoryAbiAddress, ensRegistryAbi, ensRegistryAbiAddress, ensResolverAbi, ensResolverAbiAddress, ENS_ROOT_ROLES } from "./ens-v2";
@@ -61,7 +61,34 @@ export async function ensureNamespace(db: DatabaseClient, draft: Draft) {
   const parentValue = process.env.ENS_NAMESPACE_REGISTRY;
   if (!parentValue || !isAddress(parentValue)) throw new Error("ENS namespace is not configured.");
   const parent = getAddress(parentValue), space = getAddress(draft.spaceAddress!);
-  const wallet = registrarWallet(), { label, name } = namespaceName(draft);
+  const wallet = registrarWallet();
+  let { label, name } = namespaceName(draft);
+  const adapter = await spaceAdapter(space);
+  const provisioner = process.env.SPACE_NAMESPACE_ADDRESS;
+  if (provisioner && isAddress(provisioner)) {
+    const registry = await publicClient.readContract({ address: getAddress(provisioner), abi: spaceNamespaceAbi,
+      functionName: "registries", args: [space] });
+    if (registry !== zeroAddress) {
+      // Use the factory's actual label, including its deterministic ASCII slug
+      // for Unicode display names. Existing namespaces retain their saved names.
+      label = await publicClient.readContract({ address: getAddress(provisioner), abi: spaceNamespaceAbi,
+        functionName: "labelFor", args: [space, draft.name] });
+      name = `${label}.${process.env.ENS_NAMESPACE_NAME}`;
+      const [state, child, resolver, active] = await Promise.all([
+        registryState(parent, label),
+        publicClient.readContract({ address: parent, abi: ensRegistryAbi, functionName: "getSubregistry", args: [label] }),
+        publicClient.readContract({ address: parent, abi: ensRegistryAbi, functionName: "getResolver", args: [label] }),
+        publicClient.readContract({ address: adapter, abi: hierarchicalEnsPermissionAdapterAbi, functionName: "namespaceActive", args: [registry] }),
+      ]);
+      if (!active || state.latestOwner.toLowerCase() !== draft.owner.toLowerCase() || child.toLowerCase() !== registry.toLowerCase() || resolver === zeroAddress) {
+        throw new Error("The Space namespace has changed or is no longer active.");
+      }
+      const resolved = await publicClient.readContract({ address: resolver, abi: ensResolverAbi, functionName: "addr", args: [namehash(name)] });
+      if (resolved.toLowerCase() !== space.toLowerCase()) throw new Error("The ENS name does not resolve to this Space.");
+      await db.insert(spaceNamespaces).values({ spaceAddress: space, draftId: draft.id, name, registry }).onConflictDoNothing();
+      return { registry, name };
+    }
+  }
   const registry = await deployProxy(db, `namespace:${space}`, ensRegistryAbiAddress,
     encodeFunctionData({ abi: ensRegistryAbi, functionName: "initialize", args: [wallet.account.address, ENS_ROOT_ROLES] }));
   const resolver = await deployProxy(db, `space-resolver:${space}`, ensResolverAbiAddress,
@@ -87,9 +114,9 @@ export async function ensureNamespace(db: DatabaseClient, draft: Draft) {
   if (child.toLowerCase()!==registry.toLowerCase()) throw new Error("The Space namespace was detached.");
   const currentParent = await publicClient.readContract({ address: registry, abi: ensRegistryAbi, functionName: "getParent" });
   if (currentParent[0]===zeroAddress) await confirmed(await wallet.writeContract({ address: registry, abi: ensRegistryAbi, functionName: "setParent", args: [parent,label] }));
-  const binding = await publicClient.readContract({ address: adapterAddress(), abi: hierarchicalEnsPermissionAdapterAbi, functionName: "parents", args: [registry] });
-  if (binding[0]===zeroAddress) await confirmed(await wallet.writeContract({ address: adapterAddress(), abi: hierarchicalEnsPermissionAdapterAbi, functionName: "bindNamespace", args: [registry,parent,label] }));
-  const active = await publicClient.readContract({ address: adapterAddress(), abi: hierarchicalEnsPermissionAdapterAbi, functionName: "namespaceActive", args: [registry] });
+  const binding = await publicClient.readContract({ address: adapter, abi: hierarchicalEnsPermissionAdapterAbi, functionName: "parents", args: [registry] });
+  if (binding[0]===zeroAddress) await confirmed(await wallet.writeContract({ address: adapter, abi: hierarchicalEnsPermissionAdapterAbi, functionName: "bindNamespace", args: [registry,parent,label] }));
+  const active = await publicClient.readContract({ address: adapter, abi: hierarchicalEnsPermissionAdapterAbi, functionName: "namespaceActive", args: [registry] });
   if (!active) throw new Error("The ENS namespace is no longer active.");
   await db.insert(spaceNamespaces).values({ spaceAddress: space, draftId:draft.id,name,registry }).onConflictDoNothing();
   return { registry,name };
@@ -99,7 +126,7 @@ export function provisionSpaceNamespace(db: DatabaseClient, draft: Draft) {
   return serial("ens-registrar", () => ensureNamespace(db, draft));
 }
 
-export function provisionAgent(db: DatabaseClient, draft: Draft, requestId: string, input: { label: string; agent: string; expiry: string }) {
+export function provisionAgent(db: DatabaseClient, draft: Draft, requestId: string, input: { label: string; agent: string; expiry: string; deadline?: number }) {
   return serial("ens-registrar",async () => {
     const wallet=registrarWallet(), namespace=await ensureNamespace(db,draft);
     const agent=getAddress(input.agent), name=`${input.label}.${namespace.name}`;
@@ -108,6 +135,22 @@ export function provisionAgent(db: DatabaseClient, draft: Draft, requestId: stri
     // A used name can only be renewed for the same active identity. Revocation is final.
     if (state.status!==2 && state.expiry!==0n) throw new Error("That agent name was revoked or expired. Choose a new name.");
     if (state.status===2 && state.latestOwner.toLowerCase()!==agent.toLowerCase()) throw new Error("That agent name belongs to another wallet.");
+    const provisioner = process.env.SPACE_NAMESPACE_ADDRESS;
+    if (provisioner && isAddress(provisioner) && await publicClient.readContract({
+      address: getAddress(provisioner), abi: spaceNamespaceAbi, functionName: "nodes", args: [registry],
+    }) !== `0x${"0".repeat(64)}`) {
+      const target = getAddress(provisioner), id = keccak256(toBytes(requestId));
+      const deadline = Math.min(input.deadline ?? Infinity, Math.floor(Date.now() / 1000) + 300);
+      // Simulate registration to obtain the exact ENS resource, then authorize it
+      // without broadcasting. The owner installs the identity and mandate atomically.
+      const preview = await publicClient.simulateContract({ address: target, abi: spaceNamespaceAbi,
+        functionName: "provisionAgent", args: [registry, id, input.label, agent, expiry], account: wallet.account });
+      const signature = await wallet.account.signTypedData({ domain: { name: "AccordNamespace", version: "1", chainId: sepolia.id, verifyingContract: target },
+        types: agentRegistrationTypes, primaryType: "AgentRegistration", message: { registry, requestId: id, label: input.label, agent, expiry, deadline } });
+      const preCalls = [{ to: target, data: encodeFunctionData({ abi: spaceNamespaceAbi, functionName: "provisionAgentAuthorized",
+        args: [registry, id, input.label, agent, expiry, deadline, signature] }) }];
+      return { name, registry, nameId: BigInt(labelhash(input.label)), resource: preview.result, preCalls };
+    }
     if (state.status!==2) {
       const setters=[
         encodeFunctionData({abi:ensResolverAbi,functionName:"setAddr",args:[namehash(name),agent]}),

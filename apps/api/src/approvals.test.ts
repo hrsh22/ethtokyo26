@@ -15,6 +15,7 @@ import {Database} from "./db";
 import {agentPolicies,agentRequests,ownerIdentities,permitIntents,researchQuotes,sessions,spaceDrafts} from "./db/schema";
 import {publicClient} from "./chain";
 import * as world from "./world-agents";
+import * as namespaces from "./namespaces";
 
 const addr=(d:string)=>getAddress(`0x${d.repeat(40)}`);
 const owner=addr("1"),agent=addr("2"),space=addr("3"),token=addr("4"),adapter=addr("5"),registry=addr("6"),seller=addr("7");
@@ -60,6 +61,25 @@ async function authenticate(id:string){const start=await post("/v1/approvals/wor
 async function approve(id:string){expect((await authenticate(id)).headers.get("location")).toContain("world=verified");expect((await post("/v1/approvals/decide",{id,decision:"approve"})).status).toBe(200);}
 
 describe("joint ENS and World approval protocol",()=>{
+  it("returns registrar preparation with the mandate and caches the same atomic grant",async()=>{
+    const preCalls=[{to:addr("9"),data:"0x12345678" as Hex}];
+    vi.spyOn(namespaces,"provisionAgent").mockResolvedValue({name:"newagent.team.accordspaces26.eth",registry,nameId:7n,resource:8n,preCalls});
+    const prepared=await post("/v1/agents/prepare",{draftId,requestKey:randomUUID(),allocationId:"1",label:"newagent",agent,
+      dailyCap:"100000000",maxPerPayment:"50000000",approvalThreshold:"10000000",expiry:expiry().toString()});
+    expect(prepared.status).toBe(200);
+    const row=await prepared.json();
+    expect((await post("/v1/agents/issue",{id:row.id})).status).toBe(400);
+    expect(namespaces.provisionAgent).not.toHaveBeenCalled();
+    await approve(row.id);
+    const issued=await post("/v1/agents/issue",{id:row.id});
+    expect(issued.status).toBe(200);
+    const envelope=await issued.json();
+    expect(envelope).toMatchObject({preCalls,functionName:"setMandate",approvalAmount:"0"});
+    expect(vi.mocked(publicClient.simulateContract).mock.calls.some(([args])=>args.functionName==="setMandate")).toBe(false);
+    expect(await (await post("/v1/agents/issue",{id:row.id})).json()).toEqual(envelope);
+    expect(namespaces.provisionAgent).toHaveBeenCalledTimes(1);
+  });
+
   it("restores a report's owner decision without requesting another permit",async()=>{
     const quoteId=randomUUID();
     await db.insert(researchQuotes).values({id:quoteId,actor:agent.toLowerCase(),draftId,allocationId:"1",

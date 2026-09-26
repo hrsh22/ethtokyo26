@@ -6,7 +6,7 @@ import { Effect } from "effect";
 import { randomBytes } from "node:crypto";
 import { encodeAbiParameters, encodeFunctionData, getAddress, isAddress, keccak256, stringToHex, zeroAddress, zeroHash, type Address } from "viem";
 import { currentSession, requireBrowserOrigin } from "./auth";
-import { adapterAddress, permitSigner, publicClient } from "./chain";
+import { isConfiguredAddress, permitSigner, publicClient } from "./chain";
 import { Database } from "./db";
 import { databaseOperation } from "./db/run";
 import { allocationNames, spaceDrafts } from "./db/schema";
@@ -37,7 +37,6 @@ export function ownerSpace(draftId: string) {
         const token = getAddress(draft.tokenAddress!);
         const actor = getAddress(session.address);
         const signer = permitSigner();
-        const adapter = adapterAddress();
         const block = await publicClient.getBlock();
         const read = { address: space, abi: spaceAccountAbi, blockNumber: block.number } as const;
         const [owner, authorizer, actualToken, actualAdapter, policyVersion, chainId] = await Promise.all([
@@ -50,10 +49,10 @@ export function ownerSpace(draftId: string) {
         ]);
         if (chainId !== 11155111 || owner.toLowerCase() !== actor.toLowerCase() ||
           authorizer.toLowerCase() !== signer.address.toLowerCase() ||
-          actualToken.toLowerCase() !== token.toLowerCase() || actualAdapter.toLowerCase() !== adapter.toLowerCase()) {
+          actualToken.toLowerCase() !== token.toLowerCase() || !isConfiguredAddress("ENS_ADAPTER_ADDRESS", actualAdapter)) {
           throw new Error("Untrusted Space");
         }
-        return { space, token, actor, signer, adapter, policyVersion, block };
+        return { space, token, actor, signer, adapter: actualAdapter, policyVersion, block };
       },
       catch: () => new HttpApiError.Forbidden(),
     });
@@ -79,6 +78,7 @@ export async function makePermit(context: Context, requestKey: string, action: 0
 export function envelope(context: Context, permit: SpacePermit, signature: `0x${string}`,
   functionName: "createAllocation" | "createTimedAllocation" | "setMandate" | "revokeMandate" | "recoverAllocation" | "fundAgentAllocation", calldata: `0x${string}`, approvalAmount: bigint) {
   return {
+    preCalls: undefined as { to: Address; data: `0x${string}` }[] | undefined,
     spaceAddress: context.space, tokenAddress: context.token, functionName, calldata, signature,
     digest: hashSpacePermit(context.space, permit), approvalAmount: approvalAmount.toString(),
     permit: { ...permit, action: permit.action as 0 | 1 | 4 | 5 | 6,

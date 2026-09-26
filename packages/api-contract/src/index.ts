@@ -29,7 +29,9 @@ export const DeploymentConfig = Schema.Struct({
   adapterAddress: Schema.optional(WalletAddress),
   authorizerAddress: Schema.optional(WalletAddress),
   demoTokenAddress: Schema.optional(WalletAddress),
+  supportedTokenAddresses: Schema.optional(Schema.Array(WalletAddress)),
   forwarderAddress: Schema.optional(WalletAddress),
+  namedSpaces: Schema.optional(Schema.Boolean),
   demoSpaceAddress: Schema.optional(WalletAddress),
   ensRegistryAddress: Schema.optional(WalletAddress),
   agentNamespace: Schema.optional(Schema.String),
@@ -104,9 +106,17 @@ export const ActivateSpaceDraft = Schema.Struct({
   deploymentTx: Schema.String.pipe(Schema.pattern(/^0x[a-fA-F0-9]{64}$/)),
 });
 export const SponsoredRequest = Schema.Struct({
+  forwarder: Schema.optional(WalletAddress),
   from: WalletAddress, to: WalletAddress,
   value: UnsignedInteger, gas: UnsignedInteger, nonce: UnsignedInteger, deadline: UnsignedInteger,
   data: Schema.String.pipe(Schema.pattern(/^0x(?:[a-fA-F0-9]{2})*$/)),
+  signature: Schema.String.pipe(Schema.pattern(/^0x[a-fA-F0-9]{130}$/)),
+});
+export const SponsoredBatch = Schema.Struct({
+  forwarder: WalletAddress, from: WalletAddress, nonce: UnsignedInteger, deadline: UnsignedInteger,
+  calls: Schema.Array(Schema.Struct({ to: WalletAddress, gas: UnsignedInteger,
+    data: Schema.String.pipe(Schema.pattern(/^0x(?:[a-fA-F0-9]{2})*$/)),
+  })).pipe(Schema.minItems(1), Schema.maxItems(8)),
   signature: Schema.String.pipe(Schema.pattern(/^0x[a-fA-F0-9]{130}$/)),
 });
 export const SponsoredTransaction = Schema.Struct({ transactionHash: Schema.String.pipe(Schema.pattern(/^0x[a-fA-F0-9]{64}$/)) });
@@ -253,6 +263,7 @@ export const AdminRevokeMandate = Schema.Struct({
 export const AdminRecoverAllocation = AdminRevokeMandate;
 export const AdminPermitResponse = Schema.Struct({
   spaceAddress: WalletAddress, tokenAddress: WalletAddress,
+  preCalls: Schema.optional(Schema.Array(Schema.Struct({ to: WalletAddress, data: Schema.String }))),
   functionName: Schema.Literal("createAllocation", "createTimedAllocation", "setMandate", "revokeMandate", "recoverAllocation", "fundAgentAllocation"),
   calldata: Schema.String, signature: Schema.String, digest: Schema.String,
   permit: Schema.Struct({
@@ -329,7 +340,13 @@ export const AccordApi = HttpApi.make("AccordApi")
     .addError(HttpApiError.ServiceUnavailable).addError(AgentActionError))
   .add(HttpApiGroup.make("sponsor")
     .add(HttpApiEndpoint.post("faucet")`/v1/sponsor/faucet`.addSuccess(SponsoredTransaction))
+    .add(HttpApiEndpoint.post("faucetFor")`/v1/sponsor/faucet-for`
+      .setPayload(Schema.Struct({ tokenAddress: WalletAddress })).addSuccess(SponsoredTransaction))
     .add(HttpApiEndpoint.post("relay")`/v1/sponsor/relay`.setPayload(SponsoredRequest).addSuccess(SponsoredTransaction))
+    .add(HttpApiEndpoint.post("relayBatch")`/v1/sponsor/relay-batch`
+      .setPayload(Schema.Struct({ requests: Schema.Array(SponsoredRequest).pipe(Schema.minItems(2), Schema.maxItems(8)) }))
+      .addSuccess(SponsoredTransaction))
+    .add(HttpApiEndpoint.post("executeBatch")`/v1/sponsor/batch`.setPayload(SponsoredBatch).addSuccess(SponsoredTransaction))
     .addError(HttpApiError.Unauthorized).addError(HttpApiError.Forbidden)
     .addError(HttpApiError.BadRequest).addError(HttpApiError.ServiceUnavailable).addError(SponsorUnavailable))
   .add(HttpApiGroup.make("activity")

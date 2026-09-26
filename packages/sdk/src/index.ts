@@ -1,7 +1,7 @@
 import { AccordApi } from "@accord/api-contract";
 import { FetchHttpClient, HttpApiClient, HttpClient, HttpClientRequest } from "@effect/platform";
 import { Effect } from "effect";
-import type { PaymentDecision, AgentRequestView, AgentGrantRequest, AgentFundRequest } from "@accord/api-contract";
+import type { PaymentDecision, AgentRequestView, AgentGrantRequest, AgentFundRequest, SponsoredRequest, SponsoredBatch } from "@accord/api-contract";
 
 export type ApprovalRequest = typeof AgentRequestView.Type;
 export function paymentApprovalRequired(error: unknown): ApprovalRequest | undefined {
@@ -121,9 +121,12 @@ export async function createAccordClient(baseUrl: string, options?: { bearerToke
     session: () => run(client.auth.session()),
     listSpaces: () => run(client.spaces.list()),
     listReceivedAllowances: () => run(client.spaces.received()),
-    claimTestUSDC: () => run(client.sponsor.faucet()),
-    relay: (payload: { from: `0x${string}`; to: `0x${string}`; value: string; gas: string; nonce: string; deadline: string;
+    claimTestUSDC: (tokenAddress?: string) => tokenAddress
+      ? run(client.sponsor.faucetFor({ payload: { tokenAddress } })) : run(client.sponsor.faucet()),
+    relay: (payload: { forwarder?: `0x${string}`; from: `0x${string}`; to: `0x${string}`; value: string; gas: string; nonce: string; deadline: string;
       data: `0x${string}`; signature: `0x${string}` }) => run(client.sponsor.relay({ payload })),
+    relayBatch: (requests: readonly (typeof SponsoredRequest.Type)[]) => run(client.sponsor.relayBatch({ payload: { requests } })),
+    executeBatch: (payload: typeof SponsoredBatch.Type) => run(client.sponsor.executeBatch({ payload })),
     createDraft: (payload: {
       name: string;
       templateId: "recurring-support" | "research-budget";

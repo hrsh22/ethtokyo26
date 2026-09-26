@@ -38,6 +38,11 @@ export function useChainActions(spaceAddress?: string) {
   async function sendPermitTransaction(requestId: Hex, submit: () => Promise<Hex>): Promise<Hex | null> {
     const client = requireWallet();
     const space = getAddress(spaceAddress!);
+    // A recovered permit may already have executed even if the wallet lost its response.
+    if (await client.readContract({ address: space, abi: spaceAccountAbi, functionName: "consumedRequests", args: [requestId] })) {
+      await refresh();
+      return null;
+    }
     let finished = false;
     const onchain = (async () => {
       for (let attempt = 0; attempt < 90 && !finished; attempt++) {

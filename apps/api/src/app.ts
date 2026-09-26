@@ -14,7 +14,7 @@ import { ApprovalsLive } from "./approvals";
 import { AgentsLive } from "./agents";
 import { ToolkitLive } from "./toolkit";
 import { DemoLive } from "./demo";
-import { adapterAddress, factoryAddress, permitSigner } from "./chain";
+import { adapterAddress, configuredAddresses, factoryAddress, permitSigner } from "./chain";
 import { getAddress, isAddress } from "viem";
 
 const StatusLive = HttpApiBuilder.group(AccordApi, "status", (handlers) =>
@@ -31,6 +31,8 @@ const StatusLive = HttpApiBuilder.group(AccordApi, "status", (handlers) =>
       const registry = process.env.ENSV2_REGISTRY_ADDRESS;
       return {
         configured: true,
+        namedSpaces: !!process.env.SPACE_NAMESPACE_ADDRESS,
+        supportedTokenAddresses: configuredAddresses("DEMO_TOKEN_ADDRESS"),
         ...(process.env.ENS_NAMESPACE_NAME ? { agentNamespace: process.env.ENS_NAMESPACE_NAME } : {}),
         factoryAddress: factory,
         adapterAddress: adapter,
