@@ -23,7 +23,7 @@ const cabinet = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Accord — allowances for humans and their AI agents",
+  title: "Accord - allowances for humans and their AI agents",
   description: "Give people and agents a budget with rules the contract enforces. People claim with World ID; agents spend under an ENS-bound mandate.",
 };
 

@@ -98,16 +98,16 @@ export function DemoOverview() {
         </div>
         <div className="grid grid-cols-1 gap-8 p-6 sm:p-8 lg:grid-cols-2">
           <div className="min-w-0">
-            {run.repositories.length ? <div className="mb-6"><h3 className="font-semibold">Repository comparison</h3><p className="mt-2 break-words text-sm leading-relaxed text-ink-soft">{run.repositories.join(" · ")}</p><p className="mt-1 text-sm text-muted">Criteria: {run.criteria.join(", ")}</p></div> : null}
             <h3 className="mb-3 font-semibold">Evidence checks</h3>
             <ul className="space-y-3">{run.checks.map(c => <li key={c.label} className="flex items-start gap-3">
               <span className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full ${c.status === "passed" ? "bg-good-soft text-good" : c.status === "failed" ? "bg-bad-soft text-bad" : "bg-soft text-muted"}`}>{c.status === "passed" ? <Check size={14}/> : c.status === "failed" ? <TriangleAlert size={13}/> : <Clock3 size={13}/>}</span>
               <details className="min-w-0 flex-1"><summary className="cursor-pointer text-sm font-semibold">{c.label}<span className="ml-2 text-xs font-normal text-muted">{c.source}</span></summary><p className="mt-2 text-sm leading-relaxed text-muted">{c.detail}</p></details>
             </li>)}</ul>
             <details className="mt-6 border-t border-line pt-4 text-sm"><summary className="cursor-pointer font-semibold text-muted">Request details</summary>
+              {run.repositories.length ? <div className="mt-3"><h4 className="font-semibold">Repository comparison</h4><p className="mt-2 break-words text-sm leading-relaxed text-ink-soft">{run.repositories.join(" · ")}</p><p className="mt-1 text-sm text-muted">Criteria: {run.criteria.join(", ")}</p></div> : null}
               <dl className="mt-3 space-y-2 text-xs"><div><dt className="text-muted">Quote</dt><dd className="break-all font-mono">{run.quoteId}</dd></div>{run.recipient ? <div><dt className="text-muted">Recipient</dt><dd className="break-all font-mono">{run.recipient}</dd></div> : null}<div><dt className="text-muted">Space contract</dt><dd><External href={`https://sepolia.etherscan.io/address/${data.spaceAddress}`}>{shortAddress(data.spaceAddress)}</External></dd></div></dl>
             </details>
-            {run.transactionHash ? <External href={explorer(run.transactionHash)} className="mt-5 text-sm text-[#6544ba]">{run.id === "revoked" ? "ENS revocation receipt" : "Payment receipt"}</External> : null}
+            {run.id === "revoked" && run.transactionHash ? <External href={explorer(run.transactionHash)} className="mt-5 text-sm text-[#6544ba]">ENS revocation receipt</External> : null}
           </div>
           <Result run={run}/>
         </div>
@@ -125,17 +125,24 @@ export function DemoOverview() {
 }
 
 function Result({ run }: { run: Run }) {
-  if (run.id === "approved") return <div className="min-w-0 rounded-3xl bg-soft p-5 sm:p-6">
-    <h3 className="flex items-center gap-2 font-display text-xl font-extrabold"><FileText size={20}/>What the agent received</h3>
-    {run.report ? <><p className="mt-2 text-sm text-muted">Purchased research · collected {date(run.report.collectedAt)}. This is the original saved snapshot.</p>
-      <div className="mt-4 space-y-3">{run.report.repositories.map(repo => <article key={repo.name} className="rounded-2xl bg-white p-4">
-        <External href={repo.url} className="max-w-full break-all text-sm text-[#6544ba]">{repo.name}</External>
-        {repo.description ? <p className="mt-2 text-sm text-ink-soft">{repo.description}</p> : null}
-        <p className="mt-2 text-xs text-muted">{repo.commits !== null ? `${repo.truncated ? "At least " : ""}${repo.commits} commits observed in 90 days · ` : ""}License: {repo.license}</p>
-        <details className="mt-3 text-xs text-muted"><summary className="cursor-pointer font-semibold">Sources & coverage</summary><p className="mt-2">{repo.coverage}</p><ul className="mt-2 space-y-2">{repo.sources.map((url, i) => <li key={url}><External href={url}>Source {i + 1}</External></li>)}</ul></details>
-      </article>)}</div><p className="mt-4 text-xs leading-relaxed text-muted">Accord operates this example merchant. Commit counts are activity signals. NOASSERTION means GitHub did not identify the license; inspect the source.</p></>
-      : <p className="mt-4 text-sm text-muted">The saved report is shown after its exact payment and approval checks pass.</p>}
-  </div>;
+  if (run.id === "approved") {
+    const payment = run.checks.find(c => c.label === "Exact payment confirmed" && c.source === "Sepolia");
+    const checked = payment?.status === "passed", failed = payment?.status === "failed";
+    const Icon = checked ? CheckCheck : failed ? TriangleAlert : Clock3;
+    return <div className={`flex min-w-0 flex-col justify-center rounded-3xl p-6 sm:p-8 ${checked ? "bg-good-soft" : "bg-soft"}`}>
+      <Icon size={32} className={checked ? "text-good" : failed ? "text-bad" : "text-muted"}/>
+      <h3 className="mt-4 font-display text-3xl font-extrabold">{checked ? "The payment settled." : failed ? "Payment needs review." : "Inspect the payment receipt."}</h3>
+      <p className="mt-3 text-ink-soft">{checked ? "The Space payment and tUSDC transfer match this exact request." : "The recorded receipt is available for inspection. The current checks have not confirmed this payment."}</p>
+      <div className="mt-6 rounded-2xl bg-white/70 p-4">
+        <b className="font-display text-2xl">{checked ? `${amount(BigInt(run.amount), 6)} tUSDC paid` : failed ? "Payment check failed" : "Payment check unavailable"}</b>
+        <p className="mt-1 text-sm text-muted">{checked ? payment.detail : "Review the evidence checks for the current result."}</p>
+      </div>
+      {run.transactionHash ? <div className="mt-5">
+        <External href={explorer(run.transactionHash)} className="text-sm text-[#6544ba]">View payment receipt on Sepolia</External>
+        <p className="mt-2 break-all font-mono text-xs text-muted">{run.transactionHash}</p>
+      </div> : null}
+    </div>;
+  }
   if (run.id === "denied") {
     const checked = run.checks.some(c => c.label === "Payment request remains unused" && c.status === "passed");
     return <div className="flex min-h-[260px] flex-col justify-center rounded-3xl bg-tang-soft p-6 sm:p-8"><CircleSlash size={32} className="text-[#ac5127]"/><h3 className="mt-4 font-display text-3xl font-extrabold">{checked ? "The payment stayed blocked." : "Inspect the denied request."}</h3>

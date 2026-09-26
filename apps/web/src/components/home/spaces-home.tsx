@@ -136,7 +136,7 @@ function SpaceCard({ draft, address }: { draft: Draft; address: string }) {
       <div className="flex -space-x-2">{shown.map((entry) => <Avatar key={entry.id.toString()} kind={entry.allocation[0] === zeroAddress ? "agent" : "person"}
         palette={allocationPalette(entry.id, entry.allocation[0] === zeroAddress)} size={34} className="ring-2 ring-white/70" />)}</div>
       <p className="mt-3 font-display text-[32px] font-extrabold leading-none">
-        {summary && meta.data ? amount(summary.reserved, meta.data.decimals) : "—"} <span className="text-lg opacity-70">{meta.data?.symbol ?? ""} reserved</span>
+        {summary && meta.data ? amount(summary.reserved, meta.data.decimals) : "-"} <span className="text-lg opacity-70">{meta.data?.symbol ?? ""} reserved</span>
       </p>
       <p className="mt-1 text-sm opacity-75">{summary ? summary.open === 0 ? "No allocations yet" : `${summary.people} ${summary.people === 1 ? "person" : "people"}, ${summary.agents} ${summary.agents === 1 ? "agent" : "agents"}` : "Reading Sepolia…"}</p>
     </div>

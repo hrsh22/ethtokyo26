@@ -1,4 +1,4 @@
-# World prize update — Tokyo 2026
+# World prize update - Tokyo 2026
 
 Current implementation work and prize targets are specified in the [verified-person → named-agent delegation plan](ens-world-integration-plan.md). The review below records the earlier assessment; its registration and screening prerequisites have since changed.
 

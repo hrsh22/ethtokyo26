@@ -94,7 +94,7 @@ export async function ensureNamespace(db: DatabaseClient, draft: Draft) {
   const resolver = await deployProxy(db, `space-resolver:${space}`, ensResolverAbiAddress,
     encodeFunctionData({ abi: ensResolverAbi, functionName: "initialize", args: [wallet.account.address, ENS_ROOT_ROLES, [
       encodeFunctionData({ abi: ensResolverAbi, functionName: "setAddr", args: [namehash(name), space] }),
-      encodeFunctionData({ abi: ensResolverAbi, functionName: "setText", args: [namehash(name), "description", `${draft.name} — Accord Space`] }),
+      encodeFunctionData({ abi: ensResolverAbi, functionName: "setText", args: [namehash(name), "description", `${draft.name} - Accord Space`] }),
       encodeFunctionData({ abi: ensResolverAbi, functionName: "setText", args: [namehash(name), "url", `${process.env.WEB_ORIGIN}/spaces/${space}`] }),
     ]] }));
   const state = await registryState(parent,label);

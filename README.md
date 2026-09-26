@@ -5,10 +5,10 @@ A verified person delegates a revocable budget to an ENS-named agent. **Spaces**
 Both controls remain necessary: an approval cannot rescue a revoked ENS identity, and a valid name cannot skip required human consent. The Space contract checks the signed permit, live ENS hierarchy, budgets and replay protection. The API authorizer is trusted to validate World authentication and consent. Transactions use the existing ERC-2771 sponsor; users sign requests and do not need Sepolia ETH. Intercepta is excluded from this version.
 
 - [Live app](https://accord.hrsh.dev)
-- [Public demo — inspect approved, denied and revoked purchases](https://accord.hrsh.dev/demo)
+- [Public demo - inspect approved, denied and revoked purchases](https://accord.hrsh.dev/demo)
 - [Four-point implementation plan and prize mapping](docs/ens-world-integration-plan.md)
-- [Agent developer toolkit plan — SDK, CLI and MCP](docs/agent-developer-toolkit-plan.md)
-- [Install and connect an agent — SDK/MCP quickstart](packages/agent-kit/README.md)
+- [Agent developer toolkit plan - SDK, CLI and MCP](docs/agent-developer-toolkit-plan.md)
+- [Install and connect an agent - SDK/MCP quickstart](packages/agent-kit/README.md)
 - [Developer setup in the app](https://accord.hrsh.dev/developers)
 - [Live SDK/MCP purchase, denial and ENS revocation evidence](docs/agent-toolkit-live-evidence.md)
 - [Curvegrid AI Agent: requirements, implementation and evidence](docs/curvegrid-ai-agent.md)
@@ -49,7 +49,7 @@ This matches the payment-agent and policy-aware-agent use cases in [Curvegrid's 
 
 ## Team
 
-**Harsh Gupta** — creator and developer of Accord. GitHub: [@hrsh22](https://github.com/hrsh22).
+**Harsh Gupta** - creator and developer of Accord. GitHub: [@hrsh22](https://github.com/hrsh22).
 
 ## Run locally
 

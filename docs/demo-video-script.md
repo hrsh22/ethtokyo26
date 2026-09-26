@@ -8,7 +8,7 @@
 
 The **Demo** link opens [the public evidence overview](https://accord.hrsh.dev/demo). No wallet is needed to inspect these three published runs:
 
-1. **Approved purchase:** the actual report terms, same-owner World sandbox approval record, 20 tUSDC payment receipt and saved research snapshot.
+1. **Approved purchase:** the same-owner World sandbox approval record and confirmed 20 tUSDC payment, with a direct Sepolia receipt link. Report terms sit under **Request details**; repository links are not presented as payment or approval evidence.
 2. **Denied purchase:** the owner's denial, historical ENS authority at the quote's block, no submitted payment and an unconsumed onchain request.
 3. **Revoked authority:** the real ENS revocation receipt and a read-only historical replay. The same signed payment passes at block 11784182 and fails with `InvalidEnsAuthority` at block 11784183, with 114 seconds still left on its permit. The replay broadcasts no transaction.
 

@@ -30,9 +30,9 @@ Checked against the Tokyo 2026 sponsor briefs on 25 September 2026. The two prim
 
 | Prize | How this journey addresses it | Evidence to prepare |
 | --- | --- | --- |
-| **ENS — Best Use of ENSv2: $6,000 pool** | Points 2 and 4 make Sepolia subnames, scoped permissions, expiry, and revocation control real agent spending. | Deployed namespace/registry addresses, a functioning agent name, restricted permissions, successful spending followed by rejection after ENS revocation, public source, and a live demo. |
-| **World — Best Use of World ID for Agents: $5,000 pool** | Points 1, 3, and 4 use the official event environment at delegation and payment-approval moments, with backend validation. | Request → human completion → validated result → protected action, plus a denied/expired/cancelled case where the action does not occur; an integration debrief. |
-| **World — Best Use of IDKit: $5,000 pool; supporting submission** | The existing beneficiary claim flow remains a separate IDKit use case. OIDC owner authentication alone does not satisfy this track. | A working claim proof verified on the backend, a justified credential choice, success and an alternative path, and a debrief. |
+| **ENS - Best Use of ENSv2: $6,000 pool** | Points 2 and 4 make Sepolia subnames, scoped permissions, expiry, and revocation control real agent spending. | Deployed namespace/registry addresses, a functioning agent name, restricted permissions, successful spending followed by rejection after ENS revocation, public source, and a live demo. |
+| **World - Best Use of World ID for Agents: $5,000 pool** | Points 1, 3, and 4 use the official event environment at delegation and payment-approval moments, with backend validation. | Request → human completion → validated result → protected action, plus a denied/expired/cancelled case where the action does not occur; an integration debrief. |
+| **World - Best Use of IDKit: $5,000 pool; supporting submission** | The existing beneficiary claim flow remains a separate IDKit use case. OIDC owner authentication alone does not satisfy this track. | A working claim proof verified on the backend, a justified credential choice, success and an alternative path, and a debrief. |
 
 Sources: [ENS prize requirements](https://ethglobal.com/events/tokyo2026/prizes/ens), [World prize requirements](https://ethglobal.com/events/tokyo2026/prizes/world).
 

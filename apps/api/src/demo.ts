@@ -122,7 +122,7 @@ export async function readDemoEvidence(db: DatabaseClient): Promise<PublicDemoEv
       if (checks.every(c => c.status === "passed")) {
         checks.push(await check("Purchased research delivered", "Accord record", async () => {
           entry.report = publishedReport(q);
-          return "The immutable report saved for this paid quote is available below.";
+          return "The immutable report is saved for this exact paid quote.";
         }));
       }
     } else {
