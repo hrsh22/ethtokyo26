@@ -36,6 +36,14 @@ export function DemoOverview() {
   const evidence = useQuery({ queryKey: ["public-demo-evidence"], queryFn: () => client!.demoEvidence(), enabled: !!client,
     staleTime: 45_000, refetchInterval: 60_000, refetchOnWindowFocus: false, retry: false });
   const data = evidence.data, run = data?.cases.find(item => item.id === selected);
+  function inspectRun(id: Run["id"]) {
+    setSelected(id);
+    requestAnimationFrame(() => {
+      const panel = document.getElementById("demo-run");
+      panel?.focus({ preventScroll: true });
+      panel?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    });
+  }
   return <div className="pb-4">
     <header className="max-w-[780px]">
       <span className="pill bg-white"><span className="size-2 rounded-full bg-lilac"/>Recorded demo · Sepolia</span>
@@ -78,12 +86,12 @@ export function DemoOverview() {
             <h3 className="mt-1 font-display text-2xl font-extrabold">{story.title}</h3>
             <p className="mt-2 flex-1 text-sm leading-relaxed text-ink-soft">{story.body}</p>
             <div className={`mt-4 flex items-center gap-1.5 text-xs font-semibold ${state.color}`}><state.Icon size={15}/>{state.text}</div>
-            <button type="button" aria-pressed={selected === item.id} aria-controls="demo-run" onClick={() => setSelected(item.id)} className="mt-4 flex items-center justify-between rounded-2xl bg-soft px-4 py-3 text-sm font-semibold transition-colors hover:bg-lilac-soft">{selected === item.id ? "Viewing evidence" : "Inspect this run"}<ChevronRight size={17}/></button>
+            <button type="button" aria-pressed={selected === item.id} aria-controls="demo-run" onClick={() => inspectRun(item.id)} className="mt-4 flex items-center justify-between rounded-2xl bg-soft px-4 py-3 text-sm font-semibold transition-colors hover:bg-lilac-soft">{selected === item.id ? "Viewing evidence" : "Inspect this run"}<ChevronRight size={17}/></button>
           </article>;
         })}
       </div>
 
-      {run ? <section id="demo-run" aria-label={stories[run.id].title} className="card mt-6 overflow-hidden">
+      {run ? <section id="demo-run" tabIndex={-1} aria-label={stories[run.id].title} className="card mt-6 scroll-mt-24 overflow-hidden outline-none">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line px-6 py-5 sm:px-8">
           <div><p className="text-sm text-muted">Recorded purchase{run.createdAt ? ` · ${date(run.createdAt)}` : ""}</p><h2 className="mt-1 font-display text-2xl font-extrabold">{stories[run.id].title}</h2></div>
           <span className="pill bg-soft"><FileText size={15}/>{amount(BigInt(run.amount), 6)} tUSDC requested</span>
@@ -137,6 +145,6 @@ function Result({ run }: { run: Run }) {
   return <div className="rounded-3xl bg-lilac-soft p-6 sm:p-8"><AtSign size={32} className="text-[#6544ba]"/><h3 className="mt-4 font-display text-3xl font-extrabold">Approval has limits.</h3><p className="mt-3 text-ink-soft">The same signed payment is replayed against the blocks immediately before and after ENS revocation.</p>
     {replay?.status === "passed" ? <div className="mt-5 space-y-2"><div className="rounded-2xl bg-white/75 p-4"><p className="text-xs text-muted">Before revocation</p><b className="mt-1 flex items-center gap-2 text-good"><Check size={17}/>Simulation passes</b></div><ArrowDown size={18} className="mx-auto text-[#6544ba]"/><div className="rounded-2xl bg-white/75 p-4"><p className="text-xs text-muted">After revocation · permit still valid</p><b className="mt-1 flex items-center gap-2 text-[#6544ba]"><ShieldCheck size={17}/>Blocked by ENS authority</b></div></div>
     : <p className="mt-5 rounded-2xl bg-white/70 p-4 text-sm text-muted">{replay?.status === "failed" ? "The replay did not match the recorded result." : "The historical replay is unavailable right now. The revocation receipt can still be inspected."}</p>}
-    <p className="mt-4 text-xs leading-relaxed text-muted">Historical simulation, rechecked against Sepolia. It broadcasts no payment. The revocation itself is a confirmed transaction.</p>
+    <p className="mt-4 text-xs leading-relaxed text-muted">Historical simulation, rechecked against Sepolia. It broadcasts no payment. {run.checks.some(c => c.label === "ENS revocation confirmed" && c.status === "passed") ? "The revocation itself is a confirmed transaction." : "Use the receipt link to inspect the recorded revocation transaction."}</p>
   </div>;
 }

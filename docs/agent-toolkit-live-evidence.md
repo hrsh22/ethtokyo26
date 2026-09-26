@@ -55,6 +55,8 @@ On 26 September, all **13 evidence checks** passed against the live database and
 
 The endpoint shares and caches checks for 45 seconds. RPC failures display unavailable checks; mismatches display failed checks. It accepts no user-supplied quote IDs and publishes no World identifier, session credential or permit signature. Ten new regression tests cover public access, fixed publication, privacy, changed payment terms, identity mismatch, missing transfer logs, consumed denied requests, RPC failure, expired historical permits, archival RPC failure and shared caching. The API suite now passes **107 tests**; the **34 web tests**, web lint, API/web type checks and production builds also pass.
 
+The deployed overview was inspected at **1280 × 900** and **390 × 844**. All three result views, expandable checks, source/receipt links and the wallet-free API proxy were verified. Mobile inspection led to a direct jump from each case button to its evidence, respecting reduced-motion preferences.
+
 ## Verification and remaining submission work
 
 - **97 API tests**, **13 agent SDK/MCP tests**, **34 web tests**, **32 chain-package tests**, and **22 Solidity tests** pass. Type checks, lint and production builds pass. The root test command initially needed the server's Foundry binary added to PATH; the actual Solidity run passed all 22 tests.
