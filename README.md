@@ -6,6 +6,7 @@ Both controls remain necessary: an approval cannot rescue a revoked ENS identity
 
 - [Live app](https://accord.hrsh.dev)
 - [Four-point implementation plan and prize mapping](docs/ens-world-integration-plan.md)
+- [Agent developer toolkit plan — SDK, CLI and MCP](docs/agent-developer-toolkit-plan.md)
 - [Demo walkthrough](docs/demo-guide.md)
 - [PM2 / Vercel deployment](docs/deployment.md)
 - [Public contract manifest](deployments/ens-world-sepolia.json)
