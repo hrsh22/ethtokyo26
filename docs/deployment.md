@@ -47,6 +47,32 @@ If the reserve check fails, the API returns `SponsorUnavailable` with reason `in
 `pnpm dev` can reuse this API, but browser sign-in from `localhost:3000` is
 rejected while `WEB_ORIGIN` is set to the production hostname.
 
+### Preserve the recorded demo during app resets
+
+The public `/v1/demo/evidence` endpoint verifies the fixed records in
+`apps/api/src/demo-manifest.ts`. Clearing the app database removes those purchase
+and approval records even though their Sepolia transactions still exist.
+
+Set `DEMO_EVIDENCE_DATABASE_FILE=../../.data/demo-evidence.sqlite` to an existing
+private SQLite archive of the original published records. The API opens this
+archive with writes disabled and uses it only for the demo endpoint. All normal
+app routes continue using `DATABASE_FILE`. Without the optional setting, the
+demo reads from the app database as before. A missing configured archive fails
+startup instead of silently creating an empty database.
+
+The archive needs the published `research_quotes`, their `agent_requests`, the
+matching `agent_policies` and original delegation request, the revoked purchase's
+`permit_intents`, and matching `agent_submissions`. Preserve the original values;
+do not fabricate approvals or replace them with a cached successful API response.
+Keep the archive private, outside the public web files and source control: it
+contains private identity references and a historical signed permit. Do not run
+app cleanup or migrations against it. Back it up separately from the app database.
+Sepolia receipts, consumed requests, authority and historical simulations are
+still checked against the chain whenever the evidence cache refreshes.
+
+After a reset or deployment, verify the production `/api/v1/demo/evidence`
+response contains all three cases with passing checks, and inspect `/demo`.
+
 ## Web on Vercel
 
 ### Agent toolkit rollout

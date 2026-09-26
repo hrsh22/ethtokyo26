@@ -195,4 +195,4 @@ export function demoEvidence(db: DatabaseClient) {
   return promise;
 }
 export const DemoLive = HttpApiBuilder.group(AccordApi, "demo", handlers => handlers.handle("evidence", () =>
-  Effect.gen(function* () { const db = yield* Database; return yield* Effect.promise(() => demoEvidence(db.client)); })));
+  Effect.gen(function* () { const db = yield* Database; return yield* Effect.promise(() => demoEvidence(db.demoClient ?? db.client)); })));

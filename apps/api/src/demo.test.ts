@@ -70,6 +70,29 @@ beforeEach(async () => {
 afterEach(async () => { await api.dispose(); connection.close(); vi.restoreAllMocks(); });
 
 describe("published demo evidence", () => {
+  it("verifies archived evidence after the app database has been reset", async () => {
+    const resetConnection = createClient({ url: ":memory:" });
+    const resetDb = drizzle(resetConnection);
+    await migrate(resetDb, { migrationsFolder: fileURLToPath(new URL("../drizzle-sqlite", import.meta.url)) });
+    const archivedApi = HttpApiBuilder.toWebHandler(Layer.mergeAll(
+      ApiLive.pipe(Layer.provide(Layer.succeed(Database, { client: resetDb, demoClient: db }))),
+      HttpServer.layerContext,
+    ));
+    try {
+      const response = await archivedApi.handler(new Request("http://localhost/v1/demo/evidence"));
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.cases).toHaveLength(3);
+      expect(data.cases.flatMap((c: { checks: { status: string }[] }) => c.checks).every((c: { status: string }) => c.status === "passed")).toBe(true);
+      expect(await resetDb.select().from(researchQuotes)).toHaveLength(0);
+      expect(await resetDb.select().from(agentRequests)).toHaveLength(0);
+      expect(await resetDb.select().from(sessions)).toHaveLength(0);
+      expect(JSON.stringify(data)).not.toContain(privateMarker);
+    } finally {
+      await archivedApi.dispose();
+      resetConnection.close();
+    }
+  });
   it("is public, verifies exact receipts and replays the historical permit without exposing private records", async () => {
     const response = await api.handler(new Request("http://localhost/v1/demo/evidence"));
     expect(response.status).toBe(200); const data = await response.json();
