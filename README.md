@@ -10,6 +10,7 @@ Both controls remain necessary: an approval cannot rescue a revoked ENS identity
 - [Install and connect an agent — SDK/MCP quickstart](packages/agent-kit/README.md)
 - [Developer setup in the app](https://accord.hrsh.dev/developers)
 - [Live SDK/MCP purchase, denial and ENS revocation evidence](docs/agent-toolkit-live-evidence.md)
+- [Curvegrid AI Agent: requirements, implementation and evidence](docs/curvegrid-ai-agent.md)
 - [Demo walkthrough](docs/demo-guide.md)
 - [PM2 / Vercel deployment](docs/deployment.md)
 - [Public contract manifest](deployments/ens-world-sepolia.json)
@@ -37,9 +38,21 @@ The Namespace operator holds ENS root roles; agent name tokens receive no transf
 
 Person allowances remain supported. Their fixed beneficiary enrolls with IDKit and verifies freshly for each claim. Assigned allowances appear under **Shared with you**. IDKit enrollment and the World Agents owner identity are separate credentials; neither is silently substituted for the other. The small unlink icon resets IDKit enrollment for demo recording, without erasing history or changing agent approval identity bindings.
 
+## Curvegrid: Best AI Agent Project
+
+Accord gives an external assistant tools to inspect its budget, quote and purchase repository research, request human approval, and retrieve the paid result and receipt. The Space enforces financial limits and live ENS authority; the API validates the same owner's World authentication and exact consent. The SDK and MCP connector preserve the purchase across approval and restart without charging again.
+
+This matches the payment-agent and policy-aware-agent use cases in [Curvegrid's prize brief](https://ethglobal.com/events/tokyo2026/prizes/curvegrid). **MultiBaas is not used**; the brief makes its integration optional. There is no MultiBaas integration feedback to report. See the [implementation and evidence guide](docs/curvegrid-ai-agent.md) and the [assistant demo walkthrough](docs/demo-guide.md#assistant-purchase-demo).
+
+## Team
+
+**Harsh Gupta** — creator and developer of Accord. GitHub: [@hrsh22](https://github.com/hrsh22).
+
 ## Run locally
 
 Requires Node 24+, pnpm 11 and Foundry for contract work.
+
+To try the agent tools against the hosted app, use the [standalone quickstart](packages/agent-kit/README.md); no backend credentials or local database are needed. For a self-hosted app, copy the environment template below, then configure your own backend credentials and the current deployment addresses from the [manifest](deployments/ens-world-sepolia.json) before starting the services.
 
 ```bash
 pnpm install --frozen-lockfile
@@ -57,6 +70,23 @@ World Agents uses the registered official sandbox client with `private_key_jwt`,
 ## Tests and demo tools
 
 `pnpm check` runs type checks, lint, unit tests, Foundry tests and production builds. API tests use isolated in-memory databases and explicitly mocked identity/chain responses. They cover consent, exact terms, wrong sessions/subjects, stale callbacks, denial, expiry, ENS changes and cached permits. Contract tests independently enforce budgets, hierarchy invalidation, signed agent funding and replay prevention.
+
+After installing dependencies, run the complete verification from the repository root. Ensure `forge` is on your PATH:
+
+```sh
+pnpm check
+```
+
+For focused review of the agent permission boundary, source collection, retry handling and onchain limits:
+
+```sh
+pnpm --filter @accord/api... --filter @accord/agent... build
+pnpm --filter @accord/agent test
+pnpm --filter @accord/api exec vitest run src/toolkit.test.ts src/repository-research.test.ts
+forge test --root contracts
+```
+
+These isolated tests do not require a live World login or funded wallet. Actual provider and Sepolia evidence is documented separately in the [live toolkit results](docs/agent-toolkit-live-evidence.md).
 
 `apps/api/scripts/deploy-ens-world.mts` previews/resumes the current ENS namespace, adapter and factory deployment; `--broadcast` sends transactions. `demo-ens-world.mts` uses the real API and World callback with test wallets; it never inserts a verified identity or policy. `verify-agent-ens.mts` checks real resolver records and rejected agent permission changes. The older local browser/onchain fixtures predate the new agent model and are not proof of this integration.
 

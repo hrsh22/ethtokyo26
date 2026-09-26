@@ -1,6 +1,6 @@
 # Accord agent developer toolkit
 
-**Status:** planned; toolkit implementation has not started.
+**Status:** core SDK, CLI and MCP toolkit implemented and deployed. [Live validation evidence](agent-toolkit-live-evidence.md) is recorded; the narrated end-user assistant video remains pending. The design and implementation sequence below are retained as the planning record; see **Implementation progress** for the current state.
 
 **Updated:** 26 September 2026.
 
@@ -44,7 +44,7 @@ Recipient restrictions remain planned follow-up work. The submission must descri
 - **An external assistant is the live agent demonstration.** The same ENS name appears in setup, tool responses, human review and receipts. A hosted agent is not a submission dependency.
 - Keep person allowances, the existing page structure, and current Spaces working. Use additive backend changes. The core toolkit requires neither a database reset nor a new Space contract deployment.
 
-## What we can reuse
+## What we can reuse (planning baseline)
 
 | Existing implementation | Remaining work |
 | --- | --- |
@@ -293,6 +293,7 @@ Use isolated API databases and contract fixtures for automated tests. Run live S
 | --- | --- | --- |
 | **ENSv2** | External software connects by a real ENS name; live hierarchy, expiry and registration identity constrain delegated spending. | Name-based SDK connection, onchain resolution and restricted permissions, receipts under that name, and an approved payment rejected after actual ENS revocation. |
 | **World ID for Agents** | A useful agent task requires continuity of the same verified person at delegation and sensitive-payment approval. | Official event flow, backend-validated identity, exact consent, useful delivered result, and a denied action that never executes. |
+| **Curvegrid: Best AI Agent Project** | An external assistant inspects budgets and buys a useful service while respecting financial limits and required human approval. MultiBaas is optional and is not used. | [Requirements and code pointers](curvegrid-ai-agent.md), installable SDK/MCP connector, confirmed payments, denial and durable result retrieval. |
 | **Developer usefulness** | Another team can reuse Accord's spending controls through an installable connector and SDK. | A reviewer runs the example outside the repository with one ENS name and their signer; source-linked output, receipt and clear quickstart. |
 
 The ENS brief asks for ENSv2 to be central to the product with a functional demo and public source. The World Agents brief requires the official event environment, validation before the protected action, and a demonstrated unsuccessful approval path. SDK/MCP packaging strengthens the demonstration; it does not by itself satisfy either integration. [ENS prize requirements](https://ethglobal.com/events/tokyo2026/prizes/ens), [World prize requirements](https://ethglobal.com/events/tokyo2026/prizes/world)

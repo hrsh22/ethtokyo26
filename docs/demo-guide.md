@@ -2,16 +2,30 @@
 
 **Pitch:** A verified person delegates a revocable budget to a named agent.
 
-## Main walkthrough
+## Assistant purchase demo
 
-1. Create a Space. Open **Space ENS** to show its registered name and explain that agents can have names beneath it. Then choose **Give someone a budget → An agent**.
-2. Choose the agent label and wallet. Show the full **ENSv2** subname preview. Set 100 tUSDC total, 100 per day, 50 per payment, and **Require approval above 10**.
-3. Fund the inert budget, review its exact terms, choose **Verify with World ID**, then **Authorize agent**. The first verification binds the owner; later authority increases must authenticate that same person again.
-4. Open the agent allocation. Show its ENS name, active status, expiry and World authorization. The namespace and agent resolver are real Sepolia ENSv2 contracts.
-5. As the agent, pay 1 tUSDC: routine spending stays within the approved caps. Request 20 tUSDC: no permit is issued yet. The request appears under **Needs your approval** on the owner’s Spaces page.
-6. As owner, review the exact amount and recipient, verify freshly with World, and explicitly **Approve payment**. As agent, **Continue payment** to receive a confirmed receipt. Refreshing keeps the same request; it does not create another payment.
-7. Request another 20 tUSDC, then **Deny** as owner. The agent cannot pay even though ENS is still active.
-8. Approve one more request, then use **Revoke ENS** in the allocation’s owner controls. Show the revoked ENS status and failed payment. A previously issued permit also fails at the Space contract after ENS revocation.
+Use an external assistant that supports local stdio MCP servers. The [toolkit quickstart](../packages/agent-kit/README.md) covers installation, scoped credentials and recovery. Use a fresh agent: the names in the recorded revocation tests are intentionally inactive.
+
+1. Create a Space and claim tUSDC from the faucet. Open **Space ENS** to show its registered name and the namespace for its agents.
+2. In a local project folder with Node 24+, install and start pairing:
+
+   ```sh
+   npm install https://accord.hrsh.dev/downloads/accord-agent-0.1.0.tgz
+   npx accord init
+   npx accord connect
+   ```
+
+   Open the private connection link as the owner. Choose the Space, create a name for the displayed signer, and set **100 tUSDC total**, **100 per day**, **25 per payment**, and **approval above 10**. Fund the allocation, complete fresh World authentication and explicitly **Authorize agent**. Then approve the tooling connection and return to the terminal. The first verification binds the owner; later authority increases must authenticate that same person again.
+3. Run `npx accord mcp config` and add the generated entry to the assistant's MCP settings. It contains local executable paths and the profile name. Keep keys, profile contents and the private pairing URL out of prompts and recordings. Show the agent's public ENS name, active status and limits.
+4. Ask the assistant to inspect its identity, budget and research offers, then buy the **1 tUSDC snapshot** for `ensdomains/ens-contracts`, `wevm/viem` and `modelcontextprotocol/typescript-sdk`. It should return the source-linked result and receipt. This demonstrates routine spending within the delegated policy.
+5. Ask for a **20 tUSDC comparison** of those repositories, using `TypeScript` and `documentation` as criteria. The assistant obtains a quote, attempts the purchase, then stops at `awaiting_approval` and shows the owner the review URL. No transaction has been submitted. The owner's **Needs your approval** inbox shows the same request.
+6. As owner, review the exact repositories, criteria, amount and recipient. Verify freshly with World and explicitly **Approve payment**. Tell the assistant to resume the **same quote ID**, retrieve the result and receipt, and explain its findings with source URLs and coverage gaps. A reconnect or repeated result lookup must return the existing purchase without another debit.
+7. Request a separate comparison, then **Deny** as owner. Ask the assistant to resume that quote. Show `denied` with no transaction, while its ENS authority is still active. It should stop rather than create a replacement purchase.
+8. Request and approve a new comparison but tell the assistant to wait before resuming. Use **Revoke ENS** in the allocation's owner controls, then resume that same quote. Show `ens_revoked` and no new payment. Previously purchased results remain retrievable while the tooling connection is valid.
+
+For the last step, approving a quote and pausing the assistant does not by itself prove that a signed permit was cached. The separate [live evidence](agent-toolkit-live-evidence.md) records the controlled check: a signed, unexpired permit passed simulation before actual ENS revocation and failed afterward. The [earlier contract walkthrough](ens-world-live-evidence.md) also includes a broadcast reverted payment. Keep these forms of evidence distinct.
+
+The merchant is operated by Accord and sells real public GitHub research for test tUSDC. The assistant interprets the returned evidence; repository excerpts and commit counts are not quality or security scores. Record its actual tool calls and result, not just the wallet UI or deterministic runner output.
 
 Use the official World Agents sandbox. It uses fake event identities; describe it as a sandbox authentication demonstration. The actual code exchange, JWT validation, identity binding, consent, ENS registration, and Sepolia transactions are real. IDKit beneficiary verification is a separate integration, not silently treated as the same credential.
 
@@ -19,6 +33,8 @@ The authorization boundary is **live ENS identity + budget/caps + exact human co
 
 ## Rehearsal and evidence
 
+- [Live SDK/MCP evidence](agent-toolkit-live-evidence.md) records clean installation, real repository-research purchases, denied requests, restart recovery and ENS revocation checks. The narrated end-user assistant recording remains pending.
+- [Curvegrid implementation guide](curvegrid-ai-agent.md) maps the AI Agent prize requirements to the repository and evidence. MultiBaas is not used.
 - [Completed live walkthrough evidence](ens-world-live-evidence.md) contains the successful payments, denied request, provider nonce rejection and onchain rejection after ENS revocation.
 - [Deployment manifest](../deployments/ens-world-sepolia.json) lists the root name, pinned ENS implementations, new factory and adapter, and infrastructure transactions.
 - `apps/api/scripts/demo-ens-world.mts` drives the live API using the configured test wallets. It never inserts a verified identity or policy. Its private session file is in `.data/`; do not publish it.
@@ -49,15 +65,38 @@ There are exactly five windows measured from the funding block, including the im
 
 The current factory is `0x2C080f4EAEB124E07c50F6b9324fAb7894E97A63` on Sepolia. Every Space it creates supports timed allowances and sponsored transactions. Spaces from earlier deployments are no longer trusted by the API.
 
-## Paid report task
+## Deterministic SDK example
 
-**Get a quote** in the agent allocation buys a report from the configured seller after the exact onchain payment is confirmed. The report shows remaining budget, daily headroom, per-payment limits and ENS authority at the payment block. It is a chain-state report from a scripted service.
+`apps/agent-demo` uses the same paired profile and SDK as MCP. It is a reproducible Node example, not an autonomous model. After completing `accord connect` on the same machine, run these commands from the repository root:
 
-Set `RESEARCH_SELLER_ADDRESS` and `RESEARCH_PRICE_BASE_UNITS` in the backend environment. The default demonstration price is 1 tUSDC. Choose a lower approval threshold if this purchase should pause for the owner.
+```sh
+pnpm install --frozen-lockfile
+pnpm --filter @accord/agent-demo... build
+ACCORD_PROFILE=default pnpm --filter @accord/agent-demo dev
+```
 
-The independent Node agent runs the same API with `ACCORD_AGENT_TASK=research`. Set `API_URL`, `ACCORD_DRAFT_ID`, `ACCORD_ALLOCATION_ID`, `ACCORD_AGENT_PRIVATE_KEY`, and `ACCORD_SEPOLIA_RPC_URL` privately. It prints a review link and waits for approval, retrying the same request key. A rejection or expiry submits no transaction.
+With no purchase inputs, the last command reads identity, budget and offers. To initiate one comparison, generate an operation key **once**, then retain that value and the returned quote ID:
 
-The browser preserves quote/payment references per wallet and Space. After a submitted transaction, use **Retrieve the report** or its transaction hash to fetch the result without charging again. The Node client supports `ACCORD_RESEARCH_QUOTE_ID` and `ACCORD_PAYMENT_TX_HASH` for the same recovery.
+```sh
+export ACCORD_PROFILE=default
+export ACCORD_OPERATION_KEY="$(node -e 'console.log(crypto.randomUUID())')"
+export ACCORD_REPOSITORIES=ensdomains/ens-contracts,wevm/viem,modelcontextprotocol/typescript-sdk
+export ACCORD_TIER=comparison
+export ACCORD_CRITERIA=TypeScript,documentation
+pnpm --filter @accord/agent-demo dev
+```
+
+If the result is `awaiting_approval`, open its `reviewUrl` as the owner and make the decision. Resume using the quote ID printed in that result:
+
+```sh
+ACCORD_QUOTE_ID=PASTE_RETURNED_QUOTE_ID pnpm --filter @accord/agent-demo dev
+```
+
+For `submitted` or `reconciling`, wait for confirmation and resume the same quote. For `denied`, `cancelled`, `expired` or `invalidated`, stop. A new purchase requires new intent; do not generate a fresh operation key simply to retry a timeout. See the [environment template](../apps/agent-demo/.env.example); the runner reads process environment variables and does not automatically load that file. No raw private key, draft ID or allocation ID is needed in the example's environment.
+
+### Earlier browser report fixture
+
+The allocation page's **Get a quote** / **Retrieve the report** flow remains a separate chain-state report showing remaining budget, caps and ENS authority. It is useful for payment regression checks; it is not the repository research bought through MCP. Its backend `RESEARCH_PRICE_BASE_UNITS` setting does not change the toolkit's 1/20 tUSDC repository offers.
 
 ## Demo-only unlink
 
