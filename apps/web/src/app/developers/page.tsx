@@ -5,11 +5,11 @@ const install = "npm install https://accord.hrsh.dev/downloads/accord-agent-0.1.
 const code = (text: string) => <pre className="mt-4 overflow-x-auto rounded-2xl bg-soft p-4 text-[13px] leading-relaxed text-ink-soft"><code>{text}</code></pre>;
 export default function DevelopersPage() {
   return <div className="mx-auto max-w-[900px]">
-    <Link href="/spaces" className="mb-6 inline-flex items-center gap-2 font-semibold text-muted"><ArrowLeft size={18}/>Your Spaces</Link>
+    <div className="mb-6"><Link href="/spaces" className="inline-flex items-center gap-2 font-semibold text-muted"><ArrowLeft size={18}/>Your Spaces</Link></div>
     <span className="pill bg-lilac-soft text-[#6544ba]"><Code2 size={15}/>Developer preview · Sepolia</span>
     <h1 className="mt-5 font-display text-4xl font-extrabold tracking-tight sm:text-6xl">A budget for your agent.</h1>
     <p className="mt-4 max-w-[650px] text-lg text-ink-soft">Connect an assistant by its ENS name. Let it buy useful research, pause for your approval, and return with a result and receipt.</p>
-    <div className="mt-8 grid gap-5">
+    <div className="mt-8 grid grid-cols-1 gap-5">
       <section className="card p-7 sm:p-9"><h2 className="flex items-center gap-3 font-display text-2xl font-extrabold"><Plug className="text-[#6544ba]"/>1. Create a local signer</h2>
         <p className="mt-3 text-ink-soft">Use Node 24 or newer. These commands keep a dedicated key in a private local profile.</p>
         {code(`${install}\nnpx accord init\nnpx accord connect`)}

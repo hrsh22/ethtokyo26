@@ -29,7 +29,7 @@ export function Sheet({ open, onOpenChange, title, description, children, busy =
             initial={{ opacity: 0, y: "-44%", x: "-50%", scale: 0.96 }} animate={{ opacity: 1, y: "-50%", x: "-50%", scale: 1 }}
             exit={{ opacity: 0, y: "-46%", x: "-50%", scale: 0.97 }} transition={{ type: "spring", stiffness: 380, damping: 32 }}>
             <div className="mb-5 flex items-start justify-between gap-4">
-              <div>
+              <div className="min-w-0">
                 <Dialog.Title className="font-display text-[28px] font-extrabold leading-tight">{title}</Dialog.Title>
                 {description ? <Dialog.Description className="mt-1 break-words text-muted">{description}</Dialog.Description> : <Dialog.Description className="sr-only">{title}</Dialog.Description>}
               </div>

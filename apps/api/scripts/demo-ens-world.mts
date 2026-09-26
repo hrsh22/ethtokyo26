@@ -13,7 +13,17 @@ let state:Record<string,any>={};try{state=JSON.parse(await readFile(file,"utf8")
 async function save(){await writeFile(file,JSON.stringify(state,null,2)+"\n",{mode:0o600});}
 async function login(account:typeof owner,key:string){
   const publicApi=await createAccordClient(base);
-  if(!state[key]){const c=await publicApi.createChallenge(account.address);state[key]=(await publicApi.verifyChallenge({id:c.id,address:account.address,signature:await account.signMessage({message:c.message}),client:"agent"})).token;await save();}
+  if(state[key]){const r=await fetch(`${base}/v1/auth/session`,{headers:{authorization:`Bearer ${state[key]}`}});if(!r.ok)delete state[key];}
+  // Controlled historical wallet fixture. External agents use the separately
+  // paired/scoped toolkit; this driver deliberately exercises general wallet API.
+  if(!state[key]){
+    const c=await publicApi.createChallenge(account.address);
+    const r=await fetch(`${base}/v1/auth/verify`,{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({id:c.id,address:account.address,signature:await account.signMessage({message:c.message}),client:"browser"})});
+    if(!r.ok)throw new Error("Demo wallet sign-in failed");
+    state[key]=r.headers.get("set-cookie")?.match(/accord_session=([a-f0-9]{64})/)?.[1];
+    if(!state[key])throw new Error("Demo wallet session missing");await save();
+  }
   return createAccordClient(base,{bearerToken:state[key]});
 }
 const api=await login(owner,"ownerSession"),agentApi=await login(agent,"agentSession"),config=await api.config();
